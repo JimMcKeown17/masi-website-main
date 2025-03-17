@@ -1,0 +1,124 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Jobs & Scholarships - Masinyusane{% endblock %}
+
+{% block content %}
+<!-- Hero Section -->
+<section class="apply-hero-section d-flex align-items-center justify-content-center">
+    <div class="container text-center text-white">
+        <div class="row">
+            <div class="col-md-6 offset-md-6 text-white">
+                <!-- Empty for background image -->
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Jobs Section -->
+<section class="container mt-7">
+    <h2 class="text-center mb-4">Masi Jobs</h2>
+    <div class="row">
+        <div class="col-md-4 mb-4">
+            <div class="card h-100">
+                <img src="{% static 'images/Lit Session 1.jpg' %}"
+                     class="card-img-top"
+                     alt="Job 1">
+                <div class="card-body">
+                    <h5 class="card-title">Youth Job Opportunity</h5>
+                    <p class="card-text">
+                        Join our community jobs program to help uplift local
+                        communities.
+                    </p>
+                    <a href="https://forms.gle/RQyUe2WoyvSot1ws9" 
+                       class="btn btn-outline-primary">Apply Now</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 mb-4">
+            <div class="card h-100">
+                <img src="{% static 'images/staff/Thembeka-Nobomvu.jpg' %}"
+                     class="card-img-top"
+                     alt="Job 2">
+                <div class="card-body">
+                    <h5 class="card-title">Staff Job Opening</h5>
+                    <p class="card-text">
+                        Become a part of our team and contribute to our mission.
+                    </p>
+                    <a href="https://forms.gle/Ar6HV9G8CWg4HC7c7" 
+                       class="btn btn-outline-primary">Apply Now</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Bursaries Section -->
+<section class="container my-5">
+    <h2 class="text-center mb-4">Bursaries</h2>
+    <div class="row">
+        <div class="col-md-4 mb-4">
+            <div class="card h-100">
+                <img src="{% static 'images/grads/grad2.jpg' %}"
+                     class="card-img-top"
+                     alt="Bursary 1">
+                <div class="card-body">
+                    <h5 class="card-title">Masi Scholarship</h5>
+                    <p class="card-text">
+                        Funding opportunities for university students.
+                    </p>
+                    <a href="#" class="btn btn-outline-danger">Apply Now</a>
+                    <p>Closed</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 mb-4">
+            <div class="card h-100">
+                <img src="{% static 'images/grads/grad1.jpg' %}"
+                     class="card-img-top"
+                     alt="Bursary 2">
+                <div class="card-body">
+                    <h5 class="card-title">Kouga Bursaries</h5>
+                    <p class="card-text">
+                        Bursaries for students in the Kouga Kamma Municipality.
+                    </p>
+                    <a href="#" class="btn btn-outline-danger">Apply Now</a>
+                    <p>Closed</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 mb-4">
+            <div class="card h-100">
+                <img src="{% static 'images/grads/grad4.jpg' %}"
+                     class="card-img-top"
+                     alt="Bursary 3">
+                <div class="card-body">
+                    <h5 class="card-title">Tsitsikamma Bursaries</h5>
+                    <p class="card-text">
+                        Bursaries for students in the Tsitsikamma Communities.
+                    </p>
+                    <a href="#" class="btn btn-outline-danger">Apply Now</a>
+                    <p>Closed</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<!-- AOS JS -->
+<script src="https://cdn.jsdelivr.net/npm/aos@2.3.4/dist/aos.js"></script>
+<script>
+    AOS.init({
+        duration: 1000,
+        once: true
+    });
+</script>
+<script>
+    document.getElementById('video-thumbnail')?.addEventListener('click', function () {
+        document.getElementById('video-thumbnail').style.display = 'none';
+        document.getElementById('video-player').style.display = 'block';
+    });
+</script>
+{% endblock %}

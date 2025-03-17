@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load account socialaccount %}
+
+{% block title %}{% trans "Sign In" %} | Masinyusane{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card shadow">
+                <div class="card-body p-5">
+                    <div class="text-center mb-4">
+                        <img src="/static/images/Masi Logo Colour.png" alt="Masinyusane Logo" class="img-fluid" style="max-height: 80px;">
+                        <h2 class="mt-3">{% trans "Sign In" %}</h2>
+                    </div>
+                    
+                    {% if form.errors %}
+                    <div class="alert alert-danger">
+                        {% trans "Please check your credentials and try again." %}
+                    </div>
+                    {% endif %}
+                    
+                    <form class="login" method="post" action="{% url 'account_login' %}">
+                        {% csrf_token %}
+                        
+                        <div class="mb-3">
+                            <label for="id_login" class="form-label">{% trans "Email" %}</label>
+                            <input type="email" name="login" class="form-control" id="id_login" placeholder="email@example.com" autocomplete="email" required>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="id_password" class="form-label">{% trans "Password" %}</label>
+                            <input type="password" name="password" class="form-control" id="id_password" placeholder="••••••••" autocomplete="current-password" required>
+                        </div>
+                        
+                        <div class="mb-3 form-check">
+                            <input type="checkbox" name="remember" class="form-check-input" id="id_remember">
+                            <label class="form-check-label" for="id_remember">{% trans "Remember Me" %}</label>
+                        </div>
+                        
+                        <div class="d-grid">
+                            <button class="btn btn-primary" type="submit">{% trans "Sign In" %}</button>
+                        </div>
+                        
+                        {% if redirect_field_value %}
+                        <input type="hidden" name="{{ redirect_field_name }}" value="{{ redirect_field_value }}" />
+                        {% endif %}
+                    </form>
+                    
+                    <div class="text-center mt-4">
+                        <p>- OR -</p>
+                        {% get_providers as socialaccount_providers %}
+                        {% if socialaccount_providers %}
+                            <a href="{% provider_login_url 'google' %}" class="btn btn-outline-dark">
+                                <img src="https://www.google.com/favicon.ico" alt="Google" width="20" class="me-2">
+                                {% trans "Sign in with Google" %}
+                            </a>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="text-center mt-3">
+                        <p>
+                            <a href="{% url 'account_reset_password' %}">{% trans "Forgot Password?" %}</a>
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

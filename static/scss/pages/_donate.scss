@@ -1,0 +1,170 @@
+@import url('https://fonts.googleapis.com/css2?family=Nerko+One&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@100;200;300;400;500;600&display=swap');
+
+:root {
+  --masi-red: #ff0000;
+  --masi-blue: #0000ee;
+  --masi-yellow: #ffde5f;
+  --masi-green: green;
+  --masi-red-2: #ea294c;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: 'Poppins', sans-serif;
+}
+
+/*--------------------------------------------------
+  NAVBAR
+--------------------------------------------------*/
+#navbar {
+  background-color: rgba(255, 255, 255, 0);
+  transition: background-color 0.5s ease;
+  color: white;
+}
+
+.nav-item {
+  margin-left: 50px;
+}
+
+.dropdown:hover .dropdown-menu {
+  display: block;
+  border: none;
+  border-radius: 0;
+  opacity: 0.95;
+}
+
+#navbar.scrolled {
+  background-color: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.nav-link {
+  transition: color 0.3s ease;
+}
+
+.nav-link-white {
+  color: white !important;
+}
+
+.navbar-brand img {
+  max-height: 50px;
+}
+
+/*--------------------------------------------------
+  DONATE HERO SECTION
+--------------------------------------------------*/
+.donate-hero-section {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  text-align: center;
+
+  .donation-box {
+    padding-top: 1rem;
+
+    iframe {
+      max-width: 600px;
+      min-width: 250px;
+      width: 100%;
+      border: none;
+      /* Ensure the donorbox iframe respects its height */
+      height: 900px;
+    }
+  }
+}
+
+/*--------------------------------------------------
+  TRUSTED BY SECTION
+--------------------------------------------------*/
+.trusted-by {
+  padding: 2rem 0;
+
+  h2 {
+    font-size: 2.5rem;
+    margin-bottom: 2rem;
+
+    .light-header {
+      font-weight: 300;
+    }
+  }
+
+  .logo-scroll-container {
+    overflow: hidden;
+    white-space: nowrap;
+    position: relative;
+  }
+
+  .logo-scroll {
+    display: inline-block;
+    animation: scroll 30s linear infinite;
+  }
+
+  .partner-logo {
+    display: inline-block;
+    height: 70px;
+    margin: 0 20px;
+    filter: grayscale(100%) opacity(0.5);
+    transition: filter 0.3s ease;
+  }
+
+  .partner-logo:hover {
+    filter: grayscale(0%) opacity(1);
+  }
+
+  @keyframes scroll {
+    0% {
+      transform: translateX(0);
+    }
+    100% {
+      transform: translateX(-50%);
+    }
+  }
+}
+
+/*--------------------------------------------------
+  FOOTER
+--------------------------------------------------*/
+.footer {
+  .container {
+    color: white;
+
+    a {
+      text-decoration: none;
+    }
+
+    @media (max-width: 768px) {
+      font-size: 12px !important;
+      line-height: 1 !important;
+
+      p {
+        font-size: 12px !important;
+      }
+
+      .footer-info p {
+        font-size: 12px !important;
+        line-height: 1.2;
+      }
+    }
+  }
+
+  .footer-info p {
+    font-size: 14px;
+    line-height: 0.5;
+  }
+
+  ul li a {
+    font-size: 14px;
+
+    @media (max-width: 768px) {
+      font-size: 12px !important;
+      line-height: 2 !important;
+    }
+  }
+}

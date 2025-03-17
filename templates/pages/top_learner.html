@@ -1,0 +1,171 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Scholarship Fund - Masinyusane{% endblock %}
+
+{% block content %}
+<!-- Hero Section -->
+<section class="tl-hero-section d-flex align-items-center justify-content-center d-none d-md-block">
+    <div class="container text-center text-white">
+        <div class="row">
+            <div class="col-md-6 offset-md-6 text-white">
+                <!-- Empty for background image effect -->
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Mobile Hero Section -->
+<section class="mobile-hero-section d-block d-sm-none">
+    <div class="mobile-hero-container">
+        <img src="{% static 'images/tl-photo-1.webp' %}"
+             alt="Early Childhood Education"
+             class="mobile-hero-image"
+             loading="lazy">
+    </div>
+</section>
+
+<!-- Content Sections -->
+<section class="children content-section">
+    <div class="container">
+        <!-- Section 1 -->
+        <div class="row align-items-center my-5">
+            <div class="col-md-6" data-aos="fade-right">
+                <h2>Our Mission</h2>
+                <p>What would happen if you flooded an impoverished community with university graduates?</p>
+                <p class="fw-bold">We are going to find out.</p><br>
+                <p>Our mission is to create a generation of young graduates that are empowered to uplift their own families, 
+                   solve their own communities problems and serve as role models to future youth.</p>
+            </div>
+
+            <!-- Video Placeholder -->
+            <div class="col-md-6" data-aos="fade-left">
+                <div class="video-wrapper">
+                    <iframe id="youtube-video"
+                            width="100%"
+                            height="315"
+                            src="https://www.youtube.com/embed/Yg3elIFqDS8?si=dwl9Q6asnIeaBHr-"
+                            title="YouTube video player"
+                            frameborder="0"
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                            allowfullscreen></iframe>
+                </div>
+            </div>
+        </div>
+
+        <!-- Section 2 -->
+        <div class="row align-items-center my-4">
+            <div class="col-md-6 order-md-2" data-aos="fade-left">
+                <div class="px-4">
+                    <h2>Girls Scholarship Fund</h2>
+                    <p>Girls do more to uplift their families and communities than men. This is well established. 
+                       They are also provided far fewer opportunities in this world than their male counterparts.</p>
+                    <p>In recognition of above, Masinyusane has invested millions of rand in sending talented young 
+                       female students to university and creating a generation of female leaders.</p>
+                    <p>We are impossibly proud of these young woman and look forward to seeing them enter fields 
+                       ranging from Engineering to Law.</p>
+                </div>
+            </div>
+            <div class="col-md-6 order-md-1" data-aos="fade-right">
+                <img src="{% static 'images/tl-photo-1.webp' %}"
+                     alt="Vision"
+                     class="img-fluid"
+                     loading="lazy">
+            </div>
+        </div>
+
+        <!-- Section 3 -->
+        <div class="row align-items-center my-4">
+            <div class="col-md-6" data-aos="fade-right">
+                <h2>Tuition Scholarships</h2>
+                <p>Masinyusane's scholarship fund ensures that all learners qualifying from university from Port 
+                   Elizabeth's 35 township high schools has the opportunity to continue their education.</p>
+                <p>Our mission is to flood the township with graduates empowered to uplift their own families, 
+                   solve their own community's problems and serve as role models to their own youth.</p>
+            </div>
+            <div class="col-md-6" data-aos="fade-left">
+                <img src="{% static 'images/tl-photo-2.webp' %}"
+                     alt="Impact"
+                     class="img-fluid"
+                     loading="lazy">
+            </div>
+        </div>
+
+        <!-- Section 4 -->
+        <div class="row align-items-center my-4">
+            <div class="col-md-6 order-md-2" data-aos="fade-left">
+                <div class="px-4">
+                    <h2>Food, Transport, & Housing</h2>
+                    <p>Our students lack access to more than just tuition. They are unable to borrow funds to live on campus, 
+                       are forced to live in crowded, impoverished homes and commute more than an hour each day.</p>
+                    <p>Many struggle to find bus fare and few eat during the day. To combat this, Masinyusane distributes 
+                       food and bus fare stipends every week.</p>
+                    <p>We also run two Masinyusane Houses of Excellence that provide free, safe housing to our most 
+                       impoverished students.</p>
+                </div>
+            </div>
+            <div class="col-md-6 order-md-1" data-aos="fade-right">
+                <img src="{% static 'images/tl-photo-3.webp' %}"
+                     alt="Programs"
+                     class="img-fluid"
+                     loading="lazy">
+            </div>
+        </div>
+
+        <!-- Section 5 -->
+        <div class="row align-items-center my-4">
+            <div class="col-md-6" data-aos="fade-right">
+                <h2>Mentoring & Guidance</h2>
+                <p>Many of our students struggle with the transition from all-Xhosa high schools to multi-cultural, 
+                   English-speaking universities. This is compounded by no longer being the big fish in the small pond.</p>
+                <p>In response, our team of mentors work closely with our students every day to ensure they receive 
+                   the support, motivation, love and guidance needed to navigate their studies and the inevitable tough times.</p>
+            </div>
+            <div class="col-md-6" data-aos="fade-left">
+                <img src="{% static 'images/tl-photo-4.webp' %}"
+                     alt="Join Us"
+                     class="img-fluid"
+                     loading="lazy">
+            </div>
+        </div>
+
+        <!-- Section 6 -->
+        <div class="row align-items-center my-4">
+            <div class="col-md-6 order-md-2" data-aos="fade-left">
+                <div class="px-4">
+                    <h2>Applications</h2>
+                    <p>Masinyusane runs a massive logistics operation ensuring learners from all 35 Port Elizabeth township 
+                       high schools are applying on-time, and correctly, to universities, financial aid, and scholarships.</p>
+                    <p>This process is expensive, confusing, and time-consuming. Years ago, our needs analysis showed that 
+                       only 14% of our Top Learners were applying for university correctly and on-time.</p>
+                    <p>With our assistance, that number is now over 90% every year.</p>
+                </div>
+            </div>
+            <div class="col-md-6 order-md-1" data-aos="fade-right">
+                <img src="{% static 'images/tl-photo-5.webp' %}"
+                     alt="Programs"
+                     class="img-fluid"
+                     loading="lazy">
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/bootstrap.bundle.min.js' %}"></script>
+<script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/aos@2.3.4/dist/aos.js"></script>
+<script>
+    AOS.init({
+        duration: 1000,
+        once: true
+    });
+</script>
+<script>
+    document.getElementById('video-thumbnail')?.addEventListener('click', function () {
+        document.getElementById('video-thumbnail').style.display = 'none';
+        document.getElementById('video-player').style.display = 'block';
+    });
+</script>
+{% endblock %}

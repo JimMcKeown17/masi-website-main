@@ -1,0 +1,39 @@
+// Text utilities
+.text-shadow {
+  text-shadow: 2px 2px 10px rgba(0, 0, 0, 0.7);
+}
+
+.light-header {
+  font-weight: 200;
+}
+
+// Display utilities
+.vid-subtitle {
+  font-size: 1.2rem !important;
+  font-weight: 400 !important;
+}
+
+.vid-title {
+  line-height: 1;
+}
+
+// Margin and padding utilities
+@media (min-width: 1440px) and (max-width: 1919.98px) {
+  .row {
+    margin-left: 20px;
+    margin-right: 20px;
+  }
+}
+
+// Description utilities
+.desc-box {
+  max-width: 500px;
+}
+
+// Image utilities
+.full-strip-img {
+  width: 100%;
+  object-fit: contain;
+  display: block;
+  margin: 0 auto;
+}

@@ -1,0 +1,139 @@
+@import url('https://fonts.googleapis.com/css2?family=Nerko+One&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@100;200;300;400;500;600&display=swap');
+
+:root {
+  --masi-red: #ff0000;
+  --masi-blue: #0000ee;
+  --masi-yellow: #ffde5f;
+  --masi-green: green;
+  --masi-red-2: #ea294c;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: 'Poppins', sans-serif;
+}
+
+/*--------------------------------------------------
+  NAVBAR (DARK Variant)
+--------------------------------------------------*/
+#navbar-dark {
+  background-color: rgba(255, 255, 255, 0);
+  transition: background-color 0.5s ease;
+  color: rgb(42, 42, 42);
+}
+
+#navbar-dark.scrolled {
+  background-color: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.nav-link-dark {
+  color: rgb(42, 42, 42) !important;
+  transition: color 0.3s ease;
+}
+
+/*--------------------------------------------------
+  HERO SECTION (Video with Impact Headline)
+--------------------------------------------------*/
+.hero-section-new {
+  height: 100vh;
+  position: relative;
+
+  .first-column {
+    border-bottom: 2px solid #3e3e3e;
+
+    h1 {
+      font-size: 4rem;
+      line-height: 4.2rem;
+      margin: 0;
+      padding: 0;
+
+      .impact-title-light {
+        font-weight: 300;
+      }
+    }
+
+    p {
+      font-size: 1.1rem;
+      margin-top: 1rem;
+    }
+
+    a.btn {
+      margin-top: 2rem;
+    }
+  }
+
+  .video-column {
+    height: 550px;
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    overflow: hidden;
+    position: relative;
+
+    .video-content {
+      width: 95%;
+      height: 100%;
+      object-fit: cover;
+    }
+  }
+
+  @media (max-width: 992px) {
+    height: 55vh;
+    .first-column,
+    .video-column {
+      text-align: center;
+    }
+  }
+}
+
+/*--------------------------------------------------
+  ANNUAL REPORTS SECTION
+--------------------------------------------------*/
+.annual-reports-impact {
+  padding: 2rem 0;
+
+  .impact-report {
+    transition: transform 0.3s ease;
+
+    &:hover {
+      transform: translateY(-5px);
+    }
+  }
+}
+
+/*--------------------------------------------------
+  YEARLY REPORTS SECTION
+--------------------------------------------------*/
+.yearly-reports {
+  padding: 2rem 0;
+
+  .year {
+    font-size: 2rem;
+    margin-bottom: 1rem;
+  }
+
+  ul {
+    padding-left: 0;
+    list-style: none;
+
+    li {
+      margin-bottom: 0.5rem;
+
+      a {
+        text-decoration: none;
+        color: var(--masi-blue);
+        transition: color 0.3s ease;
+
+        &:hover {
+          color: var(--masi-red-2);
+        }
+      }
+    }
+  }
+}

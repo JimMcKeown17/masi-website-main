@@ -1,0 +1,164 @@
+@import url('https://fonts.googleapis.com/css2?family=Nerko+One&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@100;200;300;400;500;600&display=swap');
+
+:root {
+  --masi-red: #ff0000;
+  --masi-blue: #0000ee;
+  --masi-yellow: #ffde5f;
+  --masi-green: green;
+  --masi-red-2: #ea294c;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: 'Poppins', sans-serif;
+}
+
+/*--------------------------------------------------
+  NAVBAR STYLING
+--------------------------------------------------*/
+#navbar {
+  background-color: rgba(255, 255, 255, 0);
+  transition: background-color 0.5s ease;
+  color: white;
+}
+.nav-item {
+  margin-left: 50px;
+}
+.dropdown:hover .dropdown-menu {
+  display: block;
+  border: none;
+  border-radius: 0;
+  opacity: 0.95;
+}
+#navbar.scrolled {
+  background-color: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+.nav-link {
+  transition: color 0.3s ease;
+}
+.nav-link-white {
+  color: white !important;
+}
+.navbar-brand img {
+  max-height: 50px;
+}
+
+/*--------------------------------------------------
+  DONATION BUTTON
+--------------------------------------------------*/
+.button-donate {
+  display: flex;
+  align-items: center;
+  background-color: #dc3545;
+  border: none;
+  color: white;
+  font-size: 16px;
+  height: 48px;
+  justify-content: center;
+  line-height: 24px;
+  padding: 0 25px;
+  position: relative;
+  text-decoration: none;
+  cursor: pointer;
+}
+.button-donate:after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 48px;
+  background-color: #3e3e3e;
+  transform: translate(5px, 5px);
+  transition: transform 0.2s ease-out;
+  z-index: -1;
+}
+.button-donate:hover:after {
+  transform: translate(0, 0);
+}
+.button-donate:hover {
+  background-color: #b81d2c;
+}
+
+/*--------------------------------------------------
+  EASTERN CAPE STRIP (Hero) SECTION
+--------------------------------------------------*/
+.eastern-cape-strip {
+  height: 500px;
+  background-image: url('../images/Eastern-Cape-3.JPG'); // Adjust path/image as needed
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+
+  .overlay-content {
+    background-color: rgba(0, 0, 0, 0.3);
+    color: white;
+    height: 100%;
+  }
+
+  @media (max-width: 768px) {
+    height: 500px;
+  }
+}
+
+/*--------------------------------------------------
+  PROBLEM SECTIONS
+--------------------------------------------------*/
+.problem {
+  margin-top: 50px;
+  // Additional problem-specific styling can be added here if needed.
+}
+.problem-1,
+.problem-2 {
+  max-width: 100%;
+}
+
+/*--------------------------------------------------
+  THE SOLUTION SECTION
+--------------------------------------------------*/
+.the-solution {
+  margin: 100px 0;
+
+  ul {
+    margin-top: 50px;
+    padding: 0;
+    list-style: none;
+  }
+
+  li {
+    margin-bottom: 20px;
+  }
+
+  @media (max-width: 768px) {
+    margin: 20px 0;
+  }
+}
+.solution-model {
+  max-height: 500px;
+}
+
+/*--------------------------------------------------
+  MAP SECTION
+--------------------------------------------------*/
+#map-section {
+  .container-fluid {
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  .row {
+    margin-left: 0;
+    margin-right: 0;
+  }
+
+  iframe {
+    width: 100%;
+    height: 650px;
+  }
+}

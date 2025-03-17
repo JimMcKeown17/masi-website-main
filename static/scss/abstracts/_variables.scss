@@ -1,0 +1,55 @@
+// Fonts
+@import url('https://fonts.googleapis.com/css2?family=Nerko+One&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@100;200;300;400;500;600&display=swap');
+
+// Brand Colors
+:root {
+  --masi-red: #ff0000;
+  --masi-blue: #0000ee;
+  --masi-yellow: #ffde5f;
+  --masi-green: green;
+  --masi-red-2: #ea294c;
+}
+
+// Font settings
+$headings-font-family: 'Poppins', sans-serif;
+$font-family-sans-serif: 'Open Sans', sans-serif;
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: 'Poppins', sans-serif;
+}
+
+// Colors from your bootstrap.scss
+$primary: #0000ee;
+$primary-light: #f8f9fa;
+$secondary: #ff0000;
+$dark: #191e47;
+$light: #f9fafe;
+$body-color: #494c52;
+$headings-color: $dark;
+$secondary-dark: #333; // Example secondary color
+$text-dark: #212529; // Example text color
+
+// Navbar settings
+$navbar-nav-link-padding-x: 0.8rem;
+$navbar-padding-y: 1rem;
+$nav-link-font-weight: 700;
+
+// Spacings
+$spacer: 1rem !default;
+$spacers: (
+  0: 0,
+  1: $spacer * 0.25,
+  2: $spacer * 0.5,
+  3: $spacer,
+  4: $spacer * 1.5,
+  5: $spacer * 3,
+  6: $spacer * 6,
+  7: $spacer * 8,
+  8: $spacer * 12,
+) !default;

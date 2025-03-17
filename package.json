@@ -1,0 +1,32 @@
+{
+  "name": "masi-web-main",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "sass": "sass --no-source-map static/scss/main.scss:static/css/main.css --watch",
+    "sass-build": "sass --no-source-map static/scss/main.scss:static/css/main.css --style=compressed",
+    "dev": "concurrently \"npm run sass\" \"python manage.py runserver\"",
+    "start": "npm run dev",
+    "build": "npm run sass-build"
+  },
+  "keywords": [
+    "nonprofit",
+    "education",
+    "south-africa",
+    "django"
+  ],
+  "author": "Masinyusane",
+  "license": "ISC",
+  "type": "commonjs",
+  "description": "Masinyusane Django website - South African education nonprofit",
+  "dependencies": {
+    "bootstrap": "^5.3.0",
+    "@fortawesome/fontawesome-free": "^6.4.0"
+  },
+  "devDependencies": {
+    "autoprefixer": "^10.4.20",
+    "concurrently": "^9.1.2",
+    "postcss": "^8.5.2",
+    "sass": "^1.84.0"
+  }
+}

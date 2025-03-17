@@ -1,0 +1,291 @@
+{% extends "base.html" %}
+{% load static %}
+
+
+{% block title %}About Us - Masinyusane{% endblock %}
+
+{% block extra_css %}
+  <!-- Global and page-specific CSS -->
+  <link rel="stylesheet" href="{% static 'css/styles.css' %}">
+  <!-- Add any additional CSS files if needed -->
+{% endblock %}
+
+{% block content %}
+  {% include "partials/navbar.html" %}
+
+  <!-- Hero Section -->
+  <header id="hero" class="position-relative">
+    <img src="{% static 'images/LCs/LC-11.jpg' %}" alt="Hero Image"
+         class="w-100 h-100 position-absolute top-0 start-0 object-fit-cover">
+  </header>
+
+  <!-- Community Organization Section -->
+  <section id="community" class="py-5 text-center bg-gray-strip">
+    <div class="container">
+      <div class="row">
+        <div class="col-md-6 offset-md-3">
+          <p class="lead">
+            Masinyusane embodies the term <span class="text-danger fw-bold font-stat-lg">community</span>
+            organisation. Our staff consists of community members and former beneficiaries.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Executive Director Section -->
+  <section id="executive" class="py-5">
+    <div class="container">
+      <div class="row align-items-center" data-aos="fade-up">
+        <div class="col-12 col-md-4 text-center">
+          <img src="{% static 'images/Zama Zulu.png' %}" alt="Executive Director"
+               class="zama-image" loading="lazy">
+        </div>
+        <div class="col-12 col-md-8 text-center text-md-start">
+          <h2>Zama Zulu</h2>
+          <p class="text-muted">Executive Director, South Africa</p>
+          <p>
+            Zama, our Executive Director, brings a wealth of experience and passion to our organization.
+            With an educational background in accounting, Zama has excelled in the corporate landscape of
+            South Africa, contributing to the growth of numerous leading companies throughout his career.
+          </p>
+          <p>
+            As a successful entrepreneur, Zama has demonstrated an exceptional ability to innovate and lead.
+            His unwavering dedication to fostering the development of a new generation of leaders is at the
+            heart of his work at Masinyusane.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Our Team Section -->
+  <section id="our-team" class="py-3">
+    <div class="container" data-aos="fade-up">
+      <div class="row">
+        <!-- Team Member 1 -->
+        <div class="col-md-3">
+          <div class="card team-card">
+            <img src="{% static 'images/staff/Thembeka-Nobomvu.jpg' %}" alt="Thembeka Nobomvu"
+                 class="card-img-top" loading="lazy">
+            <div class="card-body">
+              <h5 class="card-title">Thembeka Nobomvu</h5>
+              <p class="card-text">Programme Manager</p>
+            </div>
+          </div>
+        </div>
+        <!-- Team Member 2 -->
+        <div class="col-md-3">
+          <div class="card team-card">
+            <img src="{% static 'images/staff/Buyi-Xaba.jpg' %}" alt="Buyiswa Xaba"
+                 class="card-img-top" loading="lazy">
+            <div class="card-body">
+              <h5 class="card-title">Buyiswa Xaba</h5>
+              <p class="card-text">Programme Manager</p>
+            </div>
+          </div>
+        </div>
+        <!-- Team Member 3 -->
+        <div class="col-md-3">
+          <div class="card team-card">
+            <img src="{% static 'images/staff/Zola-Mbusi.jpg' %}" alt="Zola Mbusi"
+                 class="card-img-top" loading="lazy">
+            <div class="card-body">
+              <h5 class="card-title">Zola Mbusi</h5>
+              <p class="card-text">Chief Operating Officer</p>
+            </div>
+          </div>
+        </div>
+        <!-- Team Member 4 -->
+        <div class="col-md-3">
+          <div class="card team-card">
+            <img src="{% static 'images/staff/Chombe-Ncandana.jpg' %}" alt="Chombe Ncandana"
+                 class="card-img-top" loading="lazy">
+            <div class="card-body">
+              <h5 class="card-title">Chombe Ncandana</h5>
+              <p class="card-text">ECD Team Leader</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="row py-3" data-aos="fade-up">
+        <!-- Team Member 5 -->
+        <div class="col-md-3">
+          <div class="card team-card">
+            <img src="{% static 'images/staff/Nwabisa.jpg' %}" alt="Nwabisa Ngceshe"
+                 class="card-img-top" loading="lazy">
+            <div class="card-body">
+              <h5 class="card-title">Nwabisa Ngceshe</h5>
+              <p class="card-text">Finance Team</p>
+            </div>
+          </div>
+        </div>
+        <!-- Team Member 6 -->
+        <div class="col-md-3">
+          <div class="card team-card">
+            <img src="{% static 'images/staff/Tumelo.jpg' %}" alt="Tumelo Lungile"
+                 class="card-img-top" loading="lazy">
+            <div class="card-body">
+              <h5 class="card-title">Tumelo Lungile</h5>
+              <p class="card-text">Data Team Lead</p>
+            </div>
+          </div>
+        </div>
+        <!-- Team Member 7 -->
+        <div class="col-md-3">
+          <div class="card team-card">
+            <img src="{% static 'images/staff/Sinesipho-Ntunuka.jpg' %}" alt="Sinesipho Ntunuka"
+                 class="card-img-top" loading="lazy">
+            <div class="card-body">
+              <h5 class="card-title">Sinesipho Ntunuka</h5>
+              <p class="card-text">Bursary Project Manager</p>
+            </div>
+          </div>
+        </div>
+        <!-- Team Member 8 -->
+        <div class="col-md-3">
+          <div class="card team-card">
+            <img src="{% static 'images/staff/Ziyanda-Fayindlala.jpg' %}" alt="Ziyanda Fayindlala"
+                 class="card-img-top" loading="lazy">
+            <div class="card-body">
+              <h5 class="card-title">Ziyanda Fayindlala</h5>
+              <p class="card-text">ECD Project Manager</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- About Youth Section -->
+  <section class="about-youth my-5 bg-gray-strip">
+    <div class="container py-5" data-aos="fade-up">
+      <div class="row">
+        <div class="col-md-6 d-flex align-items-center">
+          <p class="lead">
+            95% of our employees are <span class="text-danger fw-bold font-stat-lg">female</span>.
+          </p>
+        </div>
+        <div class="col-md-6">
+          <div class="image-grid">
+            <div class="image-container">
+              <img src="{% static 'images/LCs/LC-1.jpg' %}" class="img-fluid hover-zoom" alt="Employee 1" loading="lazy">
+            </div>
+            <div class="image-container">
+              <img src="{% static 'images/LCs/LC-10.jpg' %}" class="img-fluid hover-zoom" alt="Employee 2" loading="lazy">
+            </div>
+            <div class="image-container">
+              <img src="{% static 'images/LCs/LC-3.jpg' %}" class="img-fluid hover-zoom" alt="Employee 3" loading="lazy">
+            </div>
+            <div class="image-container">
+              <img src="{% static 'images/LCs/LC-11.jpg' %}" class="img-fluid hover-zoom" alt="Employee 4" loading="lazy">
+            </div>
+            <div class="image-container">
+              <img src="{% static 'images/LCs/LC-5.jpg' %}" class="img-fluid hover-zoom" alt="Employee 5" loading="lazy">
+            </div>
+            <div class="image-container">
+              <img src="{% static 'images/LCs/LC-12.jpg' %}" class="img-fluid hover-zoom" alt="Employee 6" loading="lazy">
+            </div>
+            <div class="image-container">
+              <img src="{% static 'images/LCs/LC-2.jpg' %}" class="img-fluid hover-zoom" alt="Employee 7" loading="lazy">
+            </div>
+            <div class="image-container">
+              <img src="{% static 'images/LCs/LC-13.jpg' %}" class="img-fluid hover-zoom" alt="Employee 8" loading="lazy">
+            </div>
+            <div class="image-container">
+              <img src="{% static 'images/LCs/LC-4.jpg' %}" class="img-fluid hover-zoom" alt="Employee 9" loading="lazy">
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Our Founders Section -->
+  <section id="our-founders" class="py-5">
+    <div class="container">
+      <div class="row" data-aos="fade-up">
+        <div class="col-md-4 d-flex flex-column justify-content-center">
+          <h2>Our Founders</h2>
+          <p>
+            Our founders, Jim &amp; Fiks had both achieved relative success in life, albeit on opposite sides of the world.
+            Jim in New York City's Financial District and Fiks in Johannesburg's entertainment industry.
+          </p>
+          <p>
+            The beneficiaries of countless opportunities and the love and sacrifice of many, both felt called to give back.
+            In 2008, they met in New Brighton, Gqeberha, and soon after, Masinyusane was born.
+          </p>
+        </div>
+        <div class="col-md-4">
+          <div class="founder-card">
+            <img src="{% static 'images/staff/Jim McKeown.jpg' %}" alt="Founder 1" class="img-fluid" loading="lazy">
+            <div class="overlay">
+              <div class="overlay-content">
+                <h5 class="text-white">Jim McKeown</h5>
+                <p>
+                  Jim arrived in Gqeberha from New York in 2008 after leaving behind a promising career on Wall Street.
+                  He possesses an MA in Development Studies, a BSc in Operations &amp; Research Engineering, and a BA in Computer Engineering.
+                </p>
+                <p>
+                  His journey to South Africa was driven by a desire to provide opportunities for others.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="founder-card">
+            <img src="{% static 'images/staff/Ta Fiks Mahola.jpg' %}" alt="Founder 2" class="img-fluid" loading="lazy">
+            <div class="overlay">
+              <div class="overlay-content">
+                <h5 class="text-white">Fiks Mahola</h5>
+                <p>
+                  Fiks is the "heart and soul" of Masinyusane. Passionate about community development, he has been the guiding force in our initiatives.
+                </p>
+                <p>
+                  Leaving behind a promising career in entertainment, Fiks dedicated himself to uplifting others.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="row py-3">
+        <div class="col-md-8 offset-md-4">
+          <p class="additional-founders">
+            * Additional founders include Fr Jerry Brown, Thobeka Gaxamba, and Tiksie Mabizela.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Youth Jobs Chart Section -->
+  <section class="youth-jobs-chart py-5 bg-gray-strip">
+    <div class="container">
+      <div class="row">
+        <div class="col-md-4 d-flex align-items-center">
+          <p class="lead">
+            Over the past decade, we have created jobs for <span class="text-danger fw-bold font-stat-lg">1,318</span>
+            <span class="text-danger fw-bold font-stat-lg">women</span> from the community.
+          </p>
+        </div>
+        <div class="col-md-8">
+          <div id="youth-jobs-chart"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+{% endblock %}
+
+{% block extra_js %}
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  <script src="{% static 'js/plotly-chart.js' %}"></script>
+  <script src="{% static 'js/bootstrap.bundle.min.js' %}"></script>
+  <script src="https://cdn.jsdelivr.net/npm/aos@2.3.4/dist/aos.js"></script>
+  <script>
+    AOS.init({ duration: 1000, once: true });
+  </script>
+  <script src="{% static 'js/script.js' %}"></script>
+{% endblock %}

@@ -1,0 +1,97 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Donate - Masinyusane{% endblock %}
+
+{% block content %}
+<!-- Hero Section -->
+<section class="donate-hero-section d-flex align-items-center justify-content-center" 
+         style="background: url('{% static 'images/Strip - Child.jpg' %}') no-repeat center center/cover;">    <div class="container text-center text-white">
+        <div class="row">
+            <div class="col-md-6 offset-md-6 text-white">
+                <div class="donation-box pt-4">
+                    <script src="https://donorbox.org/widget.js" paypalExpress="true"></script>
+                    <iframe src="https://donorbox.org/embed/masi-donations?language=en-us"
+                            name="donorbox"
+                            allowpaymentrequest="allowpaymentrequest"
+                            seamless="seamless"
+                            frameborder="0"
+                            scrolling="no"
+                            height="900px"
+                            width="100%"
+                            style="max-width: 600px; min-width: 250px; max-height: none !important;"
+                            allow="payment">
+                    </iframe>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Trusted By Section -->
+<section class="trusted-by py-5">
+    <div class="container">
+        <div class="row">
+            <div class="col-md-6">
+                <h2 class="mb-5">Trusted <span class="light-header">By</span></h2>
+            </div>
+        </div>
+        <div class="logo-scroll-container">
+            <div class="logo-scroll">
+                {% for logo in logos %}
+                <img src="{% static 'images/logos/'|add:logo.filename %}"
+                     alt="{{ logo.name }}"
+                     class="partner-logo">
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<!-- GSAP Library -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.11.4/gsap.min.js"></script>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const stats = document.querySelectorAll('#floating-stats .stat');
+        const sectionHeight = document.getElementById('floating-stats')?.offsetHeight;
+
+        stats.forEach((stat) => {
+            const randomLeft = 30 + Math.random() * 90;
+            stat.style.left = randomLeft + '%';
+
+            const randomFontSize = Math.random() * 10 + 14;
+            stat.style.fontSize = randomFontSize + 'px';
+
+            gsap.fromTo(
+                stat,
+                { y: sectionHeight, opacity: 0 },
+                {
+                    y: -50,
+                    opacity: 0.6,
+                    duration: Math.random() * 10 + 10,
+                    delay: Math.random() * 5,
+                    repeat: -1,
+                    ease: 'linear',
+                    onRepeat: function () {
+                        stat.style.left = 30 + Math.random() * 90 + '%';
+                        stat.style.fontSize = Math.random() * 10 + 14 + 'px';
+                        this.duration(Math.random() * 10 + 10);
+                    },
+                }
+            );
+        });
+    });
+</script>
+
+<!-- AOS JS -->
+<script src="https://cdn.jsdelivr.net/npm/aos@2.3.4/dist/aos.js"></script>
+<script>
+    AOS.init({
+        duration: 1000,
+        once: true
+    });
+</script>
+{% endblock %}

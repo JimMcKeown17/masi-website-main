@@ -1,0 +1,262 @@
+@import url('https://fonts.googleapis.com/css2?family=Nerko+One&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@100;200;300;400;500;600&display=swap');
+
+// (Optional override for wide screens)
+@media (min-width: 1440px) and (max-width: 1919.98px) {
+  .row {
+    margin-left: 20px;
+    margin-right: 20px;
+  }
+}
+
+/*--------------------------------------
+  HERO SECTION
+--------------------------------------*/
+#hero {
+  height: 80vh;
+}
+
+/*--------------------------------------
+  ABOUT YOUTH SECTION
+--------------------------------------*/
+.about-youth {
+  .image-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 15px;
+  }
+  .image-container {
+    width: 100%;
+    overflow: hidden;
+    position: relative;
+    transition: transform 0.3s ease;
+  }
+  .image-container img {
+    width: 100%;
+    height: 150px;
+    object-fit: cover;
+  }
+  .image-container:hover {
+    transform: scale(1.2);
+    z-index: 10;
+  }
+}
+
+/*--------------------------------------
+  EXECUTIVE DIRECTOR SECTION
+--------------------------------------*/
+.zama-image {
+  max-width: 90%;
+  height: auto;
+}
+
+/*--------------------------------------
+  YOUTH JOBS CHART
+--------------------------------------*/
+#youth-jobs-chart {
+  margin-left: 20px;
+  width: 100%;
+  max-width: 1200px;
+  height: 400px;
+}
+
+/*--------------------------------------
+  OUR TEAM SECTION
+--------------------------------------*/
+#our-team .team-card {
+  height: 100%;
+  border: none;
+  overflow: hidden;
+  box-shadow: 0 6px 8px rgba(0, 0, 0, 0.1);
+  border-radius: 0;
+  transition: 0.3s ease-in-out;
+}
+
+#our-team .team-card .card-img-top {
+  height: 75%;
+  width: 100%;
+  object-fit: cover;
+  margin: 0;
+  padding: 0;
+  border-radius: 0;
+}
+
+#our-team .team-card .card-body {
+  height: 25%;
+  padding-top: 10px;
+  margin: 0;
+  text-align: center;
+}
+
+#our-team .team-card .card-title {
+  font-weight: bold;
+  margin-bottom: 5px;
+}
+
+#our-team .team-card .card-text {
+  margin-bottom: 0;
+}
+
+#our-team .card-title {
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+#our-team h5 {
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+#our-team .team-card:hover {
+  transform: translateY(-10px);
+}
+
+/*--------------------------------------
+  OUR FOUNDERS SECTION
+--------------------------------------*/
+#our-founders .founder-card {
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 6px 8px rgba(0, 0, 0, 0.1);
+}
+
+#our-founders .founder-card img {
+  width: 100%;
+  height: auto;
+  max-height: 450px;
+  object-fit: cover;
+  display: block;
+}
+
+#our-founders .founder-card .overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0);
+  transition: background-color 0.3s ease;
+}
+
+#our-founders .founder-card:hover .overlay {
+  background-color: rgba(0, 0, 0, 0.8);
+}
+
+#our-founders .founder-card .overlay-content {
+  position: absolute;
+  bottom: 20px;
+  left: 20px;
+  right: 20px;
+  color: #fff;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+#our-founders .founder-card:hover .overlay-content {
+  opacity: 1;
+}
+
+#our-founders .founder-card .overlay-content h5 {
+  font-weight: bold;
+  margin-bottom: 10px;
+}
+
+#our-founders .founder-card .overlay-content p {
+  margin-bottom: 0;
+}
+
+#our-founders .overlay p {
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+#our-founders .additional-founders {
+  font-size: 13px;
+  font-style: italic;
+}
+
+/*--------------------------------------
+  FOOTER
+--------------------------------------*/
+.footer {
+  .container {
+    color: white;
+    a {
+      text-decoration: none;
+    }
+    @media (max-width: 768px) {
+      font-size: 12px !important;
+      line-height: 1 !important;
+      p {
+        font-size: 12px !important;
+      }
+      .footer-info p {
+        font-size: 12px !important;
+        line-height: 1.2;
+      }
+    }
+  }
+  .footer-info p {
+    font-size: 14px;
+    line-height: 0.5;
+  }
+  ul li a {
+    font-size: 14px;
+    @media (max-width: 768px) {
+      font-size: 12px !important;
+      line-height: 2 !important;
+    }
+  }
+}
+
+/*--------------------------------------
+  DONATION BUTTON
+--------------------------------------*/
+.button-donate {
+  align-items: center;
+  background-color: #dc3545;
+  border: none;
+  box-sizing: border-box;
+  color: white;
+  cursor: pointer;
+  display: flex;
+  font-size: 16px;
+  height: 48px;
+  justify-content: center;
+  line-height: 24px;
+  max-width: 100%;
+  padding: 0 25px;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+}
+
+.button-donate:after {
+  background-color: #3e3e3e;
+  content: '';
+  display: block;
+  height: 48px;
+  left: 0;
+  width: 100%;
+  position: absolute;
+  transform: translate(5px, 5px);
+  transition: transform 0.2s ease-out;
+  z-index: -1;
+}
+
+.button-donate:hover:after {
+  transform: translate(0, 0);
+}
+
+.button-donate:active {
+  background-color: #ffdeda;
+  outline: 0;
+}
+
+.button-donate:hover {
+  outline: 0;
+  background-color: #b81d2c;
+}

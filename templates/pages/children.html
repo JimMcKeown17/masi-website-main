@@ -1,0 +1,226 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Early Childhood Education - Masinyusane{% endblock %}
+
+{% block content %}
+<!-- Hero Section -->
+<section class="hero-section-new d-none d-sm-block">
+    <div class="container">
+        <div class="row">
+            <!-- Left Column - Text Content -->
+            <div class="col-md-4 d-flex flex-column justify-content-center first-column">
+                <h1>Early Childhood Education</h1>
+                <p class="lead mt-3">Teaching Children To Read, Write, and Count.</p>
+                <a href="#donate" class="btn btn-outline-dark mt-5">Sponsor a Child</a>
+            </div>
+            <div class="col-md-8 position-relative video-column">
+                <video autoplay muted loop playsinline class="video-content">
+                    <source src="{% static 'images/Sume Video Strip.mp4' %}" type="video/mp4">
+                    Your browser does not support the video tag.
+                </video>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Mobile Hero Section -->
+<section class="mobile-hero-section d-block d-sm-none">
+    <div class="mobile-hero-container">
+        <img src="{% static 'images/Early Childhood Education.png' %}" 
+             alt="Early Childhood Education" 
+             class="mobile-hero-image">
+    </div>
+</section>
+
+<!-- Content Sections -->
+<section class="children content-section">
+    <div class="container">
+        <!-- Section 1 -->
+        <div class="row align-items-center mission-row mb-5">
+            <div class="col-md-6" data-aos="fade-right">
+                <h2 class="our-mission-children">Our Mission</h2>
+                <p>To provide our all of our children with the superpower of reading,
+                   the self-confidence to prosper, and to instill a spirit of
+                   curiosity and learning.</p>
+                <p>We take a data-driven and systematic approach to teaching
+                   children, step-by-step, at their pace and on their level, how to
+                   read.</p>
+            </div>
+            <!-- Video Placeholder -->
+            <div class="col-md-6" data-aos="fade-left">
+                <div class="video-wrapper">
+                    <iframe id="youtube-video"
+                            width="100%"
+                            height="315"
+                            src="https://www.youtube.com/embed/tj_W0jlFiPQ?si=jZsBVkX_TCUpidH8"
+                            title="YouTube video player"
+                            frameborder="0"
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                            allowfullscreen></iframe>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Impact Stats Section -->
+<section class="impact-stats-new position-relative text-white mt-2">
+    <div class="impact-background">
+        <div class="container">
+            <div class="row align-items-start">
+                <div class="col-md-4 d-flex flex-column justify-content-center">
+                    <h1 class="display-5 fw-bold">Impact Stats</h1>
+                </div>
+                <div class="col-md-8">
+                    <div class="row">
+                        <div class="col-md-3 col-6 mb-4">
+                            <h2 class="stat-number counter" data-target="18276">0</h2>
+                            <p class="stat-text">Children Benefitting</p>
+                        </div>
+                        <div class="col-md-3 col-6 mb-4">
+                            <h2 class="stat-number counter" data-target="364">0</h2>
+                            <p class="stat-text">Community Jobs in 2024</p>
+                        </div>
+                        <div class="col-md-3 col-6 mb-4">
+                            <h2 class="stat-number counter" data-target="124" data-suffix="%">0</h2>
+                            <p class="stat-text">Improvement vs Control Group</p>
+                        </div>
+                        <div class="col-md-3 col-6 mb-4">
+                            <h2 class="stat-number counter" data-target="154">0</h2>
+                            <p class="stat-text">Schools We Work In</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Section 2 -->
+<section class="children content-section">
+    <div class="container">
+        <div class="row align-items-center mt-3 children-section-row">
+            <div class="col-md-6 order-md-2" data-aos="fade-left">
+                <div class="px-4">
+                    <h2 class="h2-programmes">Early Childhood Development</h2>
+                    <p>We specialize in teaching children aged 2-9 how to read, write,
+                       and comprehend. The ability to read is the gateway to learning,
+                       forming the bedrock of a child's entire education. We are
+                       committed to ensuring that this foundation is strong, giving
+                       every child the tools they need to thrive academically and
+                       beyond.</p>
+                </div>
+            </div>
+            <div class="col-md-6 order-md-1" data-aos="fade-right">
+                <img src="{% static 'images/Lit Session 5.jpg' %}"
+                     alt="Vision"
+                     class="img-fluid"
+                     loading="lazy">
+            </div>
+        </div>
+
+        <!-- Section 3 -->
+        <div class="row align-items-center children-section-row">
+            <div class="col-md-6" data-aos="fade-right">
+                <h2 class="h2-programmes">Teaching at the Right Level</h2>
+                <p>We customize literacy sessions to the level the child is at,
+                   ensuring we maximize their learning and confidence while ensuring
+                   foundational skill mastery before moving on.</p>
+            </div>
+            <div class="col-md-6" data-aos="fade-left">
+                <img src="{% static 'images/Lit Session 2.jpg' %}"
+                     alt="Impact"
+                     class="img-fluid"
+                     loading="lazy">
+            </div>
+        </div>
+
+        <!-- Section 4 -->
+        <div class="row align-items-center children-section-row">
+            <div class="col-md-6 order-md-2" data-aos="fade-left">
+                <div class="px-4">
+                    <h2 class="h2-programmes">Data Driven</h2>
+                    <p>We measure dozens of statistics on thousands of children,
+                       employing advanced analytics unique to the nonprofit sector.
+                       This allows us to prove overall program impact, project
+                       management with efficiency, continue to iterate through better
+                       and better versions of our programs, and to customize lessons
+                       for each school, classroom, and child.</p>
+                </div>
+            </div>
+            <div class="col-md-6 order-md-1" data-aos="fade-right">
+                <img src="{% static 'images/Lit Session 6.jpg' %}"
+                     alt="Programs"
+                     class="img-fluid"
+                     loading="lazy">
+            </div>
+        </div>
+
+        <!-- Section 5 -->
+        <div class="row align-items-center children-section-row">
+            <div class="col-md-6" data-aos="fade-right">
+                <h2 class="h2-programmes">Thousands of Stories</h2>
+                <p>In addition to teaching children how to read, we strive to ensure
+                   every child hears 1,000 stories before the age of seven. Children
+                   who regularly hear stories develop stronger memories, expand their
+                   vocabularies, become more skilled readers, and nurture their
+                   imaginations, all while enhancing their critical thinking and
+                   problem-solving abilities, setting the stage for lifelong learning
+                   success.</p>
+            </div>
+            <div class="col-md-6" data-aos="fade-left">
+                <img src="{% static 'images/Sandwater Primary - Literacy Session 2.jpg' %}"
+                     alt="Join Us"
+                     class="img-fluid"
+                     loading="lazy">
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/bootstrap.bundle.min.js' %}"></script>
+<script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/aos@2.3.4/dist/aos.js"></script>
+<script>
+    AOS.init({
+        duration: 1000,
+        once: true
+    });
+</script>
+<script>
+    // Function to check if the device is mobile
+    function isMobile() {
+        return window.innerWidth <= 768;
+    }
+
+    // Function to change navbar-dark to navbar and adjust classes/IDs on mobile devices
+    function adjustNavbar() {
+        if (isMobile()) {
+            const darkNavbar = document.getElementById("navbar-dark");
+            if (darkNavbar) {
+                darkNavbar.id = "navbar";
+                if (darkNavbar.classList.contains("navbar-dark")) {
+                    darkNavbar.classList.remove("navbar-dark");
+                    darkNavbar.classList.add("navbar-light");
+                }
+            }
+
+            const dropdownNav = document.getElementById("navbarNavDropdownDark");
+            if (dropdownNav) {
+                dropdownNav.id = "navbarNavDropdown";
+            }
+
+            const navbarToggler = document.querySelector('.navbar-toggler');
+            if (navbarToggler && navbarToggler.getAttribute('data-bs-target') === '#navbarNavDropdownDark') {
+                navbarToggler.setAttribute('data-bs-target', '#navbarNavDropdown');
+            }
+        }
+    }
+
+    document.addEventListener("DOMContentLoaded", adjustNavbar);
+    window.addEventListener("resize", adjustNavbar);
+</script>
+{% endblock %}

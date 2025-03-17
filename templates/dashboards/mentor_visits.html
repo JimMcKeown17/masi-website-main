@@ -1,0 +1,115 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container mt-5 pt-5">
+    <div class="row">
+        <div class="col-md-8 offset-md-2">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h2 class="mb-0">School Visit Report</h2>
+                </div>
+                <div class="card-body">
+                    {% if messages %}
+                        {% for message in messages %}
+                            <div class="alert alert-{{ message.tags }}">
+                                {{ message }}
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                    
+                    <form method="post">
+                        {% csrf_token %}
+                        
+                        <div class="form-group mb-3">
+                            <label for="{{ form.visit_date.id_for_label }}">Date</label>
+                            {{ form.visit_date }}
+                        </div>
+                        
+                        <div class="form-group mb-3">
+                            <label for="{{ form.school.id_for_label }}">School Visited</label>
+                            {{ form.school }}
+                        </div>
+                        
+                        <hr>
+                        
+                        <h4 class="mb-4">Mentor Observations</h4>
+                        
+                        <div class="form-check mb-3">
+                            {{ form.letter_trackers_correct }}
+                            <label class="form-check-label" for="{{ form.letter_trackers_correct.id_for_label }}">
+                                {{ form.letter_trackers_correct.label }}
+                            </label>
+                        </div>
+                        
+                        <div class="form-check mb-3">
+                            {{ form.reading_trackers_correct }}
+                            <label class="form-check-label" for="{{ form.reading_trackers_correct.id_for_label }}">
+                                {{ form.reading_trackers_correct.label }}
+                            </label>
+                        </div>
+                        
+                        <div class="form-check mb-3">
+                            {{ form.sessions_correct }}
+                            <label class="form-check-label" for="{{ form.sessions_correct.id_for_label }}">
+                                {{ form.sessions_correct.label }}
+                            </label>
+                        </div>
+                        
+                        <div class="form-check mb-4">
+                            {{ form.admin_correct }}
+                            <label class="form-check-label" for="{{ form.admin_correct.id_for_label }}">
+                                {{ form.admin_correct.label }}
+                            </label>
+                        </div>
+                        
+                        <div class="form-group mb-4">
+                            <label for="{{ form.quality_rating.id_for_label }}">{{ form.quality_rating.label }}</label>
+                            <div class="d-flex align-items-center">
+                                <span class="me-2">1</span>
+                                {{ form.quality_rating }}
+                                <span class="ms-2">10</span>
+                            </div>
+                            <div id="rating-value" class="text-center mt-2">5</div>
+                        </div>
+                        
+                        <div class="form-group mb-3">
+                            <label for="{{ form.supplies_needed.id_for_label }}">{{ form.supplies_needed.label }}</label>
+                            {{ form.supplies_needed }}
+                        </div>
+                        
+                        <div class="form-group mb-4">
+                            <label for="{{ form.commentary.id_for_label }}">{{ form.commentary.label }}</label>
+                            {{ form.commentary }}
+                        </div>
+                        
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-primary btn-lg">Submit Report</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Display the current value of the quality rating slider
+    document.addEventListener('DOMContentLoaded', function() {
+        const slider = document.getElementById('{{ form.quality_rating.id_for_label }}');
+        const output = document.getElementById('rating-value');
+        
+        // Display initial value
+        output.innerHTML = slider.value;
+        
+        // Update the value when slider is moved
+        slider.oninput = function() {
+            output.innerHTML = this.value;
+        }
+    });
+</script>
+{% endblock %}

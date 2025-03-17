@@ -1,0 +1,152 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Impact Reports - Masinyusane{% endblock %}
+
+{% block extra_css %}
+<script src="https://cdn.jsdelivr.net/npm/typed.js@2.0.12"></script>
+{% endblock %}
+
+{% block content %}
+<!-- Hero Section -->
+<section class="hero-section-new d-none d-lg-block">
+    <div class="container">
+        <div class="row">
+            <div class="col-md-4 d-flex flex-column justify-content-center first-column">
+                <h1>
+                    Our Impact:
+                    <span class="impact-title-light">Measurable Results, Real Stories</span>
+                </h1>
+                <p class="lead mt-4">
+                    Access our annual reports, success stories, vital statistics, and
+                    financial statements to see how we're building a better future.
+                </p>
+                <a href="#donate" class="btn btn-outline-dark mt-5">Annual Report</a>
+            </div>
+
+            <div class="col-md-8 position-relative video-column d-none d-md-block">
+                <video autoplay muted loop playsinline class="video-content">
+                    <source src="{% static 'images/Empowering Banner_raw (1).mp4' %}" type="video/mp4">
+                    Your browser does not support the video tag.
+                </video>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Section 1: Annual Reports with Cover Pages -->
+<section class="annual-reports-impact">
+    <div class="container">
+        <div class="row justify-content-center">
+            <!-- Report 1 -->
+            <div class="col-md-4 col-sm-6 mb-4">
+                <a href="{% static 'reports/2023 Masinyusane Annual Report (RSA).pdf' %}" target="_blank">
+                    <img src="{% static 'images/AR 23 Cover Page.png' %}"
+                         class="img-fluid shadow rounded impact-report"
+                         alt="Annual Report 2023">
+                </a>
+            </div>
+            <!-- Report 2 -->
+            <div class="col-md-4 col-sm-6 mb-4">
+                <a href="{% static 'reports/2024 Masi Graduates Magazine.pdf' %}" target="_blank">
+                    <img src="{% static 'images/Report Cover 4.png' %}"
+                         class="img-fluid shadow rounded impact-report"
+                         alt="2024 Grad Magazine">
+                </a>
+            </div>
+            <!-- Report 3 -->
+            <div class="col-md-4 col-sm-6 mb-4">
+                <a href="{% static 'reports/2024 Q2 Community Jobs & Childrens Education Report.pdf' %}" target="_blank">
+                    <img src="{% static 'images/Report Cover 3.png' %}"
+                         class="img-fluid shadow rounded impact-report"
+                         alt="2024 Q2 Childrens Report">
+                </a>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Section 2: Yearly Reports with Links -->
+<section class="yearly-reports">
+    <div class="container">
+        <div class="row">
+            <!-- Year 2023 -->
+            <div class="col-md-3 col-sm-6 mb-4">
+                <h2 class="year">2023</h2>
+                <ul class="list-unstyled">
+                    <li>
+                        <a href="{% static 'reports/2023 Masinyusane Annual Report (RSA).pdf' %}" target="_blank">Annual Report</a>
+                    </li>
+                    <li>
+                        <a href="{% static 'reports/2024 Q2 Community Jobs & Childrens Education Report.pdf' %}" target="_blank">Children's Report</a>
+                    </li>
+                    <li>
+                        <a href="{% static 'reports/2023 Masi Graduates Magazine.pdf' %}" target="_blank">Top Learner Report</a>
+                    </li>
+                    <li>
+                        <a href="{% static 'reports/Masinyusane Audited Financial Statements 2023.pdf' %}">RSA Financial Statement</a>
+                    </li>
+                </ul>
+            </div>
+            <!-- Year 2022 -->
+            <div class="col-md-3 col-sm-6 mb-4">
+                <h2 class="year">2022</h2>
+                <ul class="list-unstyled">
+                    <li>
+                        <a href="{% static 'reports/2022 Masinyusane Annual Report (R).pdf' %}" target="_blank">Annual Report</a>
+                    </li>
+                    <li>
+                        <a href="{% static 'reports/2022 Q4 Childrens Report - All Donors.pdf' %}" target="_blank">Children's Report</a>
+                    </li>
+                    <li>
+                        <a href="{% static 'reports/2022 Masi Graduates Report.pdf' %}">Top Learner Report</a>
+                    </li>
+                    <li>
+                        <a href="{% static 'reports/Masinyusane Audited Financial Statements 2022.pdf' %}" target="_blank">RSA Financial Statement</a>
+                    </li>
+                </ul>
+            </div>
+            <!-- Year 2021 -->
+            <div class="col-md-3 col-sm-6 mb-4">
+                <h2 class="year">2021</h2>
+                <ul class="list-unstyled">
+                    <li><a href="#">Annual Report</a></li>
+                    <li><a href="#">Children's Report</a></li>
+                    <li><a href="#">Top Learner Report</a></li>
+                    <li>
+                        <a href="{% static 'reports/Masinyusane Audited Financial Statements 2021.pdf' %}">RSA Financial Statement</a>
+                    </li>
+                </ul>
+            </div>
+            <!-- Year 2020 -->
+            <div class="col-md-3 col-sm-6 mb-4">
+                <h2 class="year">2020</h2>
+                <ul class="list-unstyled">
+                    <li>
+                        <a href="{% static 'reports/2020 Masinyusane Annual Report.pdf' %}">Annual Report</a>
+                    </li>
+                    <li><a href="#">Children's Report</a></li>
+                    <li><a href="#">Top Learner Report</a></li>
+                    <li>
+                        <a href="{% static 'reports/Masinyusane Audited Financial Statements 2020.pdf' %}">RSA Financial Statement</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<!-- GSAP Library -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.11.4/gsap.min.js"></script>
+
+<!-- AOS JS -->
+<script src="https://cdn.jsdelivr.net/npm/aos@2.3.4/dist/aos.js"></script>
+<script>
+    AOS.init({
+        duration: 1000,
+        once: true
+    });
+</script>
+{% endblock %}

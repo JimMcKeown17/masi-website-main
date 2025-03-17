@@ -1,0 +1,538 @@
+{% extends 'base.html' %} 
+{% load static %} 
+{% block title%}Masinyusane{%endblock %} 
+{% block content %}
+<!-- HERO VIDEO -->
+<section class="home-hero">
+  <div class="video-container">
+    <video autoplay muted loop playsinline>
+      <source
+        src="{% static 'images/Home_Page_Hero_Video_3.mp4' %}"
+        type="video/mp4"
+      />
+      Your browser does not support the video tag.
+    </video>
+    <div class="video-overlay">
+      <div class="container">
+        <div class="row">
+          <div class="col-md-6" data-aos="fade-right">
+            <h1 class="text-shadow">Empowering Through Education</h1>
+            <p class="text-white video-overlay-text">
+              Local Communities Implementing Data-Driven <br />
+              Literacy & Numeracy Programmes.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- MISSION SECTION -->
+<div class="container mission mt-5" data-aos="fade-up">
+  <div class="row">
+    <div class="text-center col-md-6 d-flex align-items-center">
+      <h2>Our <span class="light-header">Mission</span></h2>
+    </div>
+    <div class="col-md-6">
+      <p>
+        Masinyusane creates opportunities for impoverished children and youth to
+        get the best education possible. We invest in high-impact education
+        projects that empower the local community to uplift itself.
+      </p>
+      <p>
+        We are simultaneously creating a generation of leaders now while
+        investing in the long-term future of South Africa's children.
+      </p>
+    </div>
+  </div>
+</div>
+
+<!-- CHILD STRIP -->
+<section class="child-strip">
+  <div class="full-width-section position-relative">
+    <img
+      src="{% static 'images/Website Strip - Child Red.png' %}"
+      alt="Smiling Girl"
+      class="full-strip-img"
+      loading="lazy"
+    />
+    <div class="d-none d-md-block">
+      <div class="text-content1" data-aos="fade-right">
+        <h1 class="top-strip-stat">2x</h1>
+        <p class="top-strip-text-light">Children on the program</p>
+        <p class="top-strip-text">learn to read twice as fast.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CHILD INFO STRIP -->
+<section class="child-info-strip">
+  <div class="container" data-aos="fade-up">
+    <div class="row">
+      <div class="col-md-6">
+        <h2>Early <span class="light-header">Childhood Education</span></h2>
+        <h6>Providing children with the education they deserve.</h6>
+        <a
+          href="https://www.youtube.com/watch?v=5j2d6nlFVe8&t=3s"
+          class="btn btn-danger btn-block custom-btn-width mt-3"
+          target="_blank"
+          >Video</a
+        >
+        <a
+          href="{% url 'pages:data' %}"
+          class="btn btn-outline-danger btn-block custom-btn-width mt-3"
+          >Data Portal</a
+        >
+      </div>
+
+      <div class="col-md-6">
+        <p>
+          We implement data-driven children's literacy programmes, with a major
+          focus on literacy and numeracy. We invest in Teaching at the Right
+          Level programmes, providing children with customised, individual
+          lessons designed to provide them with the educational foundation that
+          they deserve.
+        </p>
+        <p>
+          Our focus is on children aged 2 - 13, with the most attention going to
+          the youngest children.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Stats Under Strip -->
+  <div class="container top-stats d-none d-md-block">
+    <div class="row my-6">
+      <div class="col-md-3 col-sm-6">
+        <h2 class="counter stat-text" data-target="2X">2x</h2>
+        <p>
+          Children on the program learn to read twice as fast as children that
+          are not.
+        </p>
+      </div>
+
+      <div class="col-md-3 col-sm-6 border-start">
+        <h2 class="counter stat-text" data-target="400%">400%</h2>
+        <p>
+          Preschool children drastically outperform control groups on literacy
+          basics tests.
+        </p>
+      </div>
+
+      <div class="col-md-3 col-sm-6 border-start">
+        <h2 class="counter stat-text" data-target="43%">43%</h2>
+        <p>
+          On average, our primary school age children outperform peers by 43%
+          YoY.
+        </p>
+      </div>
+
+      <div class="col-md-3 col-sm-6 border-start">
+        <h2 class="counter stat-text" data-target="18756">18756</h2>
+        <p>
+          Children are participating in our literacy & reading projects in 2024
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- YOUTH INFO STRIP -->
+<section class="youth-strip">
+    <div class="full-width-section position-relative youth">
+      <img
+        src="{% static 'images/Website Strip Community jobs 2 (sml).png' %}"
+        alt="Smiling Girl"
+        class="full-strip-img"
+        loading="lazy"
+      />
+      <div class="d-none d-md-block">
+        <div class="text-content2" data-aos="fade-right">
+          <h1 class="top-strip-stat">316</h1>
+          <p class="top-strip-text-light">We have created</p>
+          <p class="top-strip-text">316 Community Jobs.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+  
+
+<!-- YOUTH INFO TEXT -->
+<section class="youth-info-strip">
+  <div class="container" data-aos="fade-up">
+    <div class="row">
+      <div class="col-md-6">
+        <h2>Community <span class="light-header">Jobs</span></h2>
+        <h6>Empowering a community to uplift itself.</h6>
+        <h6>Local jobs in local schools.</h6>
+        <a
+          href="https://www.youtube.com/watch?v=5j2d6nlFVe8&t=3s"
+          class="btn btn-primary btn-block custom-btn-width mt-3"
+          target="_blank"
+          >Video</a
+        >
+        <a
+          href="{% url 'pages:data' %}"
+          class="btn btn-outline-primary btn-block custom-btn-width mt-3 ms-2"
+          >Data Portal</a
+        >
+      </div>
+
+      <div class="col-md-6">
+        <p>
+          We create jobs for previously unemployed community youth and put them
+          to work in libraries and literacy centers that we build in
+          impoverished early childhood development centres, preschools, and
+          primary schools.
+        </p>
+        <p>
+          Using proven methodologies, our literacy coaches provide children with
+          one-on-one literacy coaching for the first 5-7 years of their
+          schooling life. All day. Every day.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Stats Under Strip -->
+  <div class="container mid-stats d-none d-md-block">
+    <div class="row my-6">
+      <div class="col-md-3 col-sm-6">
+        <h2 class="counter stat-text" data-target="92%"></h2>
+        <p>of our jobs go to women.</p>
+      </div>
+
+      <div class="col-md-3 col-sm-6 border-start">
+        <h2 class="counter stat-text" data-target="1318"></h2>
+        <p>Previously unemployed youth have received jobs</p>
+      </div>
+
+      <div class="col-md-3 col-sm-6 border-start">
+        <h2 class="counter stat-text" data-target="43%"></h2>
+        <p>Highest youth unemployment rate in the world.</p>
+      </div>
+
+      <div class="col-md-3 col-sm-6 border-start">
+        <h2 class="counter stat-text" data-target="75%"></h2>
+        <p>of South Africans are unemployed.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+    <!-- SCHOLARSHIP STRIP -->
+<div class="full-width-section scholarship">
+    <img
+        src="{% static 'images/Website Strip - TL.png' %}"
+        alt="Smiling Girl"
+        class="full-strip-img"
+        loading="lazy"
+    />
+    <div class="d-none d-md-block">
+        <div class="text-content1" data-aos="fade-right">
+        <h1 class="top-strip-stat">454</h1>
+        <p class="top-strip-text-light">We have empowered</p>
+        <p class="top-strip-text">454 University Graduates</p>
+        </div>
+    </div>
+ </div>
+
+
+
+<!-- text After Strip -->
+<section class="scholarship-info-strip">
+  <div class="container" data-aos="fade-up">
+    <div class="row">
+      <div class="col-md-6">
+        <h2>Scholarship <span class="light-header">Fund</span></h2>
+        <h6>Investing in a generation of future leaders.</h6>
+        <a href="https://www.youtube.com/watch?v=QUfevyYW1H8"
+          class="btn btn-outline-yellow btn-block custom-btn-width mt-3" target="_blank">Video</a>
+      </div>
+      <div class="col-md-6">
+        <p>
+          What would happen if you flooded South Africa's most impoverished
+          communities with university graduates?
+        </p>
+        <p>We are going to find out.</p>
+        <p>
+          These young leaders are becoming empowered to uplift their own
+          families, solve their own community's problems, and to serve as
+          role models to other youth.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Stats Under Strip -->
+  <div class="container bottom-stats d-none d-md-block">
+    <div class="row my-6">
+      <div class="col-md-3 col-sm-6">
+        <h2 class="counter stat-text" data-target="10,000+"></h2>
+        <p>High school learners assisted</p>
+      </div>
+      <div class="col-md-3 col-sm-6 border-start">
+        <h2 class="counter stat-text" data-target="88%"></h2>
+        <p>Pass-rate</p>
+      </div>
+      <div class="col-md-3 col-sm-6 border-start">
+        <h2 class="counter stat-text" data-target="259"></h2>
+        <p>Employed graduates</p>
+      </div>
+      <div class="col-md-3 col-sm-6 border-start">
+        <h2 class="counter stat-text" data-target="1,000"></h2>
+        <p>University graduates by 2028</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ANNUAL REPORT SECTION -->
+<section class="annual-report-strip">
+  <div class="container-fluid p-0">
+    <div class="position-relative text-center text-white">
+      <div class="background-image-div w-100" style="height: 550px">
+        <div class="position-absolute top-0 start-0 w-100 h-100 d-flex flex-column justify-content-center align-items-center"
+          style="background-color: rgba(0, 0, 0, 0.6)">
+          <h1 class="display-4 fw-bold text-white">Our Impact This Year</h1>
+          <p class="lead mb-4">
+            Journey through our achievements and milestones.
+          </p>
+          <a href="{% static 'reports/Masinyusane_2023_Annual_Report_RSA.pdf' %}"
+            class="btn btn-lg btn-outline-white report-button" target="_blank">
+            Read the Annual Report
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- MEET GRADUATES -->
+<section class="meet-graduates my-5">
+  <div class="container">
+    <div class="row align-items-center">
+      <div class="col-md-4 col-12 mb-4 mb-md-0">
+        <h2 class="fw-bold">Hear From Our Graduates</h2>
+      </div>
+      <div class="col-md-8 col-12">
+        <div id="graduatesCarousel" class="carousel slide" data-bs-ride="carousel">
+          <div class="carousel-indicators">
+            <button type="button" data-bs-target="#graduatesCarousel" data-bs-slide-to="0" class="active"
+              aria-current="true" aria-label="Slide 1"></button>
+            <button type="button" data-bs-target="#graduatesCarousel" data-bs-slide-to="1" aria-label="Slide 2"></button>
+            <button type="button" data-bs-target="#graduatesCarousel" data-bs-slide-to="2" aria-label="Slide 3"></button>
+            <button type="button" data-bs-target="#graduatesCarousel" data-bs-slide-to="3" aria-label="Slide 4"></button>
+          </div>
+          <div class="carousel-inner">
+            <div class="carousel-item active">
+              <img src="{% static 'images/grads/grad-carousel1.png' %}" class="d-block w-100" alt="Graduate 1"
+                loading="lazy" />
+            </div>
+            <div class="carousel-item">
+              <img src="{% static 'images/grads/grad-carousel2.png' %}" class="d-block w-100" alt="Graduate 2"
+                loading="lazy" />
+            </div>
+            <div class="carousel-item">
+              <img src="{% static 'images/grads/grad-carousel3.png' %}" class="d-block w-100" alt="Graduate 3"
+                loading="lazy" />
+            </div>
+            <div class="carousel-item">
+              <img src="{% static 'images/grads/grad-carousel4.png' %}" class="d-block w-100" alt="Graduate 4"
+                loading="lazy" />
+            </div>
+          </div>
+          <button class="carousel-control-prev" type="button" data-bs-target="#graduatesCarousel" data-bs-slide="prev">
+            <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+            <span class="visually-hidden">Previous</span>
+          </button>
+          <button class="carousel-control-next" type="button" data-bs-target="#graduatesCarousel" data-bs-slide="next">
+            <span class="carousel-control-next-icon" aria-hidden="true"></span>
+            <span class="visually-hidden">Next</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- DATA PORTAL -->
+<section id="floating-stats" class="data-portal">
+  <div class="container stat-container">
+    <div class="row">
+      <div class="col-md-6 d-flex flex-column justify-content-center text-white">
+        <h2 class="text-white">Data-Driven <span class="light-header">Results</span></h2>
+        <p class="desc-box">
+          We measure dozens of metrics for each child. By leveraging real-time
+          data, we can tailor interventions to meet the specific needs of each
+          child, maximizing the impact of our programs.
+        </p>
+        <div class="portal-button pt-5">
+          <a href="{% url 'pages:data' %}">
+            <span></span><span></span><span></span><span></span>Enter Data Portal
+          </a>
+        </div>
+      </div>
+      <div class="col-md-6 d-none d-md-block">
+        <img src="{% static 'images/polar_chart_transparent_white_labels_with_padding.png' %}"
+          class="polar-img" alt="" loading="lazy" />
+      </div>
+    </div>
+  </div>
+</section>
+<!-- APPROACH SECTION -->
+<section class="approach py-5">
+    <div class="container">
+      <div class="row" data-aos="fade-right">
+        <!-- Left Column -->
+        <div class="col-md-6 d-flex flex-column justify-content-center">
+          <h2 class="mb-4">
+            Our <span class="light-header">Differentiated Approach</span>
+          </h2>
+          <p class="desc-box">
+            We leverage data, scale our programs, stay transparent, and empower
+            communities for lasting impact.
+          </p>
+        </div>
+        <!-- Right Column -->
+        <div class="col-md-6">
+          <div class="row g-3">
+            <!-- Card 1: Data-Driven -->
+            <div class="col-6">
+              <div class="card bg-light p-3">
+                <div
+                  class="card-body text-center d-flex flex-column align-items-center justify-content-center"
+                >
+                  <i class="fas fa-chart-line fa-2x mb-3"></i>
+                  <h5 class="card-title">Data-Driven</h5>
+                  <p class="card-text">
+                    We collect and analyze data to tailor our programs for
+                    maximum effectiveness and better outcomes.
+                  </p>
+                </div>
+              </div>
+            </div>
+            <!-- Card 2: Scalable -->
+            <div class="col-6">
+              <div class="card bg-light p-3">
+                <div
+                  class="card-body text-center d-flex flex-column align-items-center justify-content-center"
+                >
+                  <i class="fas fa-globe-africa fa-2x mb-3"></i>
+                  <h5 class="card-title">Scalable Solutions</h5>
+                  <p class="card-text">
+                    We design our interventions to be easily scalable,
+                    maximizing the impact of every contribution.
+                  </p>
+                </div>
+              </div>
+            </div>
+            <!-- Card 3: Transparent -->
+            <div class="col-6">
+              <div class="card bg-light p-3">
+                <div
+                  class="card-body text-center d-flex flex-column align-items-center justify-content-center"
+                >
+                  <i class="fas fa-chart-pie fa-2x mb-3"></i>
+                  <h5 class="card-title">Complete Transparency</h5>
+                  <p class="card-text">
+                    We ensure transparency in our finances and operations,
+                    providing accountability to all stakeholders.
+                  </p>
+                </div>
+              </div>
+            </div>
+            <!-- Card 4: Community -->
+            <div class="col-6">
+              <div class="card bg-light p-3">
+                <div
+                  class="card-body text-center d-flex flex-column align-items-center justify-content-center"
+                >
+                  <i class="fas fa-users fa-2x mb-3"></i>
+                  <h5 class="card-title">Community Focused</h5>
+                  <p class="card-text">
+                    We empower local communities, creating opportunities and
+                    supporting self-driven growth.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- End of Right Column -->
+      </div>
+    </div>
+  </section>
+  
+  <!-- TRUSTED BY SECTION -->
+  <section class="trusted-by pb-5">
+    <div class="container">
+      <div class="row">
+        <div class="col-md-6">
+          <h2 class="mb-5">Trusted <span class="light-header">By</span></h2>
+        </div>
+      </div>
+      <div class="logo-scroll-container">
+        <div class="logo-scroll">
+          <img src="{% static 'images/logos/logo-dgmt.jpg' %}" alt="DGMT Logo" class="partner-logo" />
+          <img src="{% static 'images/logos/logo-MIT.png' %}" alt="MIT Logo" class="partner-logo" />
+          <img src="{% static 'images/logos/logo-DoE.png' %}" alt="Department of Education" class="partner-logo" />
+          <img src="{% static 'images/logos/logo-tlt.png' %}" alt="TLT Logo" class="partner-logo" />
+          <img src="{% static 'images/logos/logo-vw.png' %}" alt="Volkswagen Logo" class="partner-logo" />
+          <img src="{% static 'images/logos/logo-DoE-national.jpeg' %}" alt="National DOE Logo" class="partner-logo" />
+          <img src="{% static 'images/logos/logo-dd.png' %}" alt="DD Logo" class="partner-logo" />
+          <img src="{% static 'images/logos/logo-yebo.png' %}" alt="Yebo Logo" class="partner-logo" />
+          <img src="{% static 'images/logos/logo-fh.png' %}" alt="FH Logo" class="partner-logo" />
+          <img src="{% static 'images/logos/logo-khipu.png' %}" alt="Khipu Logo" class="partner-logo" />
+          <img src="{% static 'images/logos/logo-kwf.png' %}" alt="KWF Logo" class="partner-logo" />
+          <img src="{% static 'images/logos/logo-masifunde.png' %}" alt="Masifunde Logo" class="partner-logo" />
+          <img src="{% static 'images/logos/logo-nlc.png' %}" alt="NLC Logo" class="partner-logo" />
+          <img src="{% static 'images/logos/logo-shine.png' %}" alt="Shine Logo" class="partner-logo" />
+          <img src="{% static 'images/logos/logo-tdh.png' %}" alt="TDH Logo" class="partner-logo" />
+          <img src="{% static 'images/logos/logo-tsi.png' %}" alt="TSI Logo" class="partner-logo" />
+          <img src="{% static 'images/logos/logo-uts.png' %}" alt="UTS Logo" class="partner-logo" />
+        </div>
+      </div>
+    </div>
+  </section>
+
+
+{% endblock %} 
+{% block extra_js %}
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    const stats = document.querySelectorAll('#floating-stats .stat');
+    const sectionHeight =
+      document.getElementById('floating-stats').offsetHeight;
+
+    stats.forEach((stat) => {
+      const randomLeft = 30 + Math.random() * 90;
+      stat.style.left = randomLeft + '%';
+
+      const randomFontSize = Math.random() * 10 + 14;
+      stat.style.fontSize = randomFontSize + 'px';
+
+      gsap.fromTo(
+        stat,
+        { y: sectionHeight, opacity: 0 },
+        {
+          y: -50,
+          opacity: 0.6,
+          duration: Math.random() * 10 + 10,
+          delay: Math.random() * 5,
+          repeat: -1,
+          ease: 'linear',
+          onRepeat: function () {
+            stat.style.left = 30 + Math.random() * 90 + '%';
+            stat.style.fontSize = Math.random() * 10 + 14 + 'px';
+            this.duration(Math.random() * 10 + 10);
+          },
+        }
+      );
+    });
+  });
+</script>
+{% endblock %}

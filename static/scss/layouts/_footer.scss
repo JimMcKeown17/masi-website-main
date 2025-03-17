@@ -1,0 +1,74 @@
+// layouts/_footer.scss
+
+.footer {
+  .container {
+    color: white;
+
+    a {
+      text-decoration: none;
+    }
+
+    .footer-info p {
+      font-size: 14px;
+      line-height: 0.5;
+    }
+
+    ul li a {
+      font-size: 14px;
+    }
+  }
+
+  /* Social Links */
+  .social-links {
+    a {
+      color: white;
+      margin-right: 1rem;
+      transition: color 0.3s ease;
+
+      &:hover {
+        color: var(--masi-yellow);
+      }
+    }
+  }
+
+  /* Footer Lists */
+  .footer-links {
+    list-style: none;
+    padding-left: 0;
+
+    li {
+      margin-bottom: 0.5rem;
+    }
+
+    a {
+      color: white;
+      transition: color 0.3s ease;
+
+      &:hover {
+        color: var(--masi-yellow);
+      }
+    }
+  }
+
+  /* Media Queries */
+  @media (max-width: 768px) {
+    .container {
+      font-size: 12px !important;
+      line-height: 1 !important;
+
+      p {
+        font-size: 12px !important;
+      }
+
+      .footer-info p {
+        font-size: 12px !important;
+        line-height: 1.2;
+      }
+    }
+
+    ul li a {
+      font-size: 12px !important;
+      line-height: 2 !important;
+    }
+  }
+}

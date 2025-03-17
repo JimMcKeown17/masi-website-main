@@ -1,0 +1,173 @@
+// components/_hero.scss
+
+/* Home Hero */
+.home-hero {
+  .video-container {
+    height: calc(100vh);
+    position: relative;
+
+    > h1 {
+      z-index: 1;
+      color: white;
+    }
+
+    video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+  }
+
+  .video-overlay {
+    position: absolute;
+    width: 100vw;
+    top: 30%;
+    text-align: left;
+    color: white;
+
+    h1 {
+      color: white;
+      font-size: 4rem;
+      margin: 0;
+      padding: 0;
+      line-height: 4.2rem;
+      margin-bottom: 50px;
+    }
+
+    &-text {
+      font-size: 1.3rem;
+    }
+  }
+}
+
+/* Child Strip */
+.child-strip {
+  .font-stat-lg {
+    font-size: 3rem;
+  }
+
+  .full-strip-img {
+    width: 100%;
+    object-fit: contain;
+    display: block;
+    margin: 0 auto;
+  }
+
+  .text-content1 {
+    position: absolute;
+    top: 35%;
+    left: 20%;
+    transform: translateY(-50%);
+    color: white;
+    text-align: left;
+  }
+
+  .top-strip {
+    &-stat {
+      color: white;
+      font-family: 'Roboto', sans-serif;
+      font-weight: 800;
+      font-size: 10rem;
+      margin: 0;
+    }
+
+    &-text {
+      &-light {
+        font-family: 'Roboto', sans-serif;
+        font-size: 1.5rem;
+        font-weight: 300;
+        margin-bottom: 5px;
+        line-height: 1.7rem;
+      }
+
+      font-family: 'Roboto', sans-serif;
+      font-size: 1.5rem;
+      font-weight: 600;
+      line-height: 1.7rem;
+    }
+  }
+}
+
+/* Hero Section New (Page 2) */
+.hero-section-new {
+  height: 100vh;
+
+  h1 {
+    font-size: 4rem;
+    margin: 0;
+    padding: 0;
+    line-height: 4.2rem;
+  }
+
+  .first-column {
+    border-bottom: 2px solid #3e3e3e;
+  }
+
+  p {
+    margin-top: 0;
+    padding-top: 0;
+    line-height: 1.2;
+  }
+
+  .container {
+    padding-top: 150px;
+    margin-left: 60px;
+    margin-right: 0px;
+  }
+
+  .video-column {
+    height: 550px;
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .video-content {
+    width: 95%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .btn {
+    max-width: 200px;
+    border-radius: 0;
+  }
+}
+
+/* Media Queries */
+@media (max-width: 768px) {
+  .home-hero {
+    .video-overlay {
+      h1 {
+        font-size: 3rem;
+        line-height: 1;
+      }
+      &-text {
+        font-size: 1.1rem;
+      }
+    }
+  }
+
+  .hero-section-new {
+    height: 55vh;
+
+    .container {
+      margin-left: 10px;
+    }
+
+    .btn,
+    .video-column,
+    .video-content {
+      display: none;
+    }
+  }
+
+  .child-strip {
+    .top-strip-text-light {
+      font-size: 1rem;
+      line-height: 1;
+    }
+  }
+}

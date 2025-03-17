@@ -1,0 +1,167 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Where We Work - Masinyusane{% endblock %}
+
+{% block extra_css %}
+<script src="https://cdn.jsdelivr.net/npm/typed.js@2.0.12"></script>
+{% endblock %}
+
+{% block content %}
+<!-- Eastern Cape Banner -->
+<section class="eastern-cape-strip position-relative text-center text-white">
+    <div class="overlay-content w-100 h-100 d-flex flex-column justify-content-center align-items-center">
+        <h1 class="display-4 fw-bold text-white">Eastern Cape, South Africa</h1>
+        <p class="lead mb-4">A land of beautiful, talented people plagued by poverty.</p>
+    </div>
+</section>
+
+<!-- The Problem Section -->
+<section class="problem mt-5">
+    <div class="container">
+        <div class="row align-items-center">
+            <div class="col-md-6 d-flex justify-content-center order-2 order-md-1">
+                <img src="{% static 'images/the problem 2.png' %}"
+                     class="img-fluid problem-1"
+                     alt="Graphic"
+                     data-aos="fade-right">
+            </div>
+            <div class="col-md-6 order-1 order-md-2">
+                <h2>
+                    <span id="typed"></span>
+                </h2>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- The Solution Section -->
+<section class="problem mb-5">
+    <div class="container">
+        <div class="row align-items-center">
+            <div class="col-md-6 order-1 order-md-1">
+                <h2>
+                    <span id="typed2"></span>
+                </h2>
+            </div>
+            <div class="col-md-6 d-flex justify-content-center order-2 order-md-1">
+                <img src="{% static 'images/the problem 6.png' %}"
+                     class="img-fluid problem-2"
+                     alt="Graphic"
+                     data-aos="fade-left">
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Solution Details -->
+<section class="the-solution">
+    <div class="container" data-aos="fade-up">
+        <div class="row">
+            <div class="col-md-6">
+                <h1>We Are Solving Both Problems</h1>
+                <h4 class="lead mb-4">
+                    We hire women from the local communities, train them, and deploy
+                    them as reading coaches in schools and preschools.
+                </h4>
+                <ul>
+                    <li>
+                        <i class="fas fa-check-circle"></i> Women get their first job,
+                        receiving training, and are on the economic ladder.
+                    </li>
+                    <li>
+                        <i class="fas fa-check-circle"></i> Families are now receiving
+                        incomes.
+                    </li>
+                    <li>
+                        <i class="fas fa-check-circle"></i> Children are taught to read
+                        and write, thus unlocking their ability to learn in all other
+                        subjects.
+                    </li>
+                    <li>
+                        <i class="fas fa-check-circle"></i> Children hear 1,000 stories
+                        before age 7, supercharging their vocabulary, imagination, and
+                        memory.
+                    </li>
+                    <li>
+                        <i class="fas fa-check-circle"></i> Children's confidence soars.
+                    </li>
+                </ul>
+            </div>
+            <div class="col-md-6">
+                <img src="{% static 'images/the-solution-model.png' %}"
+                     class="img-fluid solution-model"
+                     alt="Graphic"
+                     data-aos="fade-left">
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Map Section -->
+<section id="map-section" class="d-none d-md-block">
+    <div class="container-fluid py-5 px-0">
+        <div class="row mx-0">
+            <div class="col-12">
+                <h2 class="text-center">Where We Work</h2>
+                <p class="text-center">
+                    Masi works in over 150 schools and preschools in South Africa's most
+                    impoverished region. The children we support are amongst the most
+                    impoverished on earth.
+                </p>
+            </div>
+            <div class="col-12 px-0">
+                <iframe src="{% url 'pages:masi_map_satellite' %}"
+                        width="100%"
+                        height="650px"
+                        style="border: none; overflow: hidden;"></iframe>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<!-- AOS JS -->
+<script src="https://cdn.jsdelivr.net/npm/aos@2.3.4/dist/aos.js"></script>
+<script>
+    AOS.init({
+        duration: 1000,
+        once: true
+    });
+</script>
+
+<!-- Typed.js Initialization -->
+<script>
+    var typed = new Typed('#typed', {
+        strings: [
+            'Did You Know?',
+            'That 81% of 10-year old children in South Africa cannot read.',
+        ],
+        typeSpeed: 50,
+        backSpeed: 20,
+        backDelay: 2000,
+        startDelay: 500,
+        loop: false,
+        loopCount: Infinity,
+        showCursor: true,
+        cursorChar: '|',
+        autoInsertCss: true,
+    });
+
+    var typed2 = new Typed('#typed2', {
+        strings: [
+            "Or that South Africa has the world's highest unemployment rate?",
+        ],
+        typeSpeed: 50,
+        backSpeed: 20,
+        backDelay: 2000,
+        startDelay: 8500,
+        loop: false,
+        loopCount: Infinity,
+        showCursor: true,
+        cursorChar: '|',
+        autoInsertCss: true,
+    });
+</script>
+{% endblock %}

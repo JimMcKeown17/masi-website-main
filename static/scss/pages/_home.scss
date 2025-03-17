@@ -1,0 +1,304 @@
+// _home.scss
+
+// Home Hero Section
+.home-hero {
+  position: relative;
+
+  .video-container {
+    position: relative;
+
+    video {
+      width: 100%;
+      height: auto;
+    }
+
+    .video-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.4);
+      display: flex;
+      align-items: center;
+
+      .container {
+        h1 {
+          font-size: 3rem;
+          color: $primary-light; // Use your defined color variables
+        }
+        p {
+          font-size: 1.5rem;
+          color: $primary-light;
+        }
+      }
+    }
+  }
+}
+
+// Mission Section
+.mission {
+  padding: 3rem 0;
+
+  h2 {
+    font-size: 2.5rem;
+    color: $text-dark;
+  }
+
+  p {
+    font-size: 1rem;
+    line-height: 1.5;
+    color: $text-dark;
+  }
+}
+
+// Child Strip Section
+.child-strip {
+  .full-width-section {
+    position: relative;
+
+    img.full-strip-img {
+      width: 100%;
+      display: block;
+    }
+
+    .text-content1 {
+      position: absolute;
+      top: 50%;
+      left: 10%;
+      transform: translateY(-50%);
+      color: #fff;
+
+      h1 {
+        font-size: 4rem;
+        margin: 0;
+      }
+      p {
+        font-size: 1.5rem;
+      }
+    }
+  }
+}
+
+// Child Info Strip
+.child-info-strip {
+  padding: 3rem 0;
+
+  h2 {
+    font-size: 2rem;
+    span.light-header {
+      font-weight: 300;
+    }
+  }
+
+  h6 {
+    font-size: 1.25rem;
+    color: $secondary-dark;
+  }
+
+  p {
+    font-size: 1rem;
+    color: $text-dark;
+  }
+}
+
+// Youth Strip Section
+.youth-strip {
+  .full-width-section {
+    position: relative;
+
+    img.full-strip-img {
+      width: 100%;
+      display: block;
+    }
+
+    .text-content2 {
+      position: absolute;
+      top: 50%;
+      right: 10%;
+      transform: translateY(-50%);
+      color: #fff;
+
+      h1 {
+        font-size: 4rem;
+        margin: 0;
+      }
+      p {
+        font-size: 1.5rem;
+      }
+    }
+  }
+}
+
+// Youth Info Strip
+.youth-info-strip {
+  padding: 3rem 0;
+
+  h2 {
+    font-size: 2rem;
+    span.light-header {
+      font-weight: 300;
+    }
+  }
+
+  h6 {
+    font-size: 1.25rem;
+    color: $secondary-dark;
+  }
+
+  p {
+    font-size: 1rem;
+    color: $text-dark;
+  }
+}
+
+// Scholarship Strip Section
+.scholarship {
+  position: relative;
+
+  .full-strip-img {
+    width: 100%;
+    display: block;
+  }
+
+  .text-content1 {
+    position: absolute;
+    top: 50%;
+    left: 10%;
+    transform: translateY(-50%);
+    color: #fff;
+
+    h1 {
+      font-size: 4rem;
+      margin: 0;
+    }
+    p {
+      font-size: 1.5rem;
+    }
+  }
+}
+
+// Scholarship Info Strip
+.scholarship-info-strip {
+  padding: 3rem 0;
+
+  h2 {
+    font-size: 2rem;
+    span.light-header {
+      font-weight: 300;
+    }
+  }
+
+  h6 {
+    font-size: 1.25rem;
+    color: $secondary-dark;
+  }
+
+  p {
+    font-size: 1rem;
+    color: $text-dark;
+  }
+}
+
+// Annual Report Section
+.annual-report-strip {
+  .background-image-div {
+    position: relative;
+    background-size: cover;
+    background-position: center;
+
+    .position-absolute {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.6);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+
+      h1 {
+        font-size: 3rem;
+        color: #fff;
+      }
+
+      p.lead {
+        font-size: 1.25rem;
+        color: #fff;
+      }
+
+      .report-button {
+        margin-top: 1rem;
+      }
+    }
+  }
+}
+
+// Meet Graduates Section
+.meet-graduates {
+  padding: 3rem 0;
+
+  h2 {
+    font-size: 2rem;
+    color: $text-dark;
+  }
+}
+
+// Data Portal Section
+.data-portal {
+  padding: 3rem 0;
+
+  .stat-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2rem;
+  }
+
+  .portal-button a {
+    display: inline-block;
+    padding: 0.75rem 1.5rem;
+    background: $primary;
+    color: #fff;
+    border-radius: 4px;
+    text-decoration: none;
+  }
+}
+
+// Approach Section
+.approach {
+  padding: 3rem 0;
+
+  h2 {
+    font-size: 2.5rem;
+    color: $text-dark;
+  }
+
+  p.desc-box {
+    font-size: 1rem;
+    color: $text-dark;
+  }
+}
+
+// Trusted By Section
+.trusted-by {
+  padding: 3rem 0;
+
+  h2 {
+    font-size: 2rem;
+    color: $text-dark;
+  }
+
+  .partner-logo {
+    max-width: 150px;
+    margin: 0 1rem;
+    opacity: 0.8;
+    transition: opacity 0.3s;
+
+    &:hover {
+      opacity: 1;
+    }
+  }
+}

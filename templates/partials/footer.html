@@ -1,0 +1,114 @@
+{% load static %}
+<footer class="footer bg-dark text-light py-5">
+  <div class="container fw-light">
+    <div class="row">
+      <!-- Company Info -->
+      <div class="col-md-4 mb-4">
+        <h6 class="mb-4 text-white">Masinyusane</h6>
+        <div class="footer-info">
+          <p class="fw-semibold">South Africa</p>
+          <p>72 Russell Road, Central, Gqeberha 6001</p>
+          <p>NPO: 074-244</p>
+        </div>
+        <br />
+        <div class="footer-info">
+          <p class="fw-semibold">United States</p>
+          <p>149 Massachusetts Avenue, Boston, MA</p>
+          <p>501c3: 27-3024837</p>
+          <br />
+          Email: info@masinyusane.org
+        </div>
+      </div>
+
+      <!-- Quick Links -->
+      <div class="col-md-2 mb-4">
+        <h6 class="mb-3 text-light">Quick Links</h6>
+        <ul class="list-unstyled">
+          <li><a href="{% url 'pages:home' %}" class="text-light">Home</a></li>
+          <li>
+            <a href="{% url 'pages:about' %}" class="text-light">About Us</a>
+          </li>
+          <li>
+            <a href="{% url 'pages:where' %}" class="text-light"
+              >Where We Work</a
+            >
+          </li>
+          <li>
+            <a href="{% url 'pages:apply' %}" class="text-light">Apply Here</a>
+          </li>
+        </ul>
+      </div>
+
+      <!-- Programs -->
+      <div class="col-md-2 mb-4">
+        <h6 class="mb-3 text-light">Programmes</h6>
+        <ul class="list-unstyled">
+          <li>
+            <a href="{% url 'pages:children' %}" class="text-light"
+              >Early Childhood Education</a
+            >
+          </li>
+          <li>
+            <a href="{% url 'pages:youth' %}" class="text-light"
+              >Community Jobs</a
+            >
+          </li>
+          <li>
+            <a href="{% url 'pages:top_learner' %}" class="text-light"
+              >Scholarship Fund</a
+            >
+          </li>
+        </ul>
+      </div>
+
+      <!-- Resources -->
+      <div class="col-md-2 mb-4">
+        <h6 class="mb-3 text-light">Resources</h6>
+        <ul class="list-unstyled">
+          <li>
+            <a href="{% url 'pages:data' %}" class="text-light">Data Portal</a>
+          </li>
+          <li>
+            <a href="{% url 'pages:impact' %}" class="text-light">Reports</a>
+          </li>
+        </ul>
+      </div>
+
+      <!-- Social Media -->
+      <div class="col-md-2 mb-4">
+        <h6 class="mb-3 text-light">Connect</h6>
+        <ul class="list-unstyled">
+          <li>
+            <a href="https://www.facebook.com/masinyusane/" class="text-light">
+              <i class="fab fa-facebook-f"></i> Facebook
+            </a>
+          </li>
+          <li>
+            <a href="https://www.tiktok.com/@masinyusane1" class="text-light">
+              <i class="fab fa-tiktok"></i> Tik Tok
+            </a>
+          </li>
+          <li>
+            <a href="https://www.instagram.com/masinyusane/" class="text-light">
+              <i class="fab fa-instagram"></i> Instagram
+            </a>
+          </li>
+        </ul>
+        <img
+          src="{% static 'images/Guidestar Platinum Seal.png' %}"
+          height="100"
+          class="mt-4"
+          alt="Guidestar Platinum Seal"
+        />
+      </div>
+    </div>
+
+    <hr class="mt-4 mb-3" />
+
+    <div class="row">
+      <div class="col-md-6 text-center text-md-start">
+        <p>&copy; {% now "Y" %} Masinyusane. All rights reserved.</p>
+      </div>
+    </div>
+  </div>
+</footer>

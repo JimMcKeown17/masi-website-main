@@ -1,0 +1,19 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Data Portal - Masinyusane{% endblock %}
+
+{% block content %}
+<!-- Data Portal Section -->
+<section class="data-section">
+    <iframe src="https://data.masinyusane.org"
+            title="Masinyusane Data"
+            class="iframe">
+    </iframe>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<!-- In case you need any specific JavaScript for the data portal page -->
+<script src="{% static 'js/lightbox-plus-jquery.min.js' %}"></script>
+{% endblock %}

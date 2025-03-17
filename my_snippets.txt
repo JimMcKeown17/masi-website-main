@@ -1,0 +1,1 @@
+tree -L 3 -I 'venv|__pycache__|*.pyc|.git|node_modules' --dirsfirst
