@@ -60,9 +60,10 @@ MIDDLEWARE = [
 # Google Cloud Storage settings
 if not DEBUG:  # Only use in production
     DEFAULT_FILE_STORAGE = 'storages.backends.gcloud.GoogleCloudStorage'
-    STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+    STATICFILES_STORAGE = 'storages.backends.gcloud.GoogleCloudStorage'
     GS_BUCKET_NAME = 'masi-website'
     GS_DEFAULT_ACL = 'publicRead'
+
 
 
 AUTHENTICATION_BACKENDS = [
@@ -98,7 +99,10 @@ SOCIALACCOUNT_PROVIDERS = {
 LOGIN_REDIRECT_URL = '/dashboard/'
 
 # Static files settings
-STATIC_URL = '/static/'
+if DEBUG:
+    STATIC_URL = '/static/'
+else:
+    STATIC_URL = f'https://storage.googleapis.com/{GS_BUCKET_NAME}/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static')]
 
