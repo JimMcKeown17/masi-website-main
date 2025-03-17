@@ -99,3 +99,9 @@ celerybeat.pid
 .spyproject
 .ropeproject
 /site
+
+moonlit-botany-454016-b5-e20993bb54e0.json
+
+# Google Cloud credentials
+*.json
+!package.json

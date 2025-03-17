@@ -21,7 +21,6 @@ if not SECRET_KEY:
 DEBUG = os.environ.get('DEBUG', 'True') == 'True'
 
 
-
 # Allowed hosts should be set from environment in production
 ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '').split(',') if os.environ.get('ALLOWED_HOSTS') else []
 
@@ -48,6 +47,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -60,7 +60,7 @@ MIDDLEWARE = [
 # Google Cloud Storage settings
 if not DEBUG:  # Only use in production
     DEFAULT_FILE_STORAGE = 'storages.backends.gcloud.GoogleCloudStorage'
-    STATICFILES_STORAGE = 'storages.backends.gcloud.GoogleCloudStorage'
+    STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
     GS_BUCKET_NAME = 'masi-website'
     GS_DEFAULT_ACL = 'publicRead'
 
@@ -98,11 +98,9 @@ SOCIALACCOUNT_PROVIDERS = {
 LOGIN_REDIRECT_URL = '/dashboard/'
 
 # Static files settings
-STATIC_URL = 'static/' if DEBUG else f'https://storage.googleapis.com/{GS_BUCKET_NAME}/'
-STATICFILES_DIRS = [
-    os.path.join(BASE_DIR, 'static'),
-]
+STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static')]
 
 # Templates settings
 TEMPLATES = [
