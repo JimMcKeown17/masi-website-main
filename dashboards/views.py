@@ -1,13 +1,30 @@
 from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
-from .models import MentorVisit
+from django.utils import timezone
+from datetime import timedelta
+from django.contrib.auth.models import User
+
+# Models & Forms
+from .models import MentorVisit, School
 from .forms import MentorVisitForm
+
+# Services
 from .services.airtable_service import fetch_airtable_records
 from .services.data_processing import process_airtable_records, get_active_records, count_job_titles
-from .visualizations.charts import create_job_title_chart
 
-def dashboard_home(request):
+# Visualizations
+from .visualizations.charts import create_job_title_chart
+from .visualizations.mentor_charts import (
+    generate_visit_frequency_chart,
+    generate_quality_rating_chart,
+    generate_tracker_accuracy_chart,
+    generate_school_visit_map,
+    generate_dashboard_summary
+)
+
+def dashboard_main(request):
+    """Main dashboard view with Airtable data"""
     # Fetch data from Airtable
     records, error = fetch_airtable_records()
     
@@ -74,9 +91,9 @@ def dashboard_home(request):
     
     return render(request, 'dashboards/dashboard_main.html', context)
 
-
 @login_required
-def mentor_visit(request):
+def mentor_visit_form(request):
+    """View for creating a new mentor visit report"""
     if request.method == 'POST':
         form = MentorVisitForm(request.POST)
         if form.is_valid():
@@ -84,7 +101,7 @@ def mentor_visit(request):
             visit.mentor = request.user
             visit.save()
             messages.success(request, 'Visit report submitted successfully!')
-            return redirect('dashboards:visit_list')  # Adjust to your URL pattern
+            return redirect('mentor_dashboard')
     else:
         form = MentorVisitForm()
     
@@ -92,3 +109,72 @@ def mentor_visit(request):
         'form': form,
         'title': 'Submit School Visit Report'
     })
+
+# Update the mentor_dashboard function in your views.py file
+
+@login_required
+def mentor_dashboard(request):
+    """Main dashboard view for mentor visits"""
+    # Get filter parameters
+    time_filter = request.GET.get('time_filter', 'all')
+    school_filter = request.GET.get('school', '')
+    mentor_filter = request.GET.get('mentor', '')
+    
+    # Base queryset
+    visits = MentorVisit.objects.all()
+    
+    # Apply time filter
+    if time_filter == '30days':
+        thirty_days_ago = timezone.now().date() - timedelta(days=30)
+        visits = visits.filter(visit_date__gte=thirty_days_ago)
+    elif time_filter == '90days':
+        ninety_days_ago = timezone.now().date() - timedelta(days=90)
+        visits = visits.filter(visit_date__gte=ninety_days_ago)
+    elif time_filter == 'thisyear':
+        year_start = timezone.now().date().replace(month=1, day=1)
+        visits = visits.filter(visit_date__gte=year_start)
+    
+    # Apply school filter
+    if school_filter:
+        visits = visits.filter(school_id=school_filter)
+    
+    # Apply mentor filter
+    if mentor_filter:
+        visits = visits.filter(mentor_id=mentor_filter)
+    
+    # Get all schools for the filter dropdown
+    schools = School.objects.filter(is_active=True).order_by('name')
+    
+    # Get all mentors for the filter dropdown
+    mentors = User.objects.filter(visits__isnull=False).distinct().order_by('first_name', 'last_name')
+    
+    # Generate chart data
+    time_period = 'week' if time_filter in ['30days', '90days'] else 'month'
+    
+    # Get all visits (unfiltered by time) for schools last visited component
+    all_visits = MentorVisit.objects.all()
+    if school_filter:
+        all_visits = all_visits.filter(school_id=school_filter)
+    if mentor_filter:
+        all_visits = all_visits.filter(mentor_id=mentor_filter)
+    
+    # Generate schools last visited data
+    from .visualizations.mentor_charts import generate_schools_last_visited
+    schools_last_visited = generate_schools_last_visited(all_visits)
+    
+    context = {
+        'schools': schools,
+        'mentors': mentors,
+        'selected_time_filter': time_filter,
+        'selected_school': school_filter,
+        'selected_mentor': mentor_filter,
+        'visit_frequency_chart': generate_visit_frequency_chart(visits, time_period),
+        'quality_rating_chart': generate_quality_rating_chart(visits),
+        'tracker_accuracy_chart': generate_tracker_accuracy_chart(visits),
+        'school_visit_map': generate_school_visit_map(visits),
+        'summary': generate_dashboard_summary(visits),
+        'schools_last_visited': schools_last_visited,  # Add the new data
+        'title': 'Mentor Visit Dashboard'
+    }
+    
+    return render(request, 'dashboards/mentor_dashboard.html', context)

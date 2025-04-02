@@ -1,0 +1,384 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Mentor Visit Dashboard | Masi{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+<style>
+  .dashboard-card {
+    transition: all 0.3s ease;
+    height: 100%;
+  }
+  .dashboard-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+  }
+  .stat-card {
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 20px;
+    color: white;
+  }
+  .stat-card.primary {
+    background: linear-gradient(45deg, #3a7bd5, #00d2ff);
+  }
+  .stat-card.success {
+    background: linear-gradient(45deg, #00b09b, #96c93d);
+  }
+  .stat-card.warning {
+    background: linear-gradient(45deg, #ff9966, #ff5e62);
+  }
+  .stat-card.info {
+    background: linear-gradient(45deg, #6a82fb, #fc5c7d);
+  }
+  .stat-value {
+    font-size: 2.5rem;
+    font-weight: bold;
+  }
+  .stat-label {
+    font-size: 1rem;
+    opacity: 0.8;
+  }
+  #map-container {
+    height: 400px;
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .filter-bar {
+    background-color: #f8f9fa;
+    padding: 15px;
+    border-radius: 10px;
+    margin-bottom: 20px;
+  }
+  canvas {
+    max-width: 100%;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-7">
+  <h1 class="mb-4">Mentor Visit Dashboard</h1>
+  
+  <!-- Filter Bar (Updated with Mentor Filter) -->
+  <div class="filter-bar mb-4">
+    <form method="get" class="row g-3 align-items-end">
+      <div class="col-md-3">
+        <label for="time_filter" class="form-label">Time Period</label>
+        <select class="form-select" id="time_filter" name="time_filter" onchange="this.form.submit()">
+          <option value="all" {% if selected_time_filter == 'all' %}selected{% endif %}>All Time</option>
+          <option value="30days" {% if selected_time_filter == '30days' %}selected{% endif %}>Last 30 Days</option>
+          <option value="90days" {% if selected_time_filter == '90days' %}selected{% endif %}>Last 90 Days</option>
+          <option value="thisyear" {% if selected_time_filter == 'thisyear' %}selected{% endif %}>This Year</option>
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label for="school" class="form-label">School</label>
+        <select class="form-select" id="school" name="school" onchange="this.form.submit()">
+          <option value="">All Schools</option>
+          {% for school in schools %}
+          <option value="{{ school.id }}" {% if selected_school == school.id|stringformat:"i" %}selected{% endif %}>{{ school.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label for="mentor" class="form-label">Mentor</label>
+        <select class="form-select" id="mentor" name="mentor" onchange="this.form.submit()">
+          <option value="">All Mentors</option>
+          {% for mentor in mentors %}
+          <option value="{{ mentor.id }}" {% if selected_mentor == mentor.id|stringformat:"i" %}selected{% endif %}>{{ mentor.get_full_name|default:mentor.username }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <a href="{% url 'mentor_visit_form' %}" class="btn btn-primary w-100">Add New Visit</a>
+      </div>
+    </form>
+  </div>
+  
+  <!-- Summary Stats -->
+  <div class="row mb-4">
+    <div class="col-md-3">
+      <div class="stat-card primary">
+        <div class="stat-value">{{ summary.total_visits }}</div>
+        <div class="stat-label">Total Visits</div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="stat-card success">
+        <div class="stat-value">{{ summary.recent_visits }}</div>
+        <div class="stat-label">Visits in Last 30 Days</div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="stat-card warning">
+        <div class="stat-value">{{ summary.schools_visited }}</div>
+        <div class="stat-label">Schools Visited</div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="stat-card info">
+        <div class="stat-value">{{ summary.avg_quality|floatformat:1 }}</div>
+        <div class="stat-label">Avg. Quality Rating</div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Charts Row 1 -->
+  <div class="row mb-4">
+    <div class="col-md-8">
+      <div class="card dashboard-card shadow-sm">
+        <div class="card-header bg-white">
+          <h5 class="card-title mb-0">Visit Frequency Over Time</h5>
+        </div>
+        <div class="card-body">
+          <canvas id="visitFrequencyChart"></canvas>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card dashboard-card shadow-sm">
+        <div class="card-header bg-white">
+          <h5 class="card-title mb-0">Quality Rating Distribution</h5>
+        </div>
+        <div class="card-body">
+          <canvas id="qualityRatingChart"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Charts Row 2 -->
+  <div class="row mb-4">
+    <div class="col-md-5">
+      <div class="card dashboard-card shadow-sm">
+        <div class="card-header bg-white">
+          <h5 class="card-title mb-0">Tracker Accuracy Metrics</h5>
+        </div>
+        <div class="card-body">
+          <canvas id="trackerAccuracyChart"></canvas>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-7">
+      <div class="card dashboard-card shadow-sm">
+        <div class="card-header bg-white">
+          <h5 class="card-title mb-0">School Visit Distribution</h5>
+        </div>
+        <div class="card-body">
+          <div id="map-container"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <div class="row mb-4">
+    <div class="col-md-12">
+      <div class="card dashboard-card shadow-sm mb-4">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+          <h5 class="card-title mb-0">Schools Visit Recency</h5>
+          <div class="btn-group" role="group">
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="showAllSchools">Show All</button>
+            <button type="button" class="btn btn-sm btn-outline-danger" id="showOverdueSchools">Show Overdue</button>
+          </div>
+        </div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-hover mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th scope="col">School Name</th>
+                  <th scope="col">Type</th>
+                  <th scope="col">Last Visit</th>
+                  <th scope="col">Days Ago</th>
+                  <th scope="col" class="text-center">Status</th>
+                  <th scope="col" class="text-end">Action</th>
+                </tr>
+              </thead>
+              <tbody id="schoolsLastVisitedTable">
+                {% for school in schools_last_visited %}
+                <tr data-days-ago="{{ school.days_ago }}" class="{% if school.days_ago > 30 %}table-warning{% endif %} {% if school.days_ago > 60 %}table-danger{% endif %}">
+                  <td>{{ school.school_name }}</td>
+                  <td>{{ school.school_type }}</td>
+                  <td>{{ school.last_visit_date }}</td>
+                  <td>{{ school.days_ago }} days</td>
+                  <td class="text-center">
+                    {% if school.days_ago <= 14 %}
+                      <span class="badge bg-success">Recent</span>
+                    {% elif school.days_ago <= 30 %}
+                      <span class="badge bg-info">Good</span>
+                    {% elif school.days_ago <= 60 %}
+                      <span class="badge bg-warning text-dark">Attention</span>
+                    {% else %}
+                      <span class="badge bg-danger">Overdue</span>
+                    {% endif %}
+                  </td>
+                  <td class="text-end">
+                    <a href="{% url 'mentor_visit_form' %}?school={{ school.school_id }}" class="btn btn-sm btn-outline-primary">
+                      <i class="fas fa-clipboard-check"></i> Visit
+                    </a>
+                  </td>
+                </tr>
+                {% empty %}
+                <tr>
+                  <td colspan="6" class="text-center py-3">No school visit data available.</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+<script>
+  // Chart color palette
+  const colors = {
+    blue: {
+      fill: 'rgba(54, 162, 235, 0.2)',
+      stroke: 'rgba(54, 162, 235, 1)'
+    },
+    red: {
+      fill: 'rgba(255, 99, 132, 0.2)',
+      stroke: 'rgba(255, 99, 132, 1)'
+    },
+    green: {
+      fill: 'rgba(75, 192, 192, 0.2)',
+      stroke: 'rgba(75, 192, 192, 1)'
+    },
+    orange: {
+      fill: 'rgba(255, 159, 64, 0.2)',
+      stroke: 'rgba(255, 159, 64, 1)'
+    }
+  };
+
+  // Parse chart data from the backend
+  const visitFrequencyData = JSON.parse('{{ visit_frequency_chart|escapejs }}');
+  const qualityRatingData = JSON.parse('{{ quality_rating_chart|escapejs }}');
+  const trackerAccuracyData = JSON.parse('{{ tracker_accuracy_chart|escapejs }}');
+  const schoolMapData = JSON.parse('{{ school_visit_map|escapejs }}');
+  
+  // Create Visit Frequency Chart
+  const visitFrequencyCtx = document.getElementById('visitFrequencyChart').getContext('2d');
+  new Chart(visitFrequencyCtx, {
+    type: 'bar',
+    data: visitFrequencyData,
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        y: {
+          beginAtZero: true,
+          title: {
+            display: true,
+            text: 'Number of Visits'
+          }
+        },
+        x: {
+          title: {
+            display: true,
+            text: 'Time Period'
+          }
+        }
+      }
+    }
+  });
+  
+  // Create Quality Rating Chart
+  const qualityRatingCtx = document.getElementById('qualityRatingChart').getContext('2d');
+  new Chart(qualityRatingCtx, {
+    type: 'bar',
+    data: qualityRatingData,
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        y: {
+          beginAtZero: true,
+          title: {
+            display: true,
+            text: 'Number of Visits'
+          }
+        }
+      }
+    }
+  });
+  
+  // Create Tracker Accuracy Chart (Radar)
+  const trackerAccuracyCtx = document.getElementById('trackerAccuracyChart').getContext('2d');
+  new Chart(trackerAccuracyCtx, {
+    type: 'radar',
+    data: trackerAccuracyData,
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        r: {
+          angleLines: {
+            display: true
+          },
+          suggestedMin: 0,
+          suggestedMax: 100
+        }
+      }
+    }
+  });
+  
+  // Initialize the map
+  const map = L.map('map-container').setView([-29.2, 30.5], 7); // Set to South Africa's KZN region
+  
+  // Add OpenStreetMap tile layer
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+  }).addTo(map);
+  
+  // Add school markers
+  schoolMapData.forEach(school => {
+    // Determine marker size based on visit count
+    const markerSize = Math.max(5, Math.min(15, school.visit_count * 2));
+    
+    // Determine marker color based on school type
+    let markerColor = '#3388ff'; // Default blue
+    if (school.type === 'ECDC') {
+      markerColor = '#28a745'; // Green for ECDC
+    } else if (school.type === 'Primary School') {
+      markerColor = '#ffc107'; // Yellow for Primary
+    } else if (school.type === 'Secondary School') {
+      markerColor = '#dc3545'; // Red for Secondary
+    }
+    
+    // Create marker with popup
+    const marker = L.circleMarker([school.latitude, school.longitude], {
+      radius: markerSize,
+      fillColor: markerColor,
+      color: '#000',
+      weight: 1,
+      opacity: 1,
+      fillOpacity: 0.8
+    }).addTo(map);
+    
+    // Add popup with school info
+    marker.bindPopup(`
+      <strong>${school.name}</strong><br>
+      Type: ${school.type}<br>
+      Visits: ${school.visit_count}<br>
+      Avg. Quality: ${school.avg_quality}
+    `);
+  });
+  
+  // If we have markers, fit the map to show all schools
+  if (schoolMapData.length > 0) {
+    const bounds = schoolMapData.map(school => [school.latitude, school.longitude]);
+    map.fitBounds(bounds);
+  }
+</script>
+{% endblock %}

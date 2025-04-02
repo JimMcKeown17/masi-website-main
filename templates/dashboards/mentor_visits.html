@@ -3,90 +3,289 @@
 
 {% block title %}{{ title }}{% endblock %}
 
+{% block extra_css %}
+<style>
+  .form-card {
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+    border: none;
+  }
+  
+  .card-header {
+    padding: 1.5rem;
+    background: linear-gradient(135deg, #0d47a1, #1976d2);
+  }
+  
+  .form-label {
+    font-weight: 500;
+    color: #37474f;
+    margin-bottom: 0.5rem;
+  }
+  
+  .form-control, .form-select {
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+    border: 1px solid #e0e0e0;
+    transition: all 0.3s;
+  }
+  
+  .form-control:focus, .form-select:focus {
+    border-color: #1976d2;
+    box-shadow: 0 0 0 0.25rem rgba(25, 118, 210, 0.15);
+  }
+  
+  .form-check-input {
+    width: 1.25rem;
+    height: 1.25rem;
+    margin-top: 0.2rem;
+  }
+  
+  .form-check-input:checked {
+    background-color: #1976d2;
+    border-color: #1976d2;
+  }
+  
+  .form-check-label {
+    padding-left: 0.5rem;
+  }
+  
+  .section-title {
+    color: #0d47a1;
+    font-weight: 600;
+    margin-bottom: 1.5rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 2px solid #e3f2fd;
+  }
+  
+  .rating-container {
+    background-color: #f5f9ff;
+    padding: 1.25rem;
+    border-radius: 8px;
+    margin-bottom: 1rem;
+  }
+  
+  .rating-value {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: #1976d2;
+  }
+  
+  .rating-labels {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 0.5rem;
+    color: #546e7a;
+    font-size: 0.875rem;
+  }
+  
+  .submit-btn {
+    padding: 0.75rem 2rem;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    transition: all 0.3s;
+    background: linear-gradient(135deg, #0d47a1, #1976d2);
+    border: none;
+  }
+  
+  .submit-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(25, 118, 210, 0.3);
+    background: linear-gradient(135deg, #1565c0, #1e88e5);
+  }
+  
+  .alert-success {
+    background-color: #e8f5e9;
+    border-color: #c8e6c9;
+    color: #2e7d32;
+  }
+  
+  .textarea-counter {
+    font-size: 0.75rem;
+    color: #78909c;
+    text-align: right;
+    margin-top: 0.25rem;
+  }
+  
+  /* Custom slider styling */
+  input[type=range] {
+    height: 25px;
+    -webkit-appearance: none;
+    width: 100%;
+    background: transparent;
+  }
+  
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    height: 22px;
+    width: 22px;
+    border-radius: 50%;
+    background: #1976d2;
+    cursor: pointer;
+    margin-top: -8px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+  }
+  
+  input[type=range]::-webkit-slider-runnable-track {
+    width: 100%;
+    height: 6px;
+    cursor: pointer;
+    background: #e0e0e0;
+    border-radius: 3px;
+  }
+  
+  input[type=range]:focus {
+    outline: none;
+  }
+  
+  input[type=range]:focus::-webkit-slider-runnable-track {
+    background: #bbdefb;
+  }
+  
+  .form-floating {
+    position: relative;
+  }
+  
+  .form-floating label {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    padding: 1rem;
+    pointer-events: none;
+    border: 1px solid transparent;
+    transform-origin: 0 0;
+    transition: opacity .1s ease-in-out,transform .1s ease-in-out;
+    color: #6c757d;
+  }
+  
+  .form-floating .form-control:focus ~ label,
+  .form-floating .form-control:not(:placeholder-shown) ~ label {
+    opacity: .65;
+    transform: scale(.85) translateY(-0.5rem) translateX(0.15rem);
+  }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="container mt-5 pt-5">
-    <div class="row">
-        <div class="col-md-8 offset-md-2">
-            <div class="card shadow">
-                <div class="card-header bg-primary text-white">
-                    <h2 class="mb-0">School Visit Report</h2>
+<div class="container my-5 py-3">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card form-card">
+                <div class="card-header">
+                    <h2 class="mb-0 text-white fw-bold">
+                        <i class="fas fa-clipboard-check me-2"></i>School Visit Report
+                    </h2>
                 </div>
-                <div class="card-body">
+                <div class="card-body p-4">
                     {% if messages %}
                         {% for message in messages %}
-                            <div class="alert alert-{{ message.tags }}">
-                                {{ message }}
+                            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                                <i class="fas fa-check-circle me-2"></i>{{ message }}
+                                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                             </div>
                         {% endfor %}
                     {% endif %}
                     
-                    <form method="post">
+                    <form method="post" id="visitForm">
                         {% csrf_token %}
                         
-                        <div class="form-group mb-3">
-                            <label for="{{ form.visit_date.id_for_label }}">Date</label>
-                            {{ form.visit_date }}
-                        </div>
-                        
-                        <div class="form-group mb-3">
-                            <label for="{{ form.school.id_for_label }}">School Visited</label>
-                            {{ form.school }}
-                        </div>
-                        
-                        <hr>
-                        
-                        <h4 class="mb-4">Mentor Observations</h4>
-                        
-                        <div class="form-check mb-3">
-                            {{ form.letter_trackers_correct }}
-                            <label class="form-check-label" for="{{ form.letter_trackers_correct.id_for_label }}">
-                                {{ form.letter_trackers_correct.label }}
-                            </label>
-                        </div>
-                        
-                        <div class="form-check mb-3">
-                            {{ form.reading_trackers_correct }}
-                            <label class="form-check-label" for="{{ form.reading_trackers_correct.id_for_label }}">
-                                {{ form.reading_trackers_correct.label }}
-                            </label>
-                        </div>
-                        
-                        <div class="form-check mb-3">
-                            {{ form.sessions_correct }}
-                            <label class="form-check-label" for="{{ form.sessions_correct.id_for_label }}">
-                                {{ form.sessions_correct.label }}
-                            </label>
-                        </div>
-                        
-                        <div class="form-check mb-4">
-                            {{ form.admin_correct }}
-                            <label class="form-check-label" for="{{ form.admin_correct.id_for_label }}">
-                                {{ form.admin_correct.label }}
-                            </label>
-                        </div>
-                        
-                        <div class="form-group mb-4">
-                            <label for="{{ form.quality_rating.id_for_label }}">{{ form.quality_rating.label }}</label>
-                            <div class="d-flex align-items-center">
-                                <span class="me-2">1</span>
-                                {{ form.quality_rating }}
-                                <span class="ms-2">10</span>
+                        <div class="row mb-4">
+                            <div class="col-md-6 mb-3 mb-md-0">
+                                <label for="{{ form.visit_date.id_for_label }}" class="form-label">
+                                    <i class="far fa-calendar-alt me-2"></i>Visit Date
+                                </label>
+                                <div class="input-group">
+                                    {{ form.visit_date }}
+                                    <span class="input-group-text">
+                                        <i class="far fa-calendar"></i>
+                                    </span>
+                                </div>
                             </div>
-                            <div id="rating-value" class="text-center mt-2">5</div>
+                            
+                            <div class="col-md-6">
+                                <label for="{{ form.school.id_for_label }}" class="form-label">
+                                    <i class="fas fa-school me-2"></i>School Visited
+                                </label>
+                                {{ form.school }}
+                            </div>
                         </div>
                         
-                        <div class="form-group mb-3">
-                            <label for="{{ form.supplies_needed.id_for_label }}">{{ form.supplies_needed.label }}</label>
-                            {{ form.supplies_needed }}
+                        <h4 class="section-title">
+                            <i class="fas fa-clipboard-list me-2"></i>Mentor Observations
+                        </h4>
+                        
+                        <div class="row mb-4">
+                            <div class="col-md-6">
+                                <div class="form-check mb-3">
+                                    {{ form.letter_trackers_correct }}
+                                    <label class="form-check-label" for="{{ form.letter_trackers_correct.id_for_label }}">
+                                        Letter trackers correct
+                                    </label>
+                                </div>
+                                
+                                <div class="form-check mb-3">
+                                    {{ form.reading_trackers_correct }}
+                                    <label class="form-check-label" for="{{ form.reading_trackers_correct.id_for_label }}">
+                                        Reading trackers correct
+                                    </label>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <div class="form-check mb-3">
+                                    {{ form.sessions_correct }}
+                                    <label class="form-check-label" for="{{ form.sessions_correct.id_for_label }}">
+                                        Sessions correct
+                                    </label>
+                                </div>
+                                
+                                <div class="form-check mb-3">
+                                    {{ form.admin_correct }}
+                                    <label class="form-check-label" for="{{ form.admin_correct.id_for_label }}">
+                                        Admin correct
+                                    </label>
+                                </div>
+                            </div>
                         </div>
                         
-                        <div class="form-group mb-4">
-                            <label for="{{ form.commentary.id_for_label }}">{{ form.commentary.label }}</label>
-                            {{ form.commentary }}
+                        <div class="rating-container mb-4">
+                            <label for="{{ form.quality_rating.id_for_label }}" class="form-label">
+                                <i class="fas fa-star me-2"></i>Quality Rating
+                            </label>
+                            {{ form.quality_rating }}
+                            <div class="rating-labels">
+                                <span>Poor</span>
+                                <span>Average</span>
+                                <span>Excellent</span>
+                            </div>
+                            <div id="rating-value" class="rating-value text-center mt-2">5</div>
                         </div>
                         
-                        <div class="d-grid gap-2">
-                            <button type="submit" class="btn btn-primary btn-lg">Submit Report</button>
+                        <div class="mb-4">
+                            <label for="{{ form.supplies_needed.id_for_label }}" class="form-label">
+                                <i class="fas fa-box-open me-2"></i>Supplies Needed
+                            </label>
+                            <div class="form-floating">
+                                {{ form.supplies_needed }}
+                                <div id="supplies-counter" class="textarea-counter">0/500 characters</div>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <label for="{{ form.commentary.id_for_label }}" class="form-label">
+                                <i class="fas fa-comment-alt me-2"></i>Commentary
+                            </label>
+                            <div class="form-floating">
+                                {{ form.commentary }}
+                                <div id="commentary-counter" class="textarea-counter">0/1000 characters</div>
+                            </div>
+                        </div>
+                        
+                        <div class="d-grid gap-2 mt-4">
+                            <button type="submit" class="btn btn-primary btn-lg submit-btn">
+                                <i class="fas fa-paper-plane me-2"></i>Submit Report
+                            </button>
                         </div>
                     </form>
                 </div>
@@ -98,17 +297,135 @@
 
 {% block extra_js %}
 <script>
-    // Display the current value of the quality rating slider
     document.addEventListener('DOMContentLoaded', function() {
+        // Initialize date picker with better formatting and options
+        const dateInput = document.getElementById('{{ form.visit_date.id_for_label }}');
+        if (dateInput) {
+            // Add classes for styling
+            dateInput.classList.add('form-control');
+            
+            // If you're using a date input, enhance it
+            if (dateInput.type === 'date') {
+                // Modern browsers already have a date picker
+                // You could add a fallback for older browsers if needed
+            }
+        }
+        
+        // Enhance select elements
+        const selectElements = document.querySelectorAll('select');
+        selectElements.forEach(select => {
+            select.classList.add('form-select');
+            // Add placeholder if empty
+            if (!select.value) {
+                const placeholderOption = document.createElement('option');
+                placeholderOption.value = '';
+                placeholderOption.text = 'Select an option';
+                placeholderOption.disabled = true;
+                placeholderOption.selected = true;
+                select.prepend(placeholderOption);
+            }
+        });
+        
+        // Enhance textarea elements
+        const textareaElements = document.querySelectorAll('textarea');
+        textareaElements.forEach(textarea => {
+            textarea.classList.add('form-control');
+            textarea.setAttribute('placeholder', ' ');
+            
+            // Character counter for textareas
+            textarea.addEventListener('input', function() {
+                const maxLength = this.id.includes('supplies') ? 500 : 1000;
+                const counterId = this.id.includes('supplies') ? 'supplies-counter' : 'commentary-counter';
+                const counter = document.getElementById(counterId);
+                
+                if (counter) {
+                    counter.textContent = `${this.value.length}/${maxLength} characters`;
+                    
+                    // Change color when approaching limit
+                    if (this.value.length > maxLength * 0.8) {
+                        counter.style.color = '#ff9800';
+                    } else if (this.value.length > maxLength) {
+                        counter.style.color = '#f44336';
+                    } else {
+                        counter.style.color = '#78909c';
+                    }
+                }
+            });
+            
+            // Trigger once to initialize counters
+            textarea.dispatchEvent(new Event('input'));
+        });
+        
+        // Enhance checkbox elements
+        const checkboxElements = document.querySelectorAll('input[type="checkbox"]');
+        checkboxElements.forEach(checkbox => {
+            checkbox.classList.add('form-check-input');
+        });
+        
+        // Quality rating slider enhancement
         const slider = document.getElementById('{{ form.quality_rating.id_for_label }}');
         const output = document.getElementById('rating-value');
         
-        // Display initial value
-        output.innerHTML = slider.value;
+        if (slider && output) {
+            // Add classes for styling
+            slider.classList.add('form-range');
+            
+            // Display initial value
+            output.innerHTML = slider.value;
+            
+            // Update the value when slider is moved
+            slider.oninput = function() {
+                output.innerHTML = this.value;
+                
+                // Change color based on rating
+                if (this.value <= 3) {
+                    output.style.color = '#f44336'; // Red for low ratings
+                } else if (this.value <= 7) {
+                    output.style.color = '#ff9800'; // Orange for medium ratings
+                } else {
+                    output.style.color = '#4caf50'; // Green for high ratings
+                }
+                
+                // Update the track color (using a gradient)
+                const percentage = ((this.value - this.min) / (this.max - this.min)) * 100;
+                this.style.background = `linear-gradient(to right, #1976d2 0%, #1976d2 ${percentage}%, #e0e0e0 ${percentage}%, #e0e0e0 100%)`;
+            };
+            
+            // Trigger once to initialize
+            slider.dispatchEvent(new Event('input'));
+        }
         
-        // Update the value when slider is moved
-        slider.oninput = function() {
-            output.innerHTML = this.value;
+        // Form validation
+        const form = document.getElementById('visitForm');
+        if (form) {
+            form.addEventListener('submit', function(event) {
+                let isValid = true;
+                const requiredFields = form.querySelectorAll('input[required], select[required], textarea[required]');
+                
+                requiredFields.forEach(field => {
+                    if (!field.value.trim()) {
+                        isValid = false;
+                        field.classList.add('is-invalid');
+                        
+                        // Add validation message if not exists
+                        const parent = field.parentElement;
+                        if (!parent.querySelector('.invalid-feedback')) {
+                            const feedback = document.createElement('div');
+                            feedback.className = 'invalid-feedback';
+                            feedback.textContent = 'This field is required';
+                            parent.appendChild(feedback);
+                        }
+                    } else {
+                        field.classList.remove('is-invalid');
+                    }
+                });
+                
+                if (!isValid) {
+                    event.preventDefault();
+                    // Scroll to first invalid field
+                    form.querySelector('.is-invalid').scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            });
         }
     });
 </script>
