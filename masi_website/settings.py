@@ -3,6 +3,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 import os
 import dj_database_url
+import json
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -23,7 +24,8 @@ DEBUG = os.environ.get('DEBUG', 'True') == 'True'
 
 # Allowed hosts should be set from environment in production
 ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '').split(',') if os.environ.get('ALLOWED_HOSTS') else []
-
+if DEBUG:
+    ALLOWED_HOSTS.extend(['127.0.0.1', 'localhost'])
 
 # Application definition
 
@@ -63,6 +65,7 @@ if not DEBUG:  # Only use in production
     STATICFILES_STORAGE = 'storages.backends.gcloud.GoogleCloudStorage'
     GS_BUCKET_NAME = 'masi-website'
     GS_DEFAULT_ACL = 'publicRead'
+    GS_CREDENTIALS = json.loads(os.environ.get('GOOGLE_CREDENTIALS', '{}'))
 
 
 
