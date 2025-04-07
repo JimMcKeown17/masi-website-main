@@ -1,45 +1,171 @@
 {% extends 'base.html' %}
 {% load static %}
 
-{% block title %}Youth Dashboard{% endblock %}
-{% block content %}
-<div class="container">
-    <h1>Youth Dashboard</h1>
-    
-    <div class="row">
-        <div class="col-md-8 offset-md-2">
-            <div class="card">
-                <div class="card-header">
-                    Active Youth by Job Title
-                </div>
-                <div class="card-body">
-                    <!-- Render the Plotly chart -->
-                    {{ job_title_plot|safe }}
-                </div>
-            </div>
-        </div>
-    </div>
+{% block title %}Dashboards | Masi{% endblock %}
 
-    <div class="row mt-4">
-        <div class="col-md-8 offset-md-2">
-            <h2>Job Title Breakdown</h2>
-            <table class="table table-striped">
-                <thead>
-                    <tr>
-                        <th>Job Title</th>
-                        <th>Number of Active Youth</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for job_title, count in job_title_counts.items %}
-                    <tr>
-                        <td>{{ job_title }}</td>
-                        <td>{{ count }}</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+{% block extra_css %}
+<style>
+  .dashboard-card {
+    transition: all 0.3s ease;
+    height: 100%;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  }
+  .dashboard-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 20px rgba(0,0,0,0.15);
+  }
+  .dashboard-header {
+    background-color: #f8f9fa;
+    padding: 20px;
+    border-bottom: 1px solid #e9ecef;
+  }
+  .dashboard-body {
+    padding: 20px;
+  }
+  .stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    gap: 15px;
+    margin-bottom: 20px;
+  }
+  .stat-card {
+    border-radius: 8px;
+    padding: 15px;
+    color: white;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    height: 100%;
+  }
+  .stat-value {
+    font-size: 1.8rem;
+    font-weight: bold;
+  }
+  .stat-label {
+    font-size: 0.9rem;
+    opacity: 0.8;
+  }
+  
+  /* Mentor Dashboard Colors */
+  .mentor-primary {
+    background: linear-gradient(45deg, #3a7bd5, #00d2ff);
+  }
+  .mentor-success {
+    background: linear-gradient(45deg, #00b09b, #96c93d);
+  }
+  .mentor-warning {
+    background: linear-gradient(45deg, #ff9966, #ff5e62);
+  }
+  .mentor-info {
+    background: linear-gradient(45deg, #6a82fb, #fc5c7d);
+  }
+  
+  /* Youth Dashboard Colors - slightly different hues */
+  .youth-primary {
+    background: linear-gradient(45deg, #4776E6, #8E54E9);
+  }
+  .youth-success {
+    background: linear-gradient(45deg, #11998e, #38ef7d);
+  }
+  .youth-warning {
+    background: linear-gradient(45deg, #FF8008, #FFC837);
+  }
+  .youth-info {
+    background: linear-gradient(45deg, #834d9b, #d04ed6);
+  }
+  
+  .dashboard-banner {
+    padding: 40px 0;
+    background-color: #f5f7fa;
+    margin-bottom: 30px;
+    border-radius: 10px;
+  }
+  
+  .view-button {
+    width: 100%;
+    padding: 12px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-6">
+  <div class="dashboard-banner text-center">
+    <h1 class="display-4 mb-3">Masi Dashboards</h1>
+    <p class="lead text-muted">Access our interactive data dashboards to monitor program progress and impact</p>
+  </div>
+  
+  <div class="row">
+    <div class="col-md-6 mb-4">
+      <div class="dashboard-card">
+        <div class="dashboard-header">
+          <h2 class="mb-0">Mentor Dashboard</h2>
+          <p class="text-muted mb-0">Track mentor visits and performance</p>
         </div>
+        <div class="dashboard-body">
+          <div class="stats-grid">
+            <div class="stat-card mentor-primary">
+              <div class="stat-value">{{ mentor_stats.total_visits|default:"101" }}</div>
+              <div class="stat-label">Total Visits</div>
+            </div>
+            <div class="stat-card mentor-success">
+              <div class="stat-value">{{ mentor_stats.recent_visits|default:"32" }}</div>
+              <div class="stat-label">Visits in Last 30 Days</div>
+            </div>
+            <div class="stat-card mentor-warning">
+              <div class="stat-value">{{ mentor_stats.schools_visited|default:"15" }}</div>
+              <div class="stat-label">Schools Visited</div>
+            </div>
+            <div class="stat-card mentor-info">
+              <div class="stat-value">{{ mentor_stats.avg_quality|default:"5.3"|floatformat:1 }}</div>
+              <div class="stat-label">Avg. Quality Rating</div>
+            </div>
+          </div>
+          <a href="{% url 'mentor_dashboard' %}" class="btn btn-primary view-button">
+            <i class="fas fa-chart-line me-2"></i> View Full Mentor Dashboard
+          </a>
+        </div>
+      </div>
     </div>
+    
+    <div class="col-md-6 mb-4">
+      <div class="dashboard-card">
+        <div class="dashboard-header">
+          <h2 class="mb-0">Youth Dashboard</h2>
+          <p class="text-muted mb-0">Monitor youth employment and demographics</p>
+        </div>
+        <div class="dashboard-body">
+          <div class="stats-grid">
+            <div class="stat-card youth-primary">
+              <div class="stat-value">{{ youth_stats.active_youth|default:"628" }}</div>
+              <div class="stat-label">Active Youth</div>
+            </div>
+            <div class="stat-card youth-success">
+              <div class="stat-value">{{ youth_stats.total_youth|default:"1,286" }}</div>
+              <div class="stat-label">Total Youth (All Time)</div>
+            </div>
+            <div class="stat-card youth-warning">
+              <div class="stat-value">{{ youth_stats.sites_count|default:"42" }}</div>
+              <div class="stat-label">Active Sites</div>
+            </div>
+            <div class="stat-card youth-info">
+              <div class="stat-value">{{ youth_stats.avg_age|default:"27.5"|floatformat:1 }}</div>
+              <div class="stat-label">Avg. Age</div>
+            </div>
+          </div>
+          <a href="{% url 'youth_dashboard' %}" class="btn btn-success view-button">
+            <i class="fas fa-users me-2"></i> View Full Youth Dashboard
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+
 </div>
 {% endblock %}

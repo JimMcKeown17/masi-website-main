@@ -49,7 +49,7 @@ def navbar_context(request):
     path = request.path
 
     # Define which pages use the dark navbar
-    dark_navbar_pages = ['/children/', '/youth/', '/donate/', '/top-learner/', '/impact/', '/data/', '/apply/']  # Add your white background pages here
+    dark_navbar_pages = ['/children/', '/youth/', '/donate/', '/top-learner/', '/impact/', '/data/', '/apply/', '/dashboard/', '/mentor-dashboard/', '/dashboard/youth-dashboard/']  # Add your white background pages here
     
     # Return appropriate context
     return {

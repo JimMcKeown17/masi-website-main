@@ -4,16 +4,21 @@ from django.contrib import messages
 from django.utils import timezone
 from datetime import timedelta
 from django.contrib.auth.models import User
+import pandas as pd
+import os
+from django.conf import settings
+import json
 
 # Models & Forms
 from .models import MentorVisit, School
 from .forms import MentorVisitForm
 
-# Services
-from .services.airtable_service import fetch_airtable_records
-from .services.data_processing import process_airtable_records, get_active_records, count_job_titles
+# Airtable Services
+from .services.airtable_service import fetch_youth_airtable_records
+from .services.airtable_service import process_youth_airtable_records
+from .services.data_processing import get_active_records, count_job_titles
 
-# Visualizations
+# Mentor Dashboard Visualizations
 from .visualizations.charts import create_job_title_chart
 from .visualizations.mentor_charts import (
     generate_visit_frequency_chart,
@@ -23,70 +28,69 @@ from .visualizations.mentor_charts import (
     generate_dashboard_summary
 )
 
+# Youth Dashboard Visualizations
+from .visualizations.youth_charts import (
+    ensure_string_values,
+    generate_youth_summary,
+    generate_gender_chart,
+    generate_race_chart,
+    generate_job_title_chart,
+    generate_site_type_chart,
+    generate_hiring_trend_chart,
+    generate_leaving_reasons_chart,
+    generate_age_distribution_chart,
+    generate_employment_duration_chart,
+    generate_site_placement_table
+)
+
 def dashboard_main(request):
-    """Main dashboard view with Airtable data"""
-    # Fetch data from Airtable
-    records, error = fetch_airtable_records()
+    """
+    Main dashboard hub page showing links to all available dashboards
+    """
+    # Initialize stats dictionaries
+    mentor_stats = {}
+    youth_stats = {}
     
-    if error:
-        return render(request, 'dashboards/dashboard_main.html', {
-            'error_message': error,
-            'troubleshooting_tips': [
-                "Check your .env file is properly formatted",
-                "Verify Django is loading your .env file correctly",
-                "Make sure the variable names match exactly"
-            ]
-        })
+    # Try to get mentor stats if available
+    try:
+        from .visualizations.mentor_charts import generate_dashboard_summary
+        from .models import MentorVisit
+        
+        # Get all mentor visits
+        visits = MentorVisit.objects.all()
+        
+        # Generate summary stats
+        if visits.exists():
+            mentor_stats = generate_dashboard_summary(visits)
+    except Exception as e:
+        # If there's an error, we'll just use the default values in the template
+        import logging
+        logging.error(f"Error fetching mentor stats: {str(e)}")
     
-    # Process the records
-    df = process_airtable_records(records)
+    # Try to get youth stats if available
+    try:
+        from .services.youth_airtable_service import fetch_youth_airtable_records, process_youth_airtable_records
+        from .visualizations.youth_charts import generate_youth_summary
+        
+        # Fetch youth data from Airtable
+        records, error = fetch_youth_airtable_records()
+        
+        if not error and records:
+            # Process the records
+            youth_df = process_youth_airtable_records(records)
+            
+            # Generate summary stats
+            if not youth_df.empty:
+                youth_stats = generate_youth_summary(youth_df)
+    except Exception as e:
+        # If there's an error, we'll just use the default values in the template
+        import logging
+        logging.error(f"Error fetching youth stats: {str(e)}")
     
-    # Check if DataFrame was created successfully
-    if df is None or df.empty:
-        return render(request, 'dashboards/dashboard_main.html', {
-            'error_message': 'No records found or error processing the data'
-        })
-    
-    # Diagnostic print statements
-    print("DataFrame Columns:", list(df.columns))
-    print("\nFirst few records:")
-    print(df.head())
-    
-    # Filter for active records
-    active_df = get_active_records(df)
-    
-    # If no active records found
-    if active_df is None or active_df.empty:
-        return render(request, 'dashboards/dashboard_main.html', {
-            'error_message': 'No active records found. Check your Employment Status column.',
-            'diagnostic_info': {
-                'columns': list(df.columns),
-                'total_records': len(df),
-                'status_values': df['Employment Status'].unique().tolist() if 'Employment Status' in df.columns else []
-            }
-        })
-    
-    # Count job titles for active records
-    job_title_counts = count_job_titles(active_df)
-    
-    if job_title_counts is None:
-        return render(request, 'dashboards/dashboard_main.html', {
-            'error_message': 'Job Title column not found in data',
-            'diagnostic_info': {
-                'columns': list(active_df.columns),
-                'total_records': len(active_df)
-            }
-        })
-    
-    # Create visualization
-    plot_html = create_job_title_chart(job_title_counts)
-    
-    # Prepare context to pass to template
     context = {
-        'job_title_plot': plot_html,
-        'job_title_counts': job_title_counts.to_dict(),
-        'total_active_records': len(active_df),
-        'total_records': len(df)
+        'mentor_stats': mentor_stats,
+        'youth_stats': youth_stats,
+        'title': 'Dashboards'
     }
     
     return render(request, 'dashboards/dashboard_main.html', context)
@@ -178,3 +182,180 @@ def mentor_dashboard(request):
     }
     
     return render(request, 'dashboards/mentor_dashboard.html', context)
+
+# YOUTH DASHBOARD
+
+@login_required
+def youth_dashboard(request):
+    """
+    Dashboard view for youth data visualization using Airtable API
+    """
+    try:
+        # Fetch data from Airtable
+        records, error = fetch_youth_airtable_records()
+        
+        if error:
+            return render(request, 'dashboards/youth_dashboard.html', {
+                'error_message': error,
+                'troubleshooting_tips': [
+                    "Check your environment variables are properly set",
+                    "Verify that AIRTABLE_API_KEY, AIRTABLE_BASE_ID, and AIRTABLE_COMBINED_YOUTH_DATA_TABLE_ID are correctly configured",
+                    "Make sure your Airtable API key has access to the base containing the youth data"
+                ],
+                'title': 'Youth Dashboard'
+            })
+        
+        # Process the records
+        youth_df = process_youth_airtable_records(records)
+        
+        # Check if DataFrame was created successfully
+        if youth_df is None or youth_df.empty:
+            return render(request, 'dashboards/youth_dashboard.html', {
+                'error_message': 'No records found or error processing the data',
+                'title': 'Youth Dashboard'
+            })
+        
+        # Apply filters from GET parameters
+        employment_status = request.GET.get('employment_status', 'Active')
+        site_type = request.GET.get('site_type', '')
+        job_title = request.GET.get('job_title', '')
+        
+        # Create a filtered dataframe for charts that need it
+        filtered_df = youth_df.copy()
+        
+        if employment_status and employment_status != 'All':
+            filtered_df = filtered_df[filtered_df['Employment Status'] == employment_status]
+        
+        if site_type:
+            filtered_df = filtered_df[filtered_df['Site Type'] == site_type]
+            
+        if job_title:
+            filtered_df = filtered_df[filtered_df['Job Title'] == job_title]
+        
+        # Safely ensure string values for filtering columns
+        youth_df = ensure_string_values(youth_df, 'Employment Status')
+        youth_df = ensure_string_values(youth_df, 'Site Type')
+        youth_df = ensure_string_values(youth_df, 'Job Title')
+        
+        # Get unique values for filter dropdowns
+        status_options = youth_df['Employment Status'].dropna().unique().tolist()
+        site_type_options = youth_df['Site Type'].dropna().unique().tolist()
+        job_title_options = youth_df['Job Title'].dropna().unique().tolist()
+        
+        # Generate all chart data
+        context = {
+            'title': 'Youth Dashboard',
+            'summary': generate_youth_summary(youth_df),
+            'gender_chart': generate_gender_chart(filtered_df),
+            'race_chart': generate_race_chart(filtered_df),
+            'job_title_chart': generate_job_title_chart(filtered_df),
+            'site_type_chart': generate_site_type_chart(filtered_df),
+            'hiring_trend_chart': generate_hiring_trend_chart(youth_df),  # All youth for hiring trends
+            'leaving_reasons_chart': generate_leaving_reasons_chart(youth_df),  # All youth for leaving reasons
+            'age_distribution_chart': generate_age_distribution_chart(filtered_df),
+            'employment_duration_chart': generate_employment_duration_chart(youth_df),  # All youth for duration
+            'site_placement_table': generate_site_placement_table(filtered_df),
+            
+            # Filter options and selected values
+            'status_options': status_options,
+            'site_type_options': site_type_options,
+            'job_title_options': job_title_options,
+            'selected_status': employment_status,
+            'selected_site_type': site_type,
+            'selected_job_title': job_title
+        }
+        
+        return render(request, 'dashboards/youth_dashboard.html', context)
+        
+    except Exception as e:
+        # Log the error and return a friendly message
+        import traceback
+        traceback_str = traceback.format_exc()
+        
+        return render(request, 'dashboards/youth_dashboard.html', {
+            'error_message': f'Error processing data: {str(e)}',
+            'traceback': traceback_str,
+            'title': 'Youth Dashboard'
+        })
+        
+        
+@login_required
+def airtable_debug(request):
+    """
+    Debug view for examining Airtable data structure
+    """
+    # Only accessible in debug mode
+    from django.conf import settings
+    if not settings.DEBUG:
+        return JsonResponse({"error": "Debug view only available in DEBUG mode"}, status=403)
+    
+    # Fetch raw data from Airtable
+    records, error = fetch_youth_airtable_records()
+    
+    if error:
+        return JsonResponse({"error": error}, status=500)
+    
+    # Process a sample record to examine structure
+    if records and len(records) > 0:
+        # Get first record
+        first_record = records[0]
+        
+        # Find fields with list values
+        list_fields = {}
+        for key, value in first_record.get('fields', {}).items():
+            if isinstance(value, list):
+                list_fields[key] = value
+        
+        # Count record and field types
+        record_count = len(records)
+        field_types = {}
+        
+        # Sample up to 10 records
+        sample_size = min(10, record_count)
+        sample_records = records[:sample_size]
+        
+        # Examine each field in the sample records
+        all_fields = set()
+        for record in sample_records:
+            fields = record.get('fields', {})
+            all_fields.update(fields.keys())
+        
+        # Count the types of values in each field
+        for field in all_fields:
+            field_types[field] = {
+                "types": {},
+                "null_count": 0,
+                "list_count": 0,
+                "sample_values": []
+            }
+            
+            # Check each record for this field
+            for record in sample_records:
+                value = record.get('fields', {}).get(field)
+                
+                # Track type and null values
+                if value is None:
+                    field_types[field]["null_count"] += 1
+                else:
+                    value_type = type(value).__name__
+                    field_types[field]["types"][value_type] = field_types[field]["types"].get(value_type, 0) + 1
+                    
+                    # Track list fields
+                    if isinstance(value, list):
+                        field_types[field]["list_count"] += 1
+                    
+                    # Add sample value if we have fewer than 3
+                    if len(field_types[field]["sample_values"]) < 3:
+                        sample_value = str(value)
+                        if len(sample_value) > 100:
+                            sample_value = sample_value[:100] + "..."
+                        field_types[field]["sample_values"].append(sample_value)
+        
+        return JsonResponse({
+            "record_count": record_count,
+            "fields_with_list_values": list_fields,
+            "field_analysis": field_types,
+            "sample_record": first_record
+        }, json_dumps_params={'indent': 2})
+    
+    return JsonResponse({"message": "No records found"}, status=404)

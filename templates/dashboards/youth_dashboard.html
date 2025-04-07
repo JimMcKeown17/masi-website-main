@@ -1,0 +1,516 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Youth Dashboard | Masi{% endblock %}
+
+{% block extra_css %}
+<style>
+  .dashboard-card {
+    transition: all 0.3s ease;
+    height: 100%;
+  }
+  .dashboard-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+  }
+  .stat-card {
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 20px;
+    color: white;
+  }
+  .stat-card.primary {
+    background: linear-gradient(45deg, #3a7bd5, #00d2ff);
+  }
+  .stat-card.success {
+    background: linear-gradient(45deg, #00b09b, #96c93d);
+  }
+  .stat-card.warning {
+    background: linear-gradient(45deg, #ff9966, #ff5e62);
+  }
+  .stat-card.info {
+    background: linear-gradient(45deg, #6a82fb, #fc5c7d);
+  }
+  .stat-value {
+    font-size: 2.5rem;
+    font-weight: bold;
+  }
+  .stat-label {
+    font-size: 1rem;
+    opacity: 0.8;
+  }
+  .filter-bar {
+    background-color: #f8f9fa;
+    padding: 15px;
+    border-radius: 10px;
+    margin-bottom: 20px;
+  }
+  canvas {
+    max-width: 100%;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-7">
+  <h1 class="mb-4">Youth Dashboard</h1>
+  
+  {% if error_message %}
+  <div class="alert alert-danger">
+    <h4 class="alert-heading">Error</h4>
+    <p>{{ error_message }}</p>
+    {% if traceback %}
+    <hr>
+    <div class="small">
+      <pre>{{ traceback }}</pre>
+    </div>
+    {% endif %}
+  </div>
+  {% else %}
+  
+  <!-- Filter Bar -->
+  <div class="filter-bar mb-4">
+    <form method="get" class="row g-3 align-items-end">
+      <div class="col-md-3">
+        <label for="employment_status" class="form-label">Employment Status</label>
+        <select class="form-select" id="employment_status" name="employment_status" onchange="this.form.submit()">
+          <option value="All">All Statuses</option>
+          {% for status in status_options %}
+          <option value="{{ status }}" {% if selected_status == status %}selected{% endif %}>{{ status }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label for="site_type" class="form-label">Site Type</label>
+        <select class="form-select" id="site_type" name="site_type" onchange="this.form.submit()">
+          <option value="">All Site Types</option>
+          {% for type in site_type_options %}
+          <option value="{{ type }}" {% if selected_site_type == type %}selected{% endif %}>{{ type }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label for="job_title" class="form-label">Job Title</label>
+        <select class="form-select" id="job_title" name="job_title" onchange="this.form.submit()">
+          <option value="">All Job Titles</option>
+          {% for title in job_title_options %}
+          <option value="{{ title }}" {% if selected_job_title == title %}selected{% endif %}>{{ title }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <button type="submit" class="btn btn-primary w-100">Apply Filters</button>
+      </div>
+    </form>
+  </div>
+  
+  <!-- Summary Stats -->
+  <div class="row mb-4">
+    <div class="col-md-3">
+      <div class="stat-card primary">
+        <div class="stat-value">{{ summary.active_youth }}</div>
+        <div class="stat-label">Active Youth</div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="stat-card success">
+        <div class="stat-value">{{ summary.total_youth }}</div>
+        <div class="stat-label">Total Youth (All Time)</div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="stat-card warning">
+        <div class="stat-value">{{ summary.sites_count }}</div>
+        <div class="stat-label">Active Sites</div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="stat-card info">
+        <div class="stat-value">{{ summary.avg_age|floatformat:1 }}</div>
+        <div class="stat-label">Avg. Age</div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Charts Row 1 -->
+  <div class="row mb-4">
+    <div class="col-md-8">
+      <div class="card dashboard-card shadow-sm">
+        <div class="card-header bg-white">
+          <h5 class="card-title mb-0">Monthly Hiring Trends</h5>
+        </div>
+        <div class="card-body">
+          <canvas id="hiringTrendChart"></canvas>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card dashboard-card shadow-sm">
+        <div class="card-header bg-white">
+          <h5 class="card-title mb-0">Gender Distribution</h5>
+        </div>
+        <div class="card-body">
+          <canvas id="genderChart"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Charts Row 2 -->
+  <div class="row mb-4">
+    <div class="col-md-4">
+      <div class="card dashboard-card shadow-sm">
+        <div class="card-header bg-white">
+          <h5 class="card-title mb-0">Race Distribution</h5>
+        </div>
+        <div class="card-body">
+          <canvas id="raceChart"></canvas>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card dashboard-card shadow-sm">
+        <div class="card-header bg-white">
+          <h5 class="card-title mb-0">Site Type Distribution</h5>
+        </div>
+        <div class="card-body">
+          <canvas id="siteTypeChart"></canvas>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card dashboard-card shadow-sm">
+        <div class="card-header bg-white">
+          <h5 class="card-title mb-0">Age Distribution</h5>
+        </div>
+        <div class="card-body">
+          <canvas id="ageDistributionChart"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Charts Row 3 -->
+  <div class="row mb-4">
+    <div class="col-md-6">
+      <div class="card dashboard-card shadow-sm">
+        <div class="card-header bg-white">
+          <h5 class="card-title mb-0">Top Job Titles</h5>
+        </div>
+        <div class="card-body style="min-height: 400px;">
+          <canvas id="jobTitleChart"></canvas>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="card dashboard-card shadow-sm">
+        <div class="card-header bg-white">
+          <h5 class="card-title mb-0">Reasons for Leaving</h5>
+        </div>
+        <div class="card-body" style="min-height: 400px;">
+          <canvas id="leavingReasonsChart"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Employment Duration Chart -->
+  <div class="row mb-4">
+    <div class="col-md-12">
+      <div class="card dashboard-card shadow-sm">
+        <div class="card-header bg-white">
+          <h5 class="card-title mb-0">Employment Duration (Months)</h5>
+        </div>
+        <div class="card-body">
+          <canvas id="employmentDurationChart"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Site Placement Table -->
+  <div class="row mb-4">
+    <div class="col-md-12">
+      <div class="card dashboard-card shadow-sm mb-4">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+          <h5 class="card-title mb-0">Youth by Site Placement</h5>
+          <div class="input-group" style="width: 300px;">
+            <input type="text" class="form-control" placeholder="Search sites..." id="sitePlacementSearch">
+            <button class="btn btn-outline-secondary" type="button">
+              <i class="fas fa-search"></i>
+            </button>
+          </div>
+        </div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-hover mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th scope="col">Site Name</th>
+                  <th scope="col">Site Type</th>
+                  <th scope="col" class="text-center">Youth Count</th>
+                </tr>
+              </thead>
+              <tbody id="sitePlacementTable">
+                {% for site in site_placement_table %}
+                <tr>
+                  <td>{{ site.site_name }}</td>
+                  <td>{{ site.site_type }}</td>
+                  <td class="text-center">{{ site.youth_count }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                  <td colspan="3" class="text-center py-3">No site placement data available.</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+  // Chart color palette
+  const colors = {
+    blue: {
+      fill: 'rgba(54, 162, 235, 0.2)',
+      stroke: 'rgba(54, 162, 235, 1)'
+    },
+    red: {
+      fill: 'rgba(255, 99, 132, 0.2)',
+      stroke: 'rgba(255, 99, 132, 1)'
+    },
+    green: {
+      fill: 'rgba(75, 192, 192, 0.2)',
+      stroke: 'rgba(75, 192, 192, 1)'
+    },
+    orange: {
+      fill: 'rgba(255, 159, 64, 0.2)',
+      stroke: 'rgba(255, 159, 64, 1)'
+    }
+  };
+
+  // Parse chart data from the backend
+  const genderChartData = JSON.parse('{{ gender_chart|escapejs }}');
+  const raceChartData = JSON.parse('{{ race_chart|escapejs }}');
+  const jobTitleChartData = JSON.parse('{{ job_title_chart|escapejs }}');
+  const siteTypeChartData = JSON.parse('{{ site_type_chart|escapejs }}');
+  const hiringTrendChartData = JSON.parse('{{ hiring_trend_chart|escapejs }}');
+  const leavingReasonsChartData = JSON.parse('{{ leaving_reasons_chart|escapejs }}');
+  const ageDistributionChartData = JSON.parse('{{ age_distribution_chart|escapejs }}');
+  const employmentDurationChartData = JSON.parse('{{ employment_duration_chart|escapejs }}');
+  
+  // Create Gender Chart (Pie)
+  const genderCtx = document.getElementById('genderChart').getContext('2d');
+  new Chart(genderCtx, {
+    type: 'pie',
+    data: genderChartData,
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: 'bottom'
+        }
+      }
+    }
+  });
+  
+  // Create Race Chart (Pie)
+  const raceCtx = document.getElementById('raceChart').getContext('2d');
+  new Chart(raceCtx, {
+    type: 'pie',
+    data: raceChartData,
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: 'bottom'
+        }
+      }
+    }
+  });
+  
+  // Create Job Title Chart (Bar)
+  const jobTitleCtx = document.getElementById('jobTitleChart').getContext('2d');
+  new Chart(jobTitleCtx, {
+    type: 'bar',
+    data: jobTitleChartData,
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        x: {
+          beginAtZero: true,
+          title: {
+            display: true,
+            text: 'Number of Youth'
+          }
+        }
+      },
+      plugins: {
+        legend: {
+          display: false
+        }
+      }
+    }
+  });
+  
+  // Create Site Type Chart (Pie)
+  const siteTypeCtx = document.getElementById('siteTypeChart').getContext('2d');
+  new Chart(siteTypeCtx, {
+    type: 'pie',
+    data: siteTypeChartData,
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: 'bottom'
+        }
+      }
+    }
+  });
+  
+  // Create Hiring Trend Chart (Line)
+  const hiringTrendCtx = document.getElementById('hiringTrendChart').getContext('2d');
+  new Chart(hiringTrendCtx, {
+    type: 'bar',
+    data: hiringTrendChartData,
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        y: {
+          beginAtZero: true,
+          title: {
+            display: true,
+            text: 'Number of Hires'
+          }
+        },
+        x: {
+          title: {
+            display: true,
+            text: 'Month'
+          }
+        }
+      }
+    }
+  });
+  
+  // Create Leaving Reasons Chart (Bar)
+  const leavingReasonsCtx = document.getElementById('leavingReasonsChart').getContext('2d');
+  new Chart(leavingReasonsCtx, {
+    type: 'bar',
+    data: leavingReasonsChartData,
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        x: {
+          beginAtZero: true,
+          title: {
+            display: true,
+            text: 'Number of Youth'
+          }
+        }
+      },
+      plugins: {
+        legend: {
+          display: false
+        }
+      }
+    }
+  });
+  
+  // Create Age Distribution Chart (Bar)
+  const ageDistributionCtx = document.getElementById('ageDistributionChart').getContext('2d');
+  new Chart(ageDistributionCtx, {
+    type: 'bar',
+    data: ageDistributionChartData,
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        y: {
+          beginAtZero: true,
+          title: {
+            display: true,
+            text: 'Number of Youth'
+          }
+        }
+      },
+      plugins: {
+        legend: {
+          display: false
+        }
+      }
+    }
+  });
+  
+  // Create Employment Duration Chart (Bar)
+  const employmentDurationCtx = document.getElementById('employmentDurationChart').getContext('2d');
+  new Chart(employmentDurationCtx, {
+    type: 'bar',
+    data: employmentDurationChartData,
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        y: {
+          beginAtZero: true,
+          title: {
+            display: true,
+            text: 'Number of Youth'
+          }
+        },
+        x: {
+          title: {
+            display: true,
+            text: 'Duration (Months)'
+          }
+        }
+      },
+      plugins: {
+        legend: {
+          display: false
+        }
+      }
+    }
+  });
+  
+  // Site placement table search functionality
+  document.getElementById('sitePlacementSearch').addEventListener('keyup', function() {
+    const searchValue = this.value.toLowerCase();
+    const tableRows = document.getElementById('sitePlacementTable').getElementsByTagName('tr');
+    
+    for (let i = 0; i < tableRows.length; i++) {
+      const siteName = tableRows[i].getElementsByTagName('td')[0];
+      const siteType = tableRows[i].getElementsByTagName('td')[1];
+      
+      if (siteName && siteType) {
+        const siteNameText = siteName.textContent || siteName.innerText;
+        const siteTypeText = siteType.textContent || siteType.innerText;
+        
+        if (siteNameText.toLowerCase().indexOf(searchValue) > -1 || 
+            siteTypeText.toLowerCase().indexOf(searchValue) > -1) {
+          tableRows[i].style.display = "";
+        } else {
+          tableRows[i].style.display = "none";
+        }
+      }
+    }
+  });
+</script>
+{% endblock %}

@@ -113,5 +113,13 @@
     <div class="d-flex">
       <a href="{% url 'pages:donate' %}" class="button-donate">Donate</a>
     </div>
+    <!-- Staff login link - visible only on larger screens -->
+    <div class="d-none d-lg-block ms-auto me-3">
+      {% if user.is_authenticated %}
+        <a href="{% url 'dashboard_main' %}" class="text-muted small">Staff Dashboard</a>
+      {% else %}
+        <a href="{% url 'account_login' %}" class="text-muted small">Staff Login</a>
+      {% endif %}
+    </div>
   </div>
 </nav>
