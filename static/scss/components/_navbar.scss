@@ -42,11 +42,6 @@
 .nav-link {
   transition: color 0.3s ease;
 
-  &::before {
-    font-family: 'FontAwesome';
-    margin-right: 8px;
-  }
-
   &-white {
     color: white !important;
   }
@@ -54,69 +49,6 @@
   &-dark {
     color: rgb(42, 42, 42) !important;
     transition: color 0.3s ease;
-  }
-}
-
-/* Font Awesome Icons for Navbar Items */
-#navbarNavDropdown {
-  .our-team-drop::before {
-    content: '\f0c0';
-    font-family: 'FontAwesome';
-    margin-right: 8px;
-  }
-
-  .nav-link {
-    &[href*='programs']::before {
-      content: '\f0c0';
-    }
-    &[href*='impact']::before {
-      content: '\f201';
-    }
-    &[href*='test']::before {
-      content: '\f1c0';
-    }
-  }
-
-  .media-gallery-drop::before {
-    content: '\f03e';
-    font-family: 'FontAwesome';
-    margin-right: 8px;
-  }
-}
-
-/* Dropdown Items Icons */
-.dropdown-item {
-  &::before {
-    font-family: 'FontAwesome';
-    margin-right: 8px;
-  }
-
-  &[href*='our_team']::before {
-    content: '\f007';
-  }
-  &[href*='where']::before {
-    content: '\f041';
-  }
-  &[href*='apply']::before {
-    content: '\f0b1';
-  }
-  &[href*='children']::before {
-    content: '\f1ae';
-  }
-  &[href*='youth']::before {
-    content: '\f183';
-  }
-  &[href*='top_learner']::before {
-    content: '\f19d';
-  }
-  &[href*='data']::before {
-    content: '\f1c8';
-  }
-  &[href*='impact']::before {
-    content: '\f201';
-  }
-  &[href*='index_redesign']::before {
-    content: '\f015';
   }
 }
 
@@ -156,6 +88,20 @@
 }
 
 /* Donation Button in Navbar */
+.button-donate {
+  background-color: #dc3545;
+  color: white;
+  padding: 8px 28px;
+  border-radius: 4px;
+  text-decoration: none;
+  
+  &:hover {
+    background-color: #c82333;
+    color: white;
+  }
+}
+
+/* Keep the original btn-danger style in case it's used elsewhere */
 .btn-danger {
   margin-right: 10px;
 }

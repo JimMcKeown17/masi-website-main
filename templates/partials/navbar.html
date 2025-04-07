@@ -37,21 +37,19 @@
           </a>
           <ul class="dropdown-menu" aria-labelledby="navbarDropdownMenuLink1">
             <li>
-              
-                <a class="dropdown-item our-team-drop"
-                href="{% url 'pages:about' %}"
-                >Our Team</a
-              >
+              <a class="dropdown-item no-before" href="{% url 'pages:about' %}">
+                <i class="fas fa-users fa-fw me-2"></i>Our Team
+              </a>
             </li>
             <li>
-              <a class="dropdown-item" href="{% url 'pages:where' %}"
-                >Where We Work</a
-              >
+              <a class="dropdown-item no-before" href="{% url 'pages:where' %}">
+                <i class="fas fa-map-marker-alt fa-fw me-2"></i>Where We Work
+              </a>
             </li>
             <li>
-              <a class="dropdown-item" href="{% url 'pages:apply' %}"
-                >Jobs & Applications</a
-              >
+              <a class="dropdown-item no-before" href="{% url 'pages:apply' %}">
+                <i class="fas fa-briefcase fa-fw me-2"></i>Jobs & Applications
+              </a>
             </li>
           </ul>
         </li>
@@ -68,19 +66,19 @@
           </a>
           <ul class="dropdown-menu" aria-labelledby="navbarDropdownMenuLink2">
             <li>
-              <a class="dropdown-item" href="{% url 'pages:children' %}"
-                >Early Childhood Education</a
-              >
+              <a class="dropdown-item no-before" href="{% url 'pages:children' %}">
+                <i class="fas fa-child fa-fw me-2"></i>Early Childhood Education
+              </a>
             </li>
             <li>
-              <a class="dropdown-item" href="{% url 'pages:youth' %}"
-                >Community Jobs</a
-              >
+              <a class="dropdown-item no-before" href="{% url 'pages:youth' %}">
+                <i class="fas fa-user fa-fw me-2"></i>Community Jobs
+              </a>
             </li>
             <li>
-              <a class="dropdown-item" href="{% url 'pages:top_learner' %}"
-                >Scholarship Fund</a
-              >
+              <a class="dropdown-item no-before" href="{% url 'pages:top_learner' %}">
+                <i class="fas fa-graduation-cap fa-fw me-2"></i>Scholarship Fund
+              </a>
             </li>
           </ul>
         </li>
@@ -97,14 +95,14 @@
           </a>
           <ul class="dropdown-menu" aria-labelledby="navbarDropdownMenuLink4">
             <li>
-              <a class="dropdown-item" href="{% url 'pages:data' %}"
-                >Data Portal</a
-              >
+              <a class="dropdown-item no-before" href="{% url 'pages:data' %}">
+                <i class="fas fa-database fa-fw me-2"></i>Data Portal
+              </a>
             </li>
             <li>
-              <a class="dropdown-item" href="{% url 'pages:impact' %}"
-                >Impact Reports</a
-              >
+              <a class="dropdown-item no-before" href="{% url 'pages:impact' %}">
+                <i class="fas fa-chart-line fa-fw me-2"></i>Impact Reports
+              </a>
             </li>
           </ul>
         </li>
@@ -112,14 +110,6 @@
     </div>
     <div class="d-flex">
       <a href="{% url 'pages:donate' %}" class="button-donate">Donate</a>
-    </div>
-    <!-- Staff login link - visible only on larger screens -->
-    <div class="d-none d-lg-block ms-auto me-3">
-      {% if user.is_authenticated %}
-        <a href="{% url 'dashboard_main' %}" class="text-muted small">Staff Dashboard</a>
-      {% else %}
-        <a href="{% url 'account_login' %}" class="text-muted small">Staff Login</a>
-      {% endif %}
     </div>
   </div>
 </nav>
