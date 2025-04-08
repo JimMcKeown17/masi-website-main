@@ -25,7 +25,8 @@ DEBUG = os.environ.get('DEBUG', 'True') == 'True'
 # Allowed hosts should be set from environment in production
 ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '').split(',') if os.environ.get('ALLOWED_HOSTS') else []
 if DEBUG:
-    ALLOWED_HOSTS.extend(['127.0.0.1', 'localhost'])
+    ALLOWED_HOSTS.extend(['127.0.0.1', 'localhost',])
+print(ALLOWED_HOSTS)
 
 # Application definition
 

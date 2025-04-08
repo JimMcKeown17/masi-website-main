@@ -1,10 +1,7 @@
 from django.shortcuts import render
 
 def home(request):
-    host = request.META.get('HTTP_HOST', 'unknown')
-    allowed = settings.ALLOWED_HOSTS
-    return HttpResponse(f"Host: {host}<br>Allowed Hosts: {allowed}")
-    # return render(request, 'pages/home.html')
+    return render(request, 'pages/home.html')
 
 def about(request):
     return render(request, 'pages/about.html')
