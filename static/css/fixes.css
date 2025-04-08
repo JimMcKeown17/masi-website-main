@@ -3,6 +3,22 @@
 /* Desktop adjustments for strip sections */
 .child-info-strip, .youth-info-strip, .scholarship-info-strip {
   padding-top: 1.5rem;
+  padding-bottom: 0.5rem !important;
+  margin-top: 2.5rem;
+}
+
+Reduce spacing around text content in info sections
+.child-info-strip p, .youth-info-strip p, .scholarship-info-strip p {
+  margin-bottom: 0.8rem;
+}
+
+.child-info-strip .container, .youth-info-strip .container, .scholarship-info-strip .container {
+  padding-bottom: 1rem;
+}
+
+/* Reduce space before stats sections */
+.top-stats, .mid-stats, .bottom-stats {
+  margin-top: 1rem;
 }
 
 @media (max-width: 768px) {
