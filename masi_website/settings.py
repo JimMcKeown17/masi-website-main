@@ -189,4 +189,6 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 CSRF_TRUSTED_ORIGINS = [
     'https://masinyusane.org',
     'https://www.masinyusane.org',
+    'https://masi-website-main.onrender.com',
+    'https://www.masi-website-main.onrender.com',
 ]
