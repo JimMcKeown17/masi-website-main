@@ -1,0 +1,135 @@
+/* Direct fixes for mobile hero section */
+
+/* Desktop adjustments for strip sections */
+.child-info-strip, .youth-info-strip, .scholarship-info-strip {
+  padding-top: 1.5rem;
+}
+
+@media (max-width: 768px) {
+  /* Fix for the gray box */
+  .home-hero {
+    background-color: transparent !important;
+    margin-bottom: 0 !important;
+  }
+  
+  .home-hero .video-container {
+    background-color: transparent !important;
+    height: auto !important;
+  }
+  
+  .home-hero video {
+    background-color: transparent !important;
+    height: auto !important;
+    margin-bottom: 0 !important;
+  }
+  
+  /* Fix for any padding/margin that might be causing space */
+  .mission {
+    padding-top: 15px !important;
+    margin-top: 1rem !important;
+    padding-left: 15px !important;
+    padding-right: 15px !important;
+    padding-bottom: 15px !important;
+  }
+  
+  /* Add padding to mission section content */
+  .mission .row {
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+  
+  /* Remove any background colors that might be showing */
+  .home-hero + *, .home-hero::after, .home-hero::before,
+  .video-container::after, .video-container::before {
+    background-color: transparent !important;
+  }
+  
+  /* Add specific fix for gray box if it appears after the video */
+  .video-container::after {
+    content: none !important;
+    display: none !important;
+  }
+  
+  /* Ensure text is properly positioned */
+  .video-overlay {
+    position: absolute !important;
+    background: rgba(0, 0, 0, 0.4) !important;
+  }
+  
+  /* Adjust hero title and subtitle positioning and sizing */
+  .video-overlay h1 {
+    padding-top: 20px !important;
+    margin-top: 30px !important;
+  }
+  
+  .video-overlay-text {
+    max-width: 85% !important;
+    display: inline-block !important;
+    line-height: 1.3 !important;
+  }
+  
+  /* Reduce spacing between image strips and titles on mobile */
+  .child-info-strip, .youth-info-strip, .scholarship-info-strip {
+    padding-top: 15px !important;
+    padding-bottom: 15px !important;
+  }
+  
+  /* Reduce spacing after strips */
+  .child-strip, .youth-strip, .full-width-section.scholarship {
+    margin-bottom: 10px !important;
+  }
+  
+  /* Adjust spacing for section headings */
+  .child-info-strip h2, .youth-info-strip h2, .scholarship-info-strip h2 {
+    margin-top: 0 !important;
+    margin-bottom: 10px !important;
+  }
+  
+  /* Reduce spacing in Graduates section */
+  .meet-graduates {
+    padding: 1rem 0 !important;
+    margin-top: 0 !important;
+    margin-bottom: 1rem !important;
+  }
+  
+  .meet-graduates h2 {
+    margin-top: 10px !important;
+    margin-bottom: 1rem !important;
+  }
+  
+  /* Ensure the carousel has less padding */
+  #graduatesCarousel {
+    margin-top: 0 !important;
+  }
+  
+  /* Reduce space between graduates section and data portal */
+  .meet-graduates + section {
+    margin-top: 15px !important;
+    padding-top: 2rem !important;
+  }
+  
+  /* Fix spacing and font size in Approach and Trusted By sections */
+  .approach {
+    padding-top: 1.5rem !important;
+    padding-bottom: 1rem !important;
+  }
+  
+  .approach h2, .trusted-by h2 {
+    font-size: 1.8rem !important;
+    margin-bottom: 15px !important;
+  }
+  
+  .trusted-by {
+    padding-top: 1.5rem !important;
+    margin-top: 0 !important;
+  }
+  
+  /* Make all card text smaller on mobile */
+  .card-title {
+    font-size: 1.1rem !important;
+  }
+  
+  .card-text {
+    font-size: 0.9rem !important;
+  }
+} 

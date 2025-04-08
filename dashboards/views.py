@@ -69,7 +69,7 @@ def dashboard_main(request):
     
     # Try to get youth stats if available
     try:
-        from .services.youth_airtable_service import fetch_youth_airtable_records, process_youth_airtable_records
+        from .services.airtable_service import fetch_youth_airtable_records, process_youth_airtable_records
         from .visualizations.youth_charts import generate_youth_summary
         
         # Fetch youth data from Airtable

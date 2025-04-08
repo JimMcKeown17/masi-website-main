@@ -3,13 +3,29 @@
 // Home Hero Section
 .home-hero {
   position: relative;
+  background-color: transparent; // Ensure no background color is set
 
   .video-container {
     position: relative;
+    background-color: transparent; // Ensure no background color is set
+    height: auto; // Let height be determined by content
+
+    &::after {
+      display: none; // Remove any pseudo-elements
+    }
 
     video {
       width: 100%;
       height: auto;
+      max-height: 100vh;
+      display: block;
+      background-color: transparent; // Ensure no background color is set
+      
+      @media (max-width: 768px) {
+        object-fit: cover;
+        height: auto;
+        max-height: 60vh;
+      }
     }
 
     .video-overlay {
@@ -21,18 +37,52 @@
       background: rgba(0, 0, 0, 0.4);
       display: flex;
       align-items: center;
+      background-color: rgba(0, 0, 0, 0.4); // Set explicit overlay background
 
       .container {
         h1 {
           font-size: 3rem;
-          color: $primary-light; // Use your defined color variables
+          color: $primary-light;
+          
+          @media (max-width: 768px) {
+            font-size: 2rem;
+          }
         }
         p {
           font-size: 1.5rem;
           color: $primary-light;
+          
+          @media (max-width: 768px) {
+            font-size: 1.2rem;
+            br { display: none; }
+          }
         }
       }
     }
+  }
+}
+
+// Fix for mobile view text overlap and gray box
+@media (max-width: 768px) {
+  .home-hero, .home-hero .video-container, .home-hero video {
+    background-color: transparent !important; // Force transparent background
+  }
+  
+  .home-hero + * {
+    margin-top: 0 !important; // Remove any margin on the next element
+  }
+  
+  // Target possible gray elements
+  .video-overlay-text, .home-hero::before, .home-hero::after, .video-container::before, .video-container::after,
+  .home-hero video + *, .video-container video + * {
+    background-color: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+  
+  // Remove any extra space
+  .mission.mt-5 {
+    margin-top: 0 !important; // Remove excess margin
   }
 }
 
@@ -43,6 +93,10 @@
   h2 {
     font-size: 2.5rem;
     color: $text-dark;
+    
+    @media (max-width: 768px) {
+      font-size: 1.8rem;
+    }
   }
 
   p {
@@ -56,10 +110,17 @@
 .child-strip {
   .full-width-section {
     position: relative;
+    overflow: hidden; // Prevent overflow issues
 
     img.full-strip-img {
       width: 100%;
       display: block;
+      object-fit: cover; // Ensure image covers area properly
+      
+      @media (max-width: 768px) {
+        height: auto; // Let height be determined by aspect ratio on mobile
+        min-height: 250px; // Ensure minimum height
+      }
     }
 
     .text-content1 {
@@ -72,9 +133,24 @@
       h1 {
         font-size: 4rem;
         margin: 0;
+        
+        @media (max-width: 768px) {
+          font-size: 2.5rem;
+        }
       }
       p {
         font-size: 1.5rem;
+        
+        @media (max-width: 768px) {
+          font-size: 1.2rem;
+        }
+      }
+      
+      @media (max-width: 768px) {
+        left: 0;
+        width: 100%;
+        text-align: center;
+        padding: 0 15px;
       }
     }
   }
@@ -89,11 +165,19 @@
     span.light-header {
       font-weight: 300;
     }
+    
+    @media (max-width: 768px) {
+      font-size: 1.8rem;
+    }
   }
 
   h6 {
     font-size: 1.25rem;
     color: $secondary-dark;
+    
+    @media (max-width: 768px) {
+      font-size: 1.1rem;
+    }
   }
 
   p {
@@ -106,10 +190,17 @@
 .youth-strip {
   .full-width-section {
     position: relative;
+    overflow: hidden; // Prevent overflow issues
 
     img.full-strip-img {
       width: 100%;
       display: block;
+      object-fit: cover; // Ensure image covers area properly
+      
+      @media (max-width: 768px) {
+        height: auto; // Let height be determined by aspect ratio on mobile
+        min-height: 250px; // Ensure minimum height
+      }
     }
 
     .text-content2 {
@@ -122,9 +213,24 @@
       h1 {
         font-size: 4rem;
         margin: 0;
+        
+        @media (max-width: 768px) {
+          font-size: 2.5rem;
+        }
       }
       p {
         font-size: 1.5rem;
+        
+        @media (max-width: 768px) {
+          font-size: 1.2rem;
+        }
+      }
+      
+      @media (max-width: 768px) {
+        right: 0;
+        width: 100%;
+        text-align: center;
+        padding: 0 15px;
       }
     }
   }
@@ -139,11 +245,19 @@
     span.light-header {
       font-weight: 300;
     }
+    
+    @media (max-width: 768px) {
+      font-size: 1.8rem;
+    }
   }
 
   h6 {
     font-size: 1.25rem;
     color: $secondary-dark;
+    
+    @media (max-width: 768px) {
+      font-size: 1.1rem;
+    }
   }
 
   p {
@@ -155,10 +269,17 @@
 // Scholarship Strip Section
 .scholarship {
   position: relative;
+  overflow: hidden; // Prevent overflow issues
 
   .full-strip-img {
     width: 100%;
     display: block;
+    object-fit: cover; // Ensure image covers area properly
+    
+    @media (max-width: 768px) {
+      height: auto; // Let height be determined by aspect ratio on mobile
+      min-height: 250px; // Ensure minimum height
+    }
   }
 
   .text-content1 {
@@ -171,9 +292,24 @@
     h1 {
       font-size: 4rem;
       margin: 0;
+      
+      @media (max-width: 768px) {
+        font-size: 2.5rem;
+      }
     }
     p {
       font-size: 1.5rem;
+      
+      @media (max-width: 768px) {
+        font-size: 1.2rem;
+      }
+    }
+    
+    @media (max-width: 768px) {
+      left: 0;
+      width: 100%;
+      text-align: center;
+      padding: 0 15px;
     }
   }
 }
@@ -187,11 +323,19 @@
     span.light-header {
       font-weight: 300;
     }
+    
+    @media (max-width: 768px) {
+      font-size: 1.8rem;
+    }
   }
 
   h6 {
     font-size: 1.25rem;
     color: $secondary-dark;
+    
+    @media (max-width: 768px) {
+      font-size: 1.1rem;
+    }
   }
 
   p {
@@ -206,6 +350,11 @@
     position: relative;
     background-size: cover;
     background-position: center;
+    
+    @media (max-width: 768px) {
+      background-size: contain !important;
+      height: 400px !important;
+    }
 
     .position-absolute {
       position: absolute;
@@ -223,11 +372,19 @@
       h1 {
         font-size: 3rem;
         color: #fff;
+        
+        @media (max-width: 768px) {
+          font-size: 2rem;
+        }
       }
 
       p.lead {
         font-size: 1.25rem;
         color: #fff;
+        
+        @media (max-width: 768px) {
+          font-size: 1rem;
+        }
       }
 
       .report-button {
@@ -244,6 +401,10 @@
   h2 {
     font-size: 2rem;
     color: $text-dark;
+    
+    @media (max-width: 768px) {
+      font-size: 1.8rem;
+    }
   }
 }
 
@@ -256,6 +417,18 @@
     flex-wrap: wrap;
     gap: 2rem;
   }
+  
+  h2 {
+    @media (max-width: 768px) {
+      font-size: 1.8rem;
+    }
+  }
+  
+  .desc-box {
+    @media (max-width: 768px) {
+      font-size: 0.9rem;
+    }
+  }
 
   .portal-button a {
     display: inline-block;
@@ -264,6 +437,13 @@
     color: #fff;
     border-radius: 4px;
     text-decoration: none;
+  }
+  
+  .polar-img {
+    @media (max-width: 768px) {
+      max-width: 100%;
+      height: auto;
+    }
   }
 }
 
@@ -274,11 +454,25 @@
   h2 {
     font-size: 2.5rem;
     color: $text-dark;
+    
+    @media (max-width: 768px) {
+      font-size: 1.8rem;
+    }
   }
 
   p.desc-box {
     font-size: 1rem;
     color: $text-dark;
+    
+    @media (max-width: 768px) {
+      font-size: 0.9rem;
+    }
+  }
+  
+  .card {
+    @media (max-width: 576px) {
+      min-height: 200px;
+    }
   }
 }
 
@@ -289,6 +483,10 @@
   h2 {
     font-size: 2rem;
     color: $text-dark;
+    
+    @media (max-width: 768px) {
+      font-size: 1.8rem;
+    }
   }
 
   .partner-logo {
@@ -296,9 +494,50 @@
     margin: 0 1rem;
     opacity: 0.8;
     transition: opacity 0.3s;
+    
+    @media (max-width: 768px) {
+      max-width: 100px;
+      margin: 0 0.5rem;
+    }
 
     &:hover {
       opacity: 1;
+    }
+  }
+  
+  .logo-scroll-container {
+    overflow-x: hidden;
+    
+    @media (max-width: 768px) {
+      overflow-x: auto;
+      padding-bottom: 15px;
+    }
+  }
+}
+
+// Mobile-specific fixes for the stats sections
+@media (max-width: 768px) {
+  .top-stats, .mid-stats, .bottom-stats {
+    .stat-text {
+      font-size: 2rem !important;
+    }
+    
+    p {
+      font-size: 0.9rem;
+    }
+    
+    .border-start {
+      border-left: none !important;
+      padding-top: 15px;
+      margin-top: 15px;
+      border-top: 1px solid rgba(0,0,0,0.1);
+    }
+  }
+  
+  // Fix for d-none d-md-block elements that need to be visible on mobile
+  .d-none.d-md-block {
+    &.text-content1, &.text-content2 {
+      display: block !important;
     }
   }
 }
