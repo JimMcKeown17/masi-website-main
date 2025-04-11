@@ -1,0 +1,14 @@
+<!-- templates/debug.html -->
+{% load socialaccount %}
+<h1>Debug Social Providers</h1>
+
+<h2>Available Providers:</h2>
+<ul>
+{% get_providers as socialaccount_providers %}
+{% for provider in socialaccount_providers %}
+    <li>{{ provider.id }} - {{ provider.name }}</li>
+{% endfor %}
+</ul>
+
+<h2>Raw Google Provider Button:</h2>
+<a href="{% provider_login_url 'google' process='login' %}">Sign in with Google (Direct URL)</a>

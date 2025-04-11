@@ -37,6 +37,7 @@ Reduce spacing around text content in info sections
     background-color: transparent !important;
     height: auto !important;
     margin-bottom: 0 !important;
+    max-height: 40vh !important;
   }
   
   /* Fix for any padding/margin that might be causing space */
@@ -147,5 +148,29 @@ Reduce spacing around text content in info sections
   
   .card-text {
     font-size: 0.9rem !important;
+  }
+}
+
+/* Special rules for iPhone and smaller devices */
+@media (max-width: 414px) {
+  .home-hero video {
+    max-height: 40vh !important;
+    object-fit: cover !important;
+  }
+  
+  .video-overlay {
+    padding-top: 50px !important;
+  }
+  
+  .video-overlay h1 {
+    padding-top: 55px !important;
+    margin-top: 0 !important;
+    font-size: 1.8rem !important;
+    margin-bottom: 10px !important;
+  }
+  
+  .video-overlay-text {
+    font-size: 1rem !important;
+    margin-top: 5px !important;
   }
 } 

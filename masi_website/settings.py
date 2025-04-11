@@ -37,15 +37,15 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'core',
-    'pages',
-    'dashboards',
     'django.contrib.sites',
     'allauth',
     'allauth.account',
     'allauth.socialaccount',
     'allauth.socialaccount.providers.google',
     'storages',
+    'core',
+    'pages',
+    'dashboards',
 ]
 
 MIDDLEWARE = [
@@ -75,17 +75,28 @@ AUTHENTICATION_BACKENDS = [
     'allauth.account.auth_backends.AuthenticationBackend',
 ]
 
-SITE_ID = 1
+if DEBUG:
+    SITE_ID = 3
+else:
+    SITE_ID = 2 
 
 
 
 ROOT_URLCONF = 'masi_website.urls'
 
 # Allauth settings
+# Update your allauth settings for better UX
 ACCOUNT_EMAIL_REQUIRED = True
 ACCOUNT_USERNAME_REQUIRED = False
-ACCOUNT_LOGIN_METHODS = {'email'}
+ACCOUNT_AUTHENTICATION_METHOD = 'email'
 ACCOUNT_EMAIL_VERIFICATION = 'optional'
+ACCOUNT_LOGIN_ON_EMAIL_CONFIRMATION = True
+ACCOUNT_LOGOUT_ON_GET = True 
+ACCOUNT_LOGIN_ON_PASSWORD_RESET = True
+
+# Social account specific settings
+SOCIALACCOUNT_AUTO_SIGNUP = True  # Automatically create an account if one doesn't exist
+SOCIALACCOUNT_EMAIL_VERIFICATION = 'none' 
 
 # Provider specific settings
 SOCIALACCOUNT_PROVIDERS = {
@@ -100,7 +111,11 @@ SOCIALACCOUNT_PROVIDERS = {
     }
 }
 
+ACCOUNT_ADAPTER = 'core.adapters.CustomAccountAdapter'
+SOCIALACCOUNT_ADAPTER = 'core.adapters.CustomSocialAccountAdapter'
+
 LOGIN_REDIRECT_URL = '/dashboard/'
+LOGOUT_REDIRECT_URL = '/'
 
 # Static files settings
 if DEBUG:
@@ -197,5 +212,3 @@ CSRF_TRUSTED_ORIGINS = [
 if not DEBUG:
     SECURE_SSL_REDIRECT = True
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
-if not DEBUG:
-    SECURE_SSL_REDIRECT = True

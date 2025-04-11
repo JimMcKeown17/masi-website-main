@@ -25,6 +25,7 @@ urlpatterns = [
     path('', include('pages.urls', namespace='pages')),
     path('accounts/', include('allauth.urls')),
     path('dashboard/', include('dashboards.urls')),
+    path('core/', include('core.urls', namespace='core')),
     re_path(r'^reports/(?P<path>.*)$', serve, {
         'document_root': settings.MEDIA_ROOT + '/reports'
     }),
