@@ -16,6 +16,26 @@ class Command(BaseCommand):
         parser.add_argument('csv_file', type=str, help='Path to the consolidated CSV file')
         parser.add_argument('--dry-run', action='store_true', help='Preview imports without saving to database')
 
+    def parse_date(self, date_str):
+        """Try to parse date with various formats."""
+        date_str = date_str.strip()
+        
+        formats = [
+            '%Y-%m-%d',    # e.g., 2025-02-11
+            '%m/%d/%y',    # e.g., 2/11/25
+            '%m/%d/%Y',    # e.g., 2/11/2025
+            '%-m/%-d/%y',  # e.g., 2/11/25 (no leading zeros)
+        ]
+        
+        for fmt in formats:
+            try:
+                return datetime.datetime.strptime(date_str, fmt).date()
+            except ValueError:
+                continue
+        
+        # If we get here, none of the formats worked
+        raise ValueError(f"Could not parse date: {date_str}")
+
     def handle(self, *args, **options):
         csv_path = options['csv_file']
         dry_run = options['dry_run']
@@ -30,6 +50,7 @@ class Command(BaseCommand):
         schools_created = 0
         visits_created = 0
         duplicates_found = 0
+        date_errors = 0
         
         # Keep track of unmapped names for reporting
         unmapped_names = set()
@@ -51,7 +72,7 @@ class Command(BaseCommand):
                 # Start a transaction
                 with transaction.atomic():
                     # Process each visit
-                    for row in reader:
+                    for row_num, row in enumerate(reader, 2):  # Start from 2 for human-readable row numbers
                         first_name = row['first_name'].strip()
                         last_name = row['last_name'].strip()
                         full_name = f"{first_name} {last_name}"
@@ -97,7 +118,12 @@ class Command(BaseCommand):
                                 schools_created += 1
                         
                         # Parse the date
-                        visit_date = datetime.datetime.strptime(row['visit_date'], '%Y-%m-%d').date()
+                        try:
+                            visit_date = self.parse_date(row['visit_date'])
+                        except ValueError as e:
+                            self.stdout.write(self.style.ERROR(f"Row {row_num}: {str(e)}"))
+                            date_errors += 1
+                            continue
                         
                         # Get the indicator (if present)
                         indicator = row.get('indicator', '')
@@ -141,6 +167,8 @@ class Command(BaseCommand):
             self.stdout.write(self.style.SUCCESS("\nSummary:"))
             self.stdout.write(f"Matched {users_matched} mentor names to users")
             self.stdout.write(f"Failed to match {users_not_found} mentor names")
+            if date_errors > 0:
+                self.stdout.write(f"Found {date_errors} date parsing errors")
             
             if unmapped_names:
                 self.stdout.write("\nUnmapped mentor names:")
