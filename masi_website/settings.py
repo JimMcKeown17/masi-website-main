@@ -1,3 +1,5 @@
+# My bucket for static files is under jim.mckeown@masinyusane.org, but it's not under the Masi Website Project, it's under Project 1. I need to fix this.
+
 from django.core.exceptions import ImproperlyConfigured
 from pathlib import Path
 from dotenv import load_dotenv
