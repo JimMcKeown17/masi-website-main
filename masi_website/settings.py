@@ -1,4 +1,3 @@
-# My bucket for static files is under jim.mckeown@masinyusane.org, but it's not under the Masi Website Project, it's under Project 1. I need to fix this.
 
 from django.core.exceptions import ImproperlyConfigured
 from pathlib import Path
@@ -31,6 +30,9 @@ if DEBUG:
 print(ALLOWED_HOSTS)
 
 # Application definition
+if DEBUG:
+    SESSION_COOKIE_SECURE = False   
+    CSRF_COOKIE_SECURE = False
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -40,10 +42,6 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'django.contrib.sites',
-    'allauth',
-    'allauth.account',
-    'allauth.socialaccount',
-    'allauth.socialaccount.providers.google',
     'storages',
     'core',
     'pages',
@@ -59,7 +57,6 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'allauth.account.middleware.AccountMiddleware',
 ]
 
 # Google Cloud Storage settings
@@ -74,7 +71,6 @@ if not DEBUG:  # Only use in production
 
 AUTHENTICATION_BACKENDS = [
     'django.contrib.auth.backends.ModelBackend',
-    'allauth.account.auth_backends.AuthenticationBackend',
 ]
 
 if DEBUG:
@@ -117,7 +113,7 @@ ACCOUNT_ADAPTER = 'core.adapters.CustomAccountAdapter'
 SOCIALACCOUNT_ADAPTER = 'core.adapters.CustomSocialAccountAdapter'
 
 LOGIN_REDIRECT_URL = '/dashboard/'
-LOGOUT_REDIRECT_URL = '/'
+LOGOUT_REDIRECT_URL = '/accounts/login/'
 
 # Static files settings
 if DEBUG:

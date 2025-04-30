@@ -1,69 +1,76 @@
 {% extends "base.html" %}
 {% load i18n %}
-{% load account socialaccount %}
-{% load static %}
-{% block content %}
 
+{% block head_title %}{% trans "Sign In" %}{% endblock %}
+
+{% block content %}
 <div class="container mt-5">
-  <div class="row justify-content-center">
-    <div class="col-md-6">
-      <div class="card shadow">
-        <div class="card-body p-5">
-          <div class="text-center mb-4">
-            <img src="{% static 'images/Masi Logo Colour.png' %}" alt="Masinyusane Logo" height="60">
-            <h2 class="mt-3">{% trans "Sign In" %}</h2>
-          </div>
-          
-          <form class="login" method="POST" action="{% url 'account_login' %}">
-            {% csrf_token %}
-            
-            <div class="mb-3">
-              <label for="id_login" class="form-label">Email</label>
-              <input type="email" name="login" placeholder="email@example.com" class="form-control" id="id_login" required>
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-body">
+                    <h1 class="card-title text-center mb-4">{% trans "Sign In" %}</h1>
+
+                    <form method="post">
+                        {% csrf_token %}
+
+                        {% if form.errors %}
+                        <div class="alert alert-danger">
+                            {% for field, errors in form.errors.items %}
+                                {% for error in errors %}
+                                    <div>{{ error }}</div>
+                                {% endfor %}
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+
+                        <div class="mb-3">
+                            <label for="id_username" class="form-label">{% trans "Username or Email" %}</label>
+                            {{ form.username }}
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="id_password" class="form-label">{% trans "Password" %}</label>
+                            {{ form.password }}
+                        </div>
+
+                        <div class="d-grid gap-2">
+                            <button class="btn btn-primary" type="submit">{% trans "Sign In" %}</button>
+                        </div>
+                    </form>
+
+                    <div class="mt-3 text-center">
+                        <a href="{% url 'password_reset' %}">{% trans "Forgot Password?" %}</a>
+                    </div>
+                </div>
             </div>
-            
-            <div class="mb-3">
-              <label for="id_password" class="form-label">Password</label>
-              <input type="password" name="password" placeholder="••••••••" class="form-control" id="id_password" required>
-            </div>
-            
-            <div class="mb-3 form-check">
-              <input type="checkbox" name="remember" class="form-check-input" id="id_remember">
-              <label class="form-check-label" for="id_remember">Remember Me</label>
-            </div>
-            
-            {% if redirect_field_value %}
-            <input type="hidden" name="{{ redirect_field_name }}" value="{{ redirect_field_value }}" />
-            {% endif %}
-            
-            <button class="btn btn-primary w-100" type="submit">{% trans "Sign In" %}</button>
-          </form>
-          
-          <div class="text-center mt-4 mb-4">
-            <p>- OR -</p>
-          </div>
-          
-          <div class="socialaccount_ballot">
-            <div class="socialaccount_providers">
-              {% get_providers as socialaccount_providers %}
-              {% for provider in socialaccount_providers %}
-                {% if provider.id == "google" %}
-                <a href="{% provider_login_url provider.id process='login' %}" 
-                   class="btn btn-outline-dark w-100">
-                  <img src="{% static 'images/google-icon.png' %}" alt="Google" width="20" class="me-2">
-                  Sign in with {{ provider.name }}
-                </a>
-                {% endif %}
-              {% endfor %}
-            </div>
-          </div>
-          
-          <div class="text-center mt-3">
-            <a href="{% url 'account_reset_password' %}">{% trans "Forgot Password?" %}</a>
-          </div>
         </div>
-      </div>
     </div>
-  </div>
 </div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    input[type="text"],
+    input[type="password"] {
+        width: 100%;
+        padding: 0.375rem 0.75rem;
+        font-size: 1rem;
+        line-height: 1.5;
+        color: #212529;
+        background-color: #fff;
+        border: 1px solid #ced4da;
+        border-radius: 0.25rem;
+        transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+    }
+
+    input[type="text"]:focus,
+    input[type="password"]:focus {
+        color: #212529;
+        background-color: #fff;
+        border-color: #86b7fe;
+        outline: 0;
+        box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+    }
+</style>
 {% endblock %}
