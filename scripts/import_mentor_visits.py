@@ -1,11 +1,13 @@
-# scripts/import_mentor_visits.py
-
 import os
+import sys
 import django
 import pandas as pd
 from datetime import datetime
 
-# Setup Django environment
+# Add the project root to sys.path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+# Setup Django
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "masi_website.settings")
 django.setup()
 
@@ -20,8 +22,8 @@ print(f"📄 Loaded {len(df)} rows")
 # Loop through and insert MentorVisit records
 for index, row in df.iterrows():
     try:
-        # Lookup mentor by username
-        mentor = User.objects.get(username=row["mentor"])
+        # ✅ Lookup mentor by username from the new 'username' column
+        mentor = User.objects.get(username=row["username"])
 
         # Lookup school by name
         school = School.objects.get(name=row["school"])

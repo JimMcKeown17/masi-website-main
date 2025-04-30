@@ -1,6 +1,6 @@
 import json
 from datetime import datetime, timedelta
-from django.db.models import Count, Avg, Sum, Case, When, IntegerField, F
+from django.db.models import Count, Avg, Sum, Case, When, IntegerField, F, OuterRef, Subquery
 from django.db.models.functions import TruncMonth, TruncWeek
 from dashboards.models import MentorVisit, School
 import json
@@ -204,7 +204,7 @@ def generate_dashboard_summary(visits):
 
 def generate_schools_last_visited(visits):
     """
-    Generate data for schools last visited component
+    Generate data for schools last visited component, including schools that have never been visited
     
     Args:
         visits: QuerySet of MentorVisit objects
@@ -212,28 +212,36 @@ def generate_schools_last_visited(visits):
     Returns:
         List of school visit data sorted by days since last visit (descending)
     """
-    from django.db.models import Max, F
+    from django.db.models import Max, F, OuterRef, Subquery
     from django.utils import timezone
+    from dashboards.models import School
     import json
     
-    # Get the latest visit date for each school
-    school_visits = visits.values('school__id', 'school__name', 'school__type').annotate(
-        last_visit_date=Max('visit_date'),
-    ).order_by('last_visit_date')
-    
-    # Calculate days since last visit
     today = timezone.now().date()
+    
+    # Get all schools and left join with their latest visit
+    latest_visits = visits.filter(
+        school=OuterRef('pk')
+    ).order_by('-visit_date').values('visit_date')[:1]
+    
+    schools = School.objects.annotate(
+        last_visit_date=Subquery(latest_visits)
+    ).values('id', 'name', 'type', 'last_visit_date')
+    
     result = []
     
-    for school in school_visits:
-        days_ago = (today - school['last_visit_date']).days
+    for school in schools:
+        days_ago = 999 if school['last_visit_date'] is None else (today - school['last_visit_date']).days
         
         result.append({
-            'school_id': school['school__id'],
-            'school_name': school['school__name'],
-            'school_type': school['school__type'] or 'Unknown',
-            'last_visit_date': school['last_visit_date'].strftime('%Y-%m-%d'),
+            'school_id': school['id'],
+            'school_name': school['name'],
+            'school_type': school['type'] or 'Unknown',
+            'last_visit_date': school['last_visit_date'].strftime('%Y-%m-%d') if school['last_visit_date'] else 'Never',
             'days_ago': days_ago
         })
+    
+    # Sort by days_ago in descending order (schools with no visits will appear first)
+    result.sort(key=lambda x: x['days_ago'], reverse=True)
     
     return result
