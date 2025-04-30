@@ -2,6 +2,7 @@ import os
 import requests
 import pandas as pd
 from django.conf import settings
+from dashboards.services.data_processing import process_airtable_records
 
 def fetch_youth_airtable_records():
     """
@@ -80,46 +81,4 @@ def process_youth_airtable_records(records):
     Returns:
         Pandas DataFrame with processed youth data
     """
-    if not records:
-        return pd.DataFrame()
-    
-    # Extract fields from each record
-    data = []
-    for record in records:
-        # Get the fields dict from the record
-        fields = record.get('fields', {})
-        
-        # Add record ID to fields
-        fields['record_id'] = record.get('id')
-        
-        # Handle list values (e.g., from multi-select fields)
-        for key, value in fields.items():
-            if isinstance(value, list):
-                # Join list values into a string, or use first item if applicable
-                if len(value) == 1:
-                    fields[key] = value[0]
-                else:
-                    fields[key] = ', '.join(str(v) for v in value)
-        
-        # Add to data list
-        data.append(fields)
-    
-    # Convert to DataFrame
-    df = pd.DataFrame(data)
-    
-    # Perform any necessary data cleaning or transformation
-    # Convert date strings to datetime objects
-    date_columns = ['Start Date', 'End Date', 'DOB']
-    for col in date_columns:
-        if col in df.columns:
-            df[col] = pd.to_datetime(df[col], errors='coerce')
-    
-    # Calculate age from DOB if Age column doesn't exist
-    if 'Age' not in df.columns and 'DOB' in df.columns:
-        df['Age'] = (pd.Timestamp.now() - df['DOB']).dt.days // 365
-    
-    # Ensure Employment Status is clean
-    if 'Employment Status' in df.columns:
-        df['Employment Status'] = df['Employment Status'].fillna('Unknown')
-    
-    return df
+    return process_airtable_records(records)
