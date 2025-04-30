@@ -1,0 +1,285 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Literacy Management Dashboard | Masi{% endblock %}
+
+{% block extra_css %}
+<style>
+  .dashboard-header {
+    padding-top: 80px;
+    margin-bottom: 30px;
+  }
+  
+  .stats-card {
+    padding: 20px;
+    border-radius: 10px;
+    color: white;
+    transition: transform 0.3s ease;
+  }
+  
+  .stats-card:hover {
+    transform: translateY(-5px);
+  }
+  
+  .stats-value {
+    font-size: 2.5rem;
+    font-weight: bold;
+  }
+  
+  .stats-label {
+    font-size: 1rem;
+    opacity: 0.9;
+  }
+  
+  .total-visits { background: linear-gradient(135deg, #2193b0, #6dd5ed); }
+  .recent-visits { background: linear-gradient(135deg, #11998e, #38ef7d); }
+  .schools-visited { background: linear-gradient(135deg, #ee0979, #ff6a00); }
+  .quality-rating { background: linear-gradient(135deg, #834d9b, #d04ed6); }
+  
+  .chart-container {
+    background: white;
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  }
+  
+  .schools-table {
+    background: white;
+    border-radius: 10px;
+    padding: 20px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  }
+  
+  .table th {
+    background-color: #f8f9fa;
+    border-top: none;
+  }
+  
+  .alert-warning {
+    background-color: #fff3cd;
+    color: #856404;
+  }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/moment"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-moment"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Visits by Mentor Over Time Chart
+    const visitsCtx = document.getElementById('visitsChart').getContext('2d');
+    new Chart(visitsCtx, {
+        type: 'bar',
+        data: {
+            labels: {{ time_periods|safe }},
+            datasets: {{ mentor_visits_data|safe }}
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                title: {
+                    display: true,
+                    text: 'Visits by Mentor Over Time'
+                },
+                legend: {
+                    position: 'bottom'
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: 'Number of Visits'
+                    }
+                }
+            }
+        }
+    });
+
+    // Quality Ratings Chart
+    const qualityCtx = document.getElementById('qualityChart').getContext('2d');
+    new Chart(qualityCtx, {
+        type: 'bar',
+        data: {
+            labels: {{ mentor_names|safe }},
+            datasets: [{
+                label: 'Average Quality Rating',
+                data: {{ quality_ratings|safe }},
+                backgroundColor: 'rgba(131, 77, 155, 0.8)',
+                borderColor: 'rgba(131, 77, 155, 1)',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                title: {
+                    display: true,
+                    text: 'Average Quality Rating by Mentor'
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    max: 5,
+                    title: {
+                        display: true,
+                        text: 'Rating'
+                    }
+                }
+            }
+        }
+    });
+
+    // Cumulative Visits Chart
+    const cumulativeCtx = document.getElementById('cumulativeChart').getContext('2d');
+    new Chart(cumulativeCtx, {
+        type: 'line',
+        data: {
+            datasets: {{ cumulative_visits_data|safe }}
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                title: {
+                    display: true,
+                    text: 'Cumulative Visits by Mentor'
+                },
+                legend: {
+                    position: 'bottom'
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return `${context.dataset.label}: ${context.parsed.y} visits`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    type: 'time',
+                    time: {
+                        parser: 'YYYY-MM-DD',
+                        unit: 'month',
+                        displayFormats: {
+                            month: 'MMM YYYY'
+                        }
+                    },
+                    title: {
+                        display: true,
+                        text: 'Date'
+                    }
+                },
+                y: {
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: 'Total Visits'
+                    }
+                }
+            }
+        }
+    });
+});
+</script>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="dashboard-header">
+        <h1 class="mb-4">Literacy Management Dashboard</h1>
+    </div>
+    
+    <!-- Stats Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="stats-card total-visits">
+                <div class="stats-value">{{ total_visits }}</div>
+                <div class="stats-label">Total Visits</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stats-card recent-visits">
+                <div class="stats-value">{{ visits_last_30_days }}</div>
+                <div class="stats-label">Visits in Last 30 Days</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stats-card schools-visited">
+                <div class="stats-value">{{ schools_visited }}</div>
+                <div class="stats-label">Schools Visited</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stats-card quality-rating">
+                <div class="stats-value">{{ avg_quality_rating }}</div>
+                <div class="stats-label">Avg. Quality Rating</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts Rows -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="chart-container">
+                <canvas id="cumulativeChart"></canvas>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <div class="chart-container">
+                <canvas id="visitsChart"></canvas>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="chart-container">
+                <canvas id="qualityChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Schools Table -->
+    <div class="schools-table">
+        <h3 class="mb-4">Schools Requiring Attention</h3>
+        <div class="table-responsive">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>School Name</th>
+                        <th>Last Visited By</th>
+                        <th>Days Since Last Visit</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for school in schools_not_visited %}
+                    <tr>
+                        <td>{{ school.name }}</td>
+                        <td>{{ school.last_visited_by }}</td>
+                        <td>{{ school.days_since_visit }}</td>
+                        <td>
+                            {% if school.days_since_visit > 30 %}
+                            <span class="badge bg-danger">Overdue</span>
+                            {% else %}
+                            <span class="badge bg-warning">Due Soon</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="4" class="text-center">All schools have been visited within the last 30 days</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %} 

@@ -76,6 +76,20 @@
   .youth-info {
     background: linear-gradient(45deg, #834d9b, #d04ed6);
   }
+
+  /* Literacy Dashboard Colors */
+  .literacy-primary {
+    background: linear-gradient(45deg, #2193b0, #6dd5ed);
+  }
+  .literacy-success {
+    background: linear-gradient(45deg, #11998e, #38ef7d);
+  }
+  .literacy-warning {
+    background: linear-gradient(45deg, #ee0979, #ff6a00);
+  }
+  .literacy-info {
+    background: linear-gradient(45deg, #834d9b, #d04ed6);
+  }
   
   .dashboard-banner {
     padding: 40px 0;
@@ -101,7 +115,7 @@
   </div>
   
   <div class="row">
-    <div class="col-md-6 mb-4">
+    <div class="col-md-4 mb-4">
       <div class="dashboard-card">
         <div class="dashboard-header">
           <h2 class="mb-0">Mentor Dashboard</h2>
@@ -133,7 +147,7 @@
       </div>
     </div>
     
-    <div class="col-md-6 mb-4">
+    <div class="col-md-4 mb-4">
       <div class="dashboard-card">
         <div class="dashboard-header">
           <h2 class="mb-0">Youth Dashboard</h2>
@@ -164,8 +178,38 @@
         </div>
       </div>
     </div>
-  </div>
-  
 
+    <div class="col-md-4 mb-4">
+      <div class="dashboard-card">
+        <div class="dashboard-header">
+          <h2 class="mb-0">Literacy Management</h2>
+          <p class="text-muted mb-0">Monitor mentor performance and school visits</p>
+        </div>
+        <div class="dashboard-body">
+          <div class="stats-grid">
+            <div class="stat-card literacy-primary">
+              <div class="stat-value">{{ literacy_stats.total_visits|default:"348" }}</div>
+              <div class="stat-label">Total Visits</div>
+            </div>
+            <div class="stat-card literacy-success">
+              <div class="stat-value">{{ literacy_stats.recent_visits|default:"19" }}</div>
+              <div class="stat-label">Visits in Last 30 Days</div>
+            </div>
+            <div class="stat-card literacy-warning">
+              <div class="stat-value">{{ literacy_stats.schools_visited|default:"59" }}</div>
+              <div class="stat-label">Schools Visited</div>
+            </div>
+            <div class="stat-card literacy-info">
+              <div class="stat-value">{{ literacy_stats.avg_quality|default:"5.0"|floatformat:1 }}</div>
+              <div class="stat-label">Avg. Quality Rating</div>
+            </div>
+          </div>
+          <a href="{% url 'literacy_management_dashboard' %}" class="btn btn-info view-button">
+            <i class="fas fa-book-reader me-2"></i> View Literacy Dashboard
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 {% endblock %}

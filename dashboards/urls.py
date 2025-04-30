@@ -7,5 +7,5 @@ urlpatterns = [
     path('mentor-dashboard/', views.mentor_dashboard, name='mentor_dashboard'),
     path('mentor-visit-form/', views.mentor_visit_form, name='mentor_visit_form'),
     path('airtable-debug/', views.airtable_debug, name='airtable_debug'),  # Debug tool
-
+    path('literacy/', views.literacy_management_dashboard, name='literacy_management_dashboard'),
 ]
