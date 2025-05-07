@@ -61,7 +61,7 @@ class CustomAccountAdapter(DefaultAccountAdapter):
         """
         # We don't want to save the password here
         data = form.cleaned_data
-        email = data.get('email')
+        email = data.get('email', '').lower()  # Convert email to lowercase
         name = data.get('name')
         user_email(user, email)
         if name:
@@ -79,6 +79,7 @@ class CustomAccountAdapter(DefaultAccountAdapter):
         """
         Validates that an email address is unique for the site.
         """
+        email = email.lower()  # Convert email to lowercase
         if self.is_email_blacklisted(email):
             raise ValidationError(_("This email address is not allowed."))
         return super().clean_email(email)
