@@ -168,6 +168,9 @@ def mentor_dashboard(request):
     from .visualizations.mentor_charts import generate_schools_last_visited
     schools_last_visited = generate_schools_last_visited(all_visits)
     
+    # Get the last 25 submissions
+    recent_submissions = MentorVisit.objects.all().order_by('-created_at')[:25].select_related('mentor', 'school')
+    
     context = {
         'schools': schools,
         'mentors': mentors,
@@ -180,6 +183,7 @@ def mentor_dashboard(request):
         'school_visit_map': generate_school_visit_map(visits),
         'summary': generate_dashboard_summary(visits),
         'schools_last_visited': schools_last_visited,  # Add the new data
+        'recent_submissions': recent_submissions,  # Add recent submissions
         'title': 'Mentor Visit Dashboard'
     }
     

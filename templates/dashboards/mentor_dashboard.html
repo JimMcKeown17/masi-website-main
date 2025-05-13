@@ -233,6 +233,77 @@
       </div>
     </div>
   </div>
+
+  <!-- Recent Submissions Table -->
+  <div class="row mb-4">
+    <div class="col-md-12">
+      <div class="card dashboard-card shadow-sm mb-4">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+          <h5 class="card-title mb-0">Recent Visit Submissions</h5>
+          <a href="{% url 'mentor_visit_form' %}" class="btn btn-sm btn-primary">
+            <i class="fas fa-plus"></i> New Visit
+          </a>
+        </div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-hover mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th scope="col">Date</th>
+                  <th scope="col">School</th>
+                  <th scope="col">Mentor</th>
+                  <th scope="col" class="text-center">Quality Rating</th>
+                  <th scope="col" class="text-center">Trackers Correct</th>
+                  <th scope="col">Supplies Needed</th>
+                  <th scope="col">Submitted</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for visit in recent_submissions %}
+                <tr>
+                  <td>{{ visit.visit_date }}</td>
+                  <td>{{ visit.school.name }}</td>
+                  <td>{{ visit.mentor.get_full_name|default:visit.mentor.username }}</td>
+                  <td class="text-center">
+                    <span class="badge rounded-pill 
+                      {% if visit.quality_rating >= 8 %}bg-success
+                      {% elif visit.quality_rating >= 6 %}bg-info
+                      {% elif visit.quality_rating >= 4 %}bg-warning text-dark
+                      {% else %}bg-danger{% endif %}">
+                      {{ visit.quality_rating }}/10
+                    </span>
+                  </td>
+                  <td class="text-center">
+                    <div class="small">
+                      {% if visit.letter_trackers_correct %}<span class="badge bg-success">Letter ✓</span>{% else %}<span class="badge bg-secondary">Letter ✗</span>{% endif %}
+                      {% if visit.reading_trackers_correct %}<span class="badge bg-success">Reading ✓</span>{% else %}<span class="badge bg-secondary">Reading ✗</span>{% endif %}
+                      {% if visit.sessions_correct %}<span class="badge bg-success">Sessions ✓</span>{% else %}<span class="badge bg-secondary">Sessions ✗</span>{% endif %}
+                      {% if visit.admin_correct %}<span class="badge bg-success">Admin ✓</span>{% else %}<span class="badge bg-secondary">Admin ✗</span>{% endif %}
+                    </div>
+                  </td>
+                  <td>
+                    {% if visit.supplies_needed %}
+                    <span class="text-truncate d-inline-block" style="max-width: 200px;" title="{{ visit.supplies_needed }}">
+                      {{ visit.supplies_needed|truncatechars:30 }}
+                    </span>
+                    {% else %}
+                    <span class="text-muted">None</span>
+                    {% endif %}
+                  </td>
+                  <td><small class="text-muted">{{ visit.created_at|date:"M d, Y" }}</small></td>
+                </tr>
+                {% empty %}
+                <tr>
+                  <td colspan="7" class="text-center py-3">No recent visit submissions.</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 {% endblock %}
 
