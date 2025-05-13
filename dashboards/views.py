@@ -388,14 +388,22 @@ def literacy_management_dashboard(request):
     elif time_period == 'thisyear':
         filter_start_date = today.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
     
-    # Base queryset
-    visits_queryset = MentorVisit.objects.all()
+    # Base queryset - get ALL visits first for calculating recent_visits
+    all_visits = MentorVisit.objects.all()
+    
+    # Filtered queryset based on time period
+    visits_queryset = all_visits
     if filter_start_date:
         visits_queryset = visits_queryset.filter(visit_date__gte=filter_start_date)
     
     # Calculate basic stats
     total_visits = visits_queryset.count()
-    recent_visits = visits_queryset.filter(visit_date__gte=today - timedelta(days=30)).count()
+    recent_visits = all_visits.filter(visit_date__gte=today - timedelta(days=30)).count()  # Always use all_visits for this calculation
+    
+    # For time_period='30days', recent_visits and total_visits should be the same
+    if time_period == '30days':
+        recent_visits = total_visits
+        
     schools_visited = School.objects.filter(visits__in=visits_queryset).distinct().count()
     avg_quality = visits_queryset.aggregate(Avg('quality_rating'))['quality_rating__avg'] or 0
     
