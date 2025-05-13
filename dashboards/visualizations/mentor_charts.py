@@ -219,26 +219,43 @@ def generate_schools_last_visited(visits):
     
     today = timezone.now().date()
     
-    # Get all schools and left join with their latest visit
-    latest_visits = visits.filter(
+    # Get the latest visit for each school with mentor info
+    latest_visit_subquery = visits.filter(
         school=OuterRef('pk')
     ).order_by('-visit_date').values('visit_date')[:1]
     
+    # Get mentor name for the latest visit
+    latest_mentor_subquery = visits.filter(
+        school=OuterRef('pk')
+    ).order_by('-visit_date').values('mentor__first_name', 'mentor__last_name')[:1]
+    
     schools = School.objects.annotate(
-        last_visit_date=Subquery(latest_visits)
-    ).values('id', 'name', 'type', 'last_visit_date')
+        last_visit_date=Subquery(latest_visit_subquery),
+        last_mentor_first_name=Subquery(latest_mentor_subquery.values('mentor__first_name')),
+        last_mentor_last_name=Subquery(latest_mentor_subquery.values('mentor__last_name'))
+    ).values('id', 'name', 'type', 'last_visit_date', 'last_mentor_first_name', 'last_mentor_last_name')
     
     result = []
     
     for school in schools:
         days_ago = 999 if school['last_visit_date'] is None else (today - school['last_visit_date']).days
         
+        # Format mentor name
+        mentor_name = "None"
+        if school['last_mentor_first_name'] and school['last_mentor_last_name']:
+            mentor_name = f"{school['last_mentor_first_name']} {school['last_mentor_last_name']}"
+        elif school['last_mentor_first_name']:
+            mentor_name = school['last_mentor_first_name']
+        elif school['last_visit_date']:
+            mentor_name = "Unknown"
+            
         result.append({
             'school_id': school['id'],
             'school_name': school['name'],
             'school_type': school['type'] or 'Unknown',
             'last_visit_date': school['last_visit_date'].strftime('%Y-%m-%d') if school['last_visit_date'] else 'Never',
-            'days_ago': days_ago
+            'days_ago': days_ago,
+            'last_mentor': mentor_name
         })
     
     # Sort by days_ago in descending order (schools with no visits will appear first)
