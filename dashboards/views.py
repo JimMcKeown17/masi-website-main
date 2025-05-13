@@ -10,6 +10,7 @@ from django.conf import settings
 import json
 from django.db.models import Avg, Count
 from zoneinfo import ZoneInfo
+from django.http import JsonResponse
 
 # Models & Forms
 from .models import MentorVisit, School
@@ -378,7 +379,9 @@ def literacy_management_dashboard(request):
     today = timezone.now()
     filter_start_date = None
     
-    if time_period == '30days':
+    if time_period == '7days':
+        filter_start_date = today - timedelta(days=7)
+    elif time_period == '30days':
         filter_start_date = today - timedelta(days=30)
     elif time_period == '90days':
         filter_start_date = today - timedelta(days=90)
@@ -407,7 +410,9 @@ def literacy_management_dashboard(request):
     current_month_start = today.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     
     # Adjust number of months to show based on time period
-    if time_period == '30days':
+    if time_period == '7days':
+        num_months = 1
+    elif time_period == '30days':
         num_months = 1
     elif time_period == '90days':
         num_months = 3
