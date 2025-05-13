@@ -130,7 +130,10 @@ def mentor_dashboard(request):
     visits = MentorVisit.objects.all()
     
     # Apply time filter
-    if time_filter == '30days':
+    if time_filter == '7days':
+        seven_days_ago = timezone.now().date() - timedelta(days=7)
+        visits = visits.filter(visit_date__gte=seven_days_ago)
+    elif time_filter == '30days':
         thirty_days_ago = timezone.now().date() - timedelta(days=30)
         visits = visits.filter(visit_date__gte=thirty_days_ago)
     elif time_filter == '90days':
@@ -155,7 +158,7 @@ def mentor_dashboard(request):
     mentors = User.objects.filter(visits__isnull=False).distinct().order_by('first_name', 'last_name')
     
     # Generate chart data
-    time_period = 'week' if time_filter in ['30days', '90days'] else 'month'
+    time_period = 'week' if time_filter in ['7days', '30days', '90days'] else 'month'
     
     # Get all visits (unfiltered by time) for schools last visited component
     all_visits = MentorVisit.objects.all()

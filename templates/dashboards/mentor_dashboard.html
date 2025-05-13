@@ -88,6 +88,7 @@
         <label for="time_filter" class="form-label">Time Period</label>
         <select class="form-select" id="time_filter" name="time_filter" onchange="this.form.submit()">
           <option value="all" {% if selected_time_filter == 'all' %}selected{% endif %}>All Time</option>
+          <option value="7days" {% if selected_time_filter == '7days' %}selected{% endif %}>Last 7 Days</option>
           <option value="30days" {% if selected_time_filter == '30days' %}selected{% endif %}>Last 30 Days</option>
           <option value="90days" {% if selected_time_filter == '90days' %}selected{% endif %}>Last 90 Days</option>
           <option value="thisyear" {% if selected_time_filter == 'thisyear' %}selected{% endif %}>This Year</option>
@@ -212,6 +213,7 @@
                   <th scope="col">School Name</th>
                   <th scope="col">Type</th>
                   <th scope="col">Last Visit</th>
+                  <th scope="col">Mentor</th>
                   <th scope="col">Days Ago</th>
                   <th scope="col" class="text-center">Status</th>
                   <th scope="col" class="text-end">Action</th>
@@ -223,6 +225,7 @@
                   <td>{{ school.school_name }}</td>
                   <td>{{ school.school_type }}</td>
                   <td>{{ school.last_visit_date }}</td>
+                  <td>{{ school.last_mentor }}</td>
                   <td>{{ school.days_ago }} days</td>
                   <td class="text-center">
                     {% if school.days_ago <= 14 %}
@@ -243,7 +246,7 @@
                 </tr>
                 {% empty %}
                 <tr>
-                  <td colspan="6" class="text-center py-3">No school visit data available.</td>
+                  <td colspan="7" class="text-center py-3">No school visit data available.</td>
                 </tr>
                 {% endfor %}
               </tbody>
