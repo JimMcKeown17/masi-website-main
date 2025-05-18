@@ -66,6 +66,7 @@ class School(models.Model):
         ordering = ['name']
         verbose_name = "School"
         verbose_name_plural = "Schools"
+        db_table = 'dashboards_school'
 
 
 class Youth(models.Model):
@@ -181,9 +182,10 @@ class Mentor(models.Model):
         return self.name
     
     class Meta:
-        verbose_name = "Mentor"
-        verbose_name_plural = "Mentors"
         ordering = ['name']
+        verbose_name = "Mentor Visit"
+        verbose_name_plural = "Mentor Visits"
+        db_table = 'dashboards_mentorvisit'
 
 
 class MentorVisit(models.Model):
