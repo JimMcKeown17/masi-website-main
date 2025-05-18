@@ -57,7 +57,7 @@ def dashboard_main(request):
     # Try to get mentor stats if available
     try:
         from .visualizations.mentor_charts import generate_dashboard_summary
-        from .models import MentorVisit
+        from api.models import MentorVisit
         
         # Get all mentor visits
         visits = MentorVisit.objects.all()

@@ -1,4 +1,8 @@
-__all__ = ['School', 'MentorVisit']
+# dashboards/models.py
+from api.models import School, MentorVisit, Youth, Child, Mentor, Session, AirtableSyncLog
+
+# Re-export models to maintain backward compatibility
+__all__ = ['School', 'MentorVisit', 'Youth', 'Child', 'Mentor', 'Session', 'AirtableSyncLog']
 
 # from django.db import models
 # from django.contrib.auth.models import User

@@ -12,7 +12,7 @@ os.environ.setdefault("DJANGO_SETTINGS_MODULE", "masi_website.settings")
 django.setup()
 
 from django.contrib.auth.models import User
-from dashboards.models import School, MentorVisit
+from api.models import School, MentorVisit
 
 # Load your CSV file
 df = pd.read_csv("static/data/consolidated_visits_2.csv")

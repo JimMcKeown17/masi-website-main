@@ -1,6 +1,6 @@
 import csv
 from django.core.management.base import BaseCommand
-from dashboards.models import School
+from api.models import School
 
 class Command(BaseCommand):
     help = 'Import or update schools from CSV file'

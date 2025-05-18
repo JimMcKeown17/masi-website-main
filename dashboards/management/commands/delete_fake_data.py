@@ -1,7 +1,7 @@
 # Create this file at: dashboards/management/commands/delete_fake_data.py
 
 from django.core.management.base import BaseCommand
-from dashboards.models import School, MentorVisit
+from api.models import School, MentorVisit
 from django.contrib.auth.models import User
 
 

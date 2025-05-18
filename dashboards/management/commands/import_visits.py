@@ -2,7 +2,7 @@
 
 from django.core.management.base import BaseCommand
 from django.contrib.auth.models import User
-from dashboards.models import School, MentorVisit
+from api.models import School, MentorVisit
 from django.db import transaction
 import csv
 import datetime
