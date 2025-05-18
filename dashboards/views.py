@@ -372,178 +372,241 @@ def airtable_debug(request):
 
 @login_required
 def literacy_management_dashboard(request):
+    
+    try:
     # Get time period filter
-    time_period = request.GET.get('time_period', 'all')
-    
-    # Get current date and calculate filter dates
-    today = timezone.now()
-    filter_start_date = None
-    
-    if time_period == '7days':
-        filter_start_date = today - timedelta(days=7)
-    elif time_period == '30days':
-        filter_start_date = today - timedelta(days=30)
-    elif time_period == '90days':
-        filter_start_date = today - timedelta(days=90)
-    elif time_period == 'thisyear':
-        filter_start_date = today.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
-    
-    # Base queryset - get ALL visits first for calculating recent_visits
-    all_visits = MentorVisit.objects.all()
-    
-    # Filtered queryset based on time period
-    visits_queryset = all_visits
-    if filter_start_date:
-        visits_queryset = visits_queryset.filter(visit_date__gte=filter_start_date)
-    
-    # Calculate basic stats
-    total_visits = visits_queryset.count()
-    recent_visits = all_visits.filter(visit_date__gte=today - timedelta(days=30)).count()  # Always use all_visits for this calculation
-    
-    # For time_period='30days', recent_visits and total_visits should be the same
-    if time_period == '30days':
-        recent_visits = total_visits
+        time_period = request.GET.get('time_period', 'all')
         
-    schools_visited = School.objects.filter(visits__in=visits_queryset).distinct().count()
-    avg_quality = visits_queryset.aggregate(Avg('quality_rating'))['quality_rating__avg'] or 0
-    
-    # Get all mentors
-    mentors = User.objects.filter(visits__isnull=False).distinct()
-    
-    # Calculate visits by mentor over time
-    time_periods = []
-    mentor_visits_data = []
-    
-    # Calculate time periods starting from the most recent month
-    current_month_start = today.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-    
-    # Adjust number of months to show based on time period
-    if time_period == '7days':
-        num_months = 1
-    elif time_period == '30days':
-        num_months = 1
-    elif time_period == '90days':
-        num_months = 3
-    elif time_period == 'thisyear':
-        num_months = current_month_start.month
-    else:
-        num_months = 4  # Default to showing last 4 months
-    
-    for i in range(num_months):
-        month_start = current_month_start - timedelta(days=30 * i)
-        month_end = (month_start + timedelta(days=32)).replace(day=1) - timedelta(days=1)
-        time_periods.insert(0, month_start.strftime('%B %Y'))
-    
-    # Create dataset for each mentor
-    for mentor in mentors:
-        mentor_data = {
-            'label': f"{mentor.first_name} {mentor.last_name}",
-            'data': [],
-            'backgroundColor': f'rgba({hash(mentor.username) % 255}, {(hash(mentor.username) >> 8) % 255}, {(hash(mentor.username) >> 16) % 255}, 0.8)'
-        }
+        # Get current date and calculate filter dates
+        today = timezone.now()
+        filter_start_date = None
+        
+        if time_period == '7days':
+            filter_start_date = today - timedelta(days=7)
+        elif time_period == '30days':
+            filter_start_date = today - timedelta(days=30)
+        elif time_period == '90days':
+            filter_start_date = today - timedelta(days=90)
+        elif time_period == 'thisyear':
+            filter_start_date = today.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+        
+        # Base queryset - get ALL visits first for calculating recent_visits
+        all_visits = MentorVisit.objects.all()
+        
+        # Filtered queryset based on time period
+        visits_queryset = all_visits
+        if filter_start_date:
+            visits_queryset = visits_queryset.filter(visit_date__gte=filter_start_date)
+        
+        # Calculate basic stats
+        total_visits = visits_queryset.count()
+        recent_visits = all_visits.filter(visit_date__gte=today - timedelta(days=30)).count()  # Always use all_visits for this calculation
+        
+        # For time_period='30days', recent_visits and total_visits should be the same
+        if time_period == '30days':
+            recent_visits = total_visits
+            
+        schools_visited = School.objects.filter(visits__in=visits_queryset).distinct().count()
+        avg_quality = visits_queryset.aggregate(Avg('quality_rating'))['quality_rating__avg'] or 0
+        
+        # Get all mentors
+        mentors = User.objects.filter(visits__isnull=False).distinct()
+        
+        # Calculate visits by mentor over time
+        time_periods = []
+        mentor_visits_data = []
+        
+        # Calculate time periods starting from the most recent month
+        current_month_start = today.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        
+        # Adjust number of months to show based on time period
+        if time_period == '7days':
+            num_months = 1
+        elif time_period == '30days':
+            num_months = 1
+        elif time_period == '90days':
+            num_months = 3
+        elif time_period == 'thisyear':
+            num_months = current_month_start.month
+        else:
+            num_months = 4  # Default to showing last 4 months
         
         for i in range(num_months):
             month_start = current_month_start - timedelta(days=30 * i)
             month_end = (month_start + timedelta(days=32)).replace(day=1) - timedelta(days=1)
-            visits = visits_queryset.filter(
-                mentor=mentor,
-                visit_date__gte=month_start,
-                visit_date__lte=month_end
-            ).count()
-            mentor_data['data'].insert(0, visits)
+            time_periods.insert(0, month_start.strftime('%B %Y'))
         
-        mentor_visits_data.append(mentor_data)
-    
-    # Calculate quality ratings by mentor
-    mentor_names = []
-    quality_ratings = []
-    
-    for mentor in mentors:
-        mentor_names.append(f"{mentor.first_name} {mentor.last_name}")
-        avg_rating = visits_queryset.filter(mentor=mentor).aggregate(
-            Avg('quality_rating')
-        )['quality_rating__avg'] or 0
-        quality_ratings.append(round(avg_rating, 2))
-    
-    # Calculate cumulative visits by mentor
-    cumulative_data = []
-    
-    for mentor in mentors:
-        # Get all visits for this mentor ordered by date
-        mentor_visits = visits_queryset.filter(mentor=mentor).order_by('visit_date')
-        cumulative_count = 0
-        data_points = []
-        
-        # Calculate cumulative visits over time
-        for visit in mentor_visits:
-            cumulative_count += 1
-            data_points.append({
-                'x': visit.visit_date.strftime('%Y-%m-%d'),
-                'y': cumulative_count
-            })
-        
-        # Only add mentors who have visits
-        if data_points:
-            cumulative_data.append({
+        # Create dataset for each mentor
+        for mentor in mentors:
+            mentor_data = {
                 'label': f"{mentor.first_name} {mentor.last_name}",
-                'data': data_points,
-                'borderColor': f'rgba({hash(mentor.username) % 255}, {(hash(mentor.username) >> 8) % 255}, {(hash(mentor.username) >> 16) % 255}, 1)',
-                'backgroundColor': f'rgba({hash(mentor.username) % 255}, {(hash(mentor.username) >> 8) % 255}, {(hash(mentor.username) >> 16) % 255}, 1)',
-                'borderWidth': 2,
-                'tension': 0.4,
-                'fill': False
-            })
-    
-    # Get schools not visited in last 30 days
-    schools_not_visited = []
-    for school in School.objects.all():
-        last_visit = visits_queryset.filter(school=school).order_by('-visit_date').first()
-        
-        if not last_visit or (today.date() - last_visit.visit_date).days > 30:
-            schools_not_visited.append({
-                'name': school.name,
-                'last_visited_by': f"{last_visit.mentor.first_name} {last_visit.mentor.last_name}" if last_visit else 'Never',
-                'days_since_visit': (today.date() - last_visit.visit_date).days if last_visit else 999
-            })
-    
-    # Sort schools by days since last visit
-    schools_not_visited.sort(key=lambda x: x['days_since_visit'], reverse=True)
-    
-    # Calculate average visits per week per mentor
-    mentor_weekly_stats = []
-    for mentor in mentors:
-        mentor_visits = visits_queryset.filter(mentor=mentor)
-        total_visits = mentor_visits.count()
-        
-        if total_visits > 0:
-            first_visit = mentor_visits.order_by('visit_date').first()
-            weeks_active = max(1, (today.date() - first_visit.visit_date).days / 7)  # At least 1 week
-            avg_visits_per_week = round(total_visits / weeks_active, 1)
+                'data': [],
+                'backgroundColor': f'rgba({hash(mentor.username) % 255}, {(hash(mentor.username) >> 8) % 255}, {(hash(mentor.username) >> 16) % 255}, 0.8)'
+            }
             
-            mentor_weekly_stats.append({
-                'name': f"{mentor.first_name} {mentor.last_name}",
-                'total_visits': total_visits,
-                'avg_visits_per_week': avg_visits_per_week,
-                'start_date': first_visit.visit_date.strftime('%B %d, %Y'),
-                'weeks_active': round(weeks_active, 1)
-            })
+            for i in range(num_months):
+                month_start = current_month_start - timedelta(days=30 * i)
+                month_end = (month_start + timedelta(days=32)).replace(day=1) - timedelta(days=1)
+                visits = visits_queryset.filter(
+                    mentor=mentor,
+                    visit_date__gte=month_start,
+                    visit_date__lte=month_end
+                ).count()
+                mentor_data['data'].insert(0, visits)
+            
+            mentor_visits_data.append(mentor_data)
+        
+        # Calculate quality ratings by mentor
+        mentor_names = []
+        quality_ratings = []
+        
+        for mentor in mentors:
+            mentor_names.append(f"{mentor.first_name} {mentor.last_name}")
+            avg_rating = visits_queryset.filter(mentor=mentor).aggregate(
+                Avg('quality_rating')
+            )['quality_rating__avg'] or 0
+            quality_ratings.append(round(avg_rating, 2))
+        
+        # Calculate cumulative visits by mentor
+        cumulative_data = []
+        
+        for mentor in mentors:
+            # Get all visits for this mentor ordered by date
+            mentor_visits = visits_queryset.filter(mentor=mentor).order_by('visit_date')
+            cumulative_count = 0
+            data_points = []
+            
+            # Calculate cumulative visits over time
+            for visit in mentor_visits:
+                cumulative_count += 1
+                data_points.append({
+                    'x': visit.visit_date.strftime('%Y-%m-%d'),
+                    'y': cumulative_count
+                })
+            
+            # Only add mentors who have visits
+            if data_points:
+                cumulative_data.append({
+                    'label': f"{mentor.first_name} {mentor.last_name}",
+                    'data': data_points,
+                    'borderColor': f'rgba({hash(mentor.username) % 255}, {(hash(mentor.username) >> 8) % 255}, {(hash(mentor.username) >> 16) % 255}, 1)',
+                    'backgroundColor': f'rgba({hash(mentor.username) % 255}, {(hash(mentor.username) >> 8) % 255}, {(hash(mentor.username) >> 16) % 255}, 1)',
+                    'borderWidth': 2,
+                    'tension': 0.4,
+                    'fill': False
+                })
+        
+        # Get schools not visited in last 30 days
+        schools_not_visited = []
+        for school in School.objects.all():
+            last_visit = visits_queryset.filter(school=school).order_by('-visit_date').first()
+            
+            if not last_visit or (today.date() - last_visit.visit_date).days > 30:
+                schools_not_visited.append({
+                    'name': school.name,
+                    'last_visited_by': f"{last_visit.mentor.first_name} {last_visit.mentor.last_name}" if last_visit else 'Never',
+                    'days_since_visit': (today.date() - last_visit.visit_date).days if last_visit else 999
+                })
+        
+        # Sort schools by days since last visit
+        schools_not_visited.sort(key=lambda x: x['days_since_visit'], reverse=True)
+        
+        # Calculate average visits per week per mentor
+        mentor_weekly_stats = []
+        for mentor in mentors:
+            mentor_visits = visits_queryset.filter(mentor=mentor)
+            total_visits = mentor_visits.count()
+            
+            if total_visits > 0:
+                first_visit = mentor_visits.order_by('visit_date').first()
+                weeks_active = max(1, (today.date() - first_visit.visit_date).days / 7)  # At least 1 week
+                avg_visits_per_week = round(total_visits / weeks_active, 1)
+                
+                mentor_weekly_stats.append({
+                    'name': f"{mentor.first_name} {mentor.last_name}",
+                    'total_visits': total_visits,
+                    'avg_visits_per_week': avg_visits_per_week,
+                    'start_date': first_visit.visit_date.strftime('%B %d, %Y'),
+                    'weeks_active': round(weeks_active, 1)
+                })
+        
+        # Sort by average visits per week in descending order
+        mentor_weekly_stats.sort(key=lambda x: x['avg_visits_per_week'], reverse=True)
+        
+        context = {
+            'total_visits': total_visits,
+            'visits_last_30_days': recent_visits,
+            'schools_visited': schools_visited,
+            'avg_quality_rating': round(avg_quality, 1),
+            'time_periods': json.dumps(time_periods),
+            'mentor_visits_data': json.dumps(mentor_visits_data),
+            'mentor_names': json.dumps(mentor_names),
+            'quality_ratings': json.dumps(quality_ratings),
+            'schools_not_visited': schools_not_visited,
+            'cumulative_visits_data': json.dumps(cumulative_data),
+            'selected_time_period': time_period,
+            'mentor_weekly_stats': mentor_weekly_stats
+        }
+        
+        return render(request, 'dashboards/literacy_management_dashboard.html', context)
+
+    except Exception as e:
+            import traceback
+            import logging
+            logger = logging.getLogger(__name__)
+            
+            # Log the full exception traceback
+            logger.error(f"LITERACY VIEW ERROR: {str(e)}")
+            logger.error(traceback.format_exc())
+            
+            # Return a more informative error page
+            return render(request, 'dashboards/dashboard_main.html', {
+                'error_message': f"Error: {str(e)}",
+                'traceback': traceback.format_exc(),
+                'title': 'Error in Literacy Dashboard'
+        })
+
+# Add this to dashboards/views.py
+def database_check(request):
+    """Temporary diagnostic view"""
+    from django.db import connection
+    import json
+    from django.http import JsonResponse
     
-    # Sort by average visits per week in descending order
-    mentor_weekly_stats.sort(key=lambda x: x['avg_visits_per_week'], reverse=True)
+    # Only allow superusers for security
+    if not request.user.is_superuser:
+        return JsonResponse({"error": "Not authorized"}, status=403)
     
-    context = {
-        'total_visits': total_visits,
-        'visits_last_30_days': recent_visits,
-        'schools_visited': schools_visited,
-        'avg_quality_rating': round(avg_quality, 1),
-        'time_periods': json.dumps(time_periods),
-        'mentor_visits_data': json.dumps(mentor_visits_data),
-        'mentor_names': json.dumps(mentor_names),
-        'quality_ratings': json.dumps(quality_ratings),
-        'schools_not_visited': schools_not_visited,
-        'cumulative_visits_data': json.dumps(cumulative_data),
-        'selected_time_period': time_period,
-        'mentor_weekly_stats': mentor_weekly_stats
-    }
+    # Check tables
+    with connection.cursor() as cursor:
+        # List all tables
+        cursor.execute("""
+            SELECT table_name 
+            FROM information_schema.tables 
+            WHERE table_schema = 'public'
+        """)
+        tables = [row[0] for row in cursor.fetchall()]
+        
+        # Check if our tables exist
+        dashboards_school_exists = 'dashboards_school' in tables
+        api_school_exists = 'api_school' in tables
+        dashboards_mentorvisit_exists = 'dashboards_mentorvisit' in tables
+        api_mentorvisit_exists = 'api_mentorvisit' in tables
+        
+        # Count records in key tables
+        counts = {}
+        for table in ['dashboards_school', 'api_school', 'dashboards_mentorvisit', 'api_mentorvisit']:
+            try:
+                cursor.execute(f"SELECT COUNT(*) FROM {table}")
+                counts[table] = cursor.fetchone()[0]
+            except:
+                counts[table] = "Table doesn't exist"
     
-    return render(request, 'dashboards/literacy_management_dashboard.html', context)
+    return JsonResponse({
+        "all_tables": tables,
+        "dashboards_school_exists": dashboards_school_exists,
+        "api_school_exists": api_school_exists,
+        "dashboards_mentorvisit_exists": dashboards_mentorvisit_exists,
+        "api_mentorvisit_exists": api_mentorvisit_exists,
+        "record_counts": counts
+    })

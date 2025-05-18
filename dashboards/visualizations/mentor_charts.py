@@ -212,53 +212,113 @@ def generate_schools_last_visited(visits):
     Returns:
         List of school visit data sorted by days since last visit (descending)
     """
-    from django.db.models import Max, F, OuterRef, Subquery
-    from django.utils import timezone
-    from api.models import School
-    import json
-    
-    today = timezone.now().date()
-    
-    # Get the latest visit for each school with mentor info
-    latest_visit_subquery = visits.filter(
-        school=OuterRef('pk')
-    ).order_by('-visit_date').values('visit_date')[:1]
-    
-    # Get mentor name for the latest visit
-    latest_mentor_subquery = visits.filter(
-        school=OuterRef('pk')
-    ).order_by('-visit_date').values('mentor__first_name', 'mentor__last_name')[:1]
-    
-    schools = School.objects.annotate(
-        last_visit_date=Subquery(latest_visit_subquery),
-        last_mentor_first_name=Subquery(latest_mentor_subquery.values('mentor__first_name')),
-        last_mentor_last_name=Subquery(latest_mentor_subquery.values('mentor__last_name'))
-    ).values('id', 'name', 'type', 'last_visit_date', 'last_mentor_first_name', 'last_mentor_last_name')
-    
-    result = []
-    
-    for school in schools:
-        days_ago = 999 if school['last_visit_date'] is None else (today - school['last_visit_date']).days
+    try:
+        from django.db.models import Max, F, OuterRef, Subquery
+        from django.utils import timezone
+        from api.models import School
+        import json
+        import logging
+        logger = logging.getLogger(__name__)
         
-        # Format mentor name
-        mentor_name = "None"
-        if school['last_mentor_first_name'] and school['last_mentor_last_name']:
-            mentor_name = f"{school['last_mentor_first_name']} {school['last_mentor_last_name']}"
-        elif school['last_mentor_first_name']:
-            mentor_name = school['last_mentor_first_name']
-        elif school['last_visit_date']:
-            mentor_name = "Unknown"
+        # Log what we're doing
+        logger.error(f"Starting generate_schools_last_visited with {len(visits)} visits")
+        
+        today = timezone.now().date()
+        
+        # Let's check our database tables before proceeding
+        from django.db import connection
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT COUNT(*) FROM dashboards_school")
+            school_count = cursor.fetchone()[0]
+            logger.error(f"Found {school_count} schools in dashboards_school table")
             
-        result.append({
-            'school_id': school['id'],
-            'school_name': school['name'],
-            'school_type': school['type'] or 'Unknown',
-            'last_visit_date': school['last_visit_date'].strftime('%Y-%m-%d') if school['last_visit_date'] else 'Never',
-            'days_ago': days_ago,
-            'last_mentor': mentor_name
-        })
-    
-    # Sort by days_ago in descending order (schools with no visits will appear first)
-    result.sort(key=lambda x: x['days_ago'], reverse=True)
-    
-    return result
+            # Also check if api_school exists
+            try:
+                cursor.execute("SELECT COUNT(*) FROM api_school")
+                api_school_count = cursor.fetchone()[0]
+                logger.error(f"Found {api_school_count} schools in api_school table")
+            except:
+                logger.error("Table api_school does not exist")
+        
+        # Try to load a few schools directly to see what we get
+        try:
+            direct_schools = School.objects.all()[:3]
+            logger.error(f"Direct School query returned: {[s.name for s in direct_schools]}")
+        except Exception as e:
+            logger.error(f"Error in direct School query: {str(e)}")
+        
+        # FALLBACK APPROACH: Use raw SQL instead of ORM
+        # This bypasses any ORM/model issues
+        result = []
+        
+        with connection.cursor() as cursor:
+            # Get schools with their last visit
+            cursor.execute("""
+                SELECT 
+                    s.id, 
+                    s.name, 
+                    s.type,
+                    MAX(v.visit_date) as last_visit_date,
+                    CASE WHEN MAX(v.visit_date) IS NOT NULL THEN
+                        (SELECT u.first_name FROM auth_user u 
+                         JOIN dashboards_mentorvisit mv ON u.id = mv.mentor_id
+                         WHERE mv.school_id = s.id 
+                         ORDER BY mv.visit_date DESC LIMIT 1)
+                    ELSE NULL END as mentor_first_name,
+                    CASE WHEN MAX(v.visit_date) IS NOT NULL THEN
+                        (SELECT u.last_name FROM auth_user u 
+                         JOIN dashboards_mentorvisit mv ON u.id = mv.mentor_id
+                         WHERE mv.school_id = s.id
+                         ORDER BY mv.visit_date DESC LIMIT 1)
+                    ELSE NULL END as mentor_last_name
+                FROM 
+                    dashboards_school s
+                LEFT JOIN 
+                    dashboards_mentorvisit v ON s.id = v.school_id
+                GROUP BY 
+                    s.id, s.name, s.type
+                ORDER BY 
+                    last_visit_date DESC NULLS LAST
+            """)
+            
+            # Process the rows
+            schools_data = cursor.fetchall()
+            
+            for row in schools_data:
+                school_id, name, school_type, last_visit_date, mentor_first, mentor_last = row
+                
+                days_ago = 999 if last_visit_date is None else (today - last_visit_date).days
+                
+                # Format mentor name
+                mentor_name = "None"
+                if mentor_first and mentor_last:
+                    mentor_name = f"{mentor_first} {mentor_last}"
+                elif mentor_first:
+                    mentor_name = mentor_first
+                elif last_visit_date:
+                    mentor_name = "Unknown"
+                    
+                result.append({
+                    'school_id': school_id,
+                    'school_name': name,
+                    'school_type': school_type or 'Unknown',
+                    'last_visit_date': last_visit_date.strftime('%Y-%m-%d') if last_visit_date else 'Never',
+                    'days_ago': days_ago,
+                    'last_mentor': mentor_name
+                })
+        
+        # Sort by days_ago in descending order
+        result.sort(key=lambda x: x['days_ago'], reverse=True)
+        
+        return result
+        
+    except Exception as e:
+        # Log the error
+        import traceback
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"ERROR in generate_schools_last_visited: {str(e)}")
+        logger.error(traceback.format_exc())
+        
+        # Return an empty result to prevent the entire view from crashing
+        return []
