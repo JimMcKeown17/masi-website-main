@@ -12,8 +12,8 @@ from django.db.models import Avg, Count
 from zoneinfo import ZoneInfo
 from django.http import JsonResponse
 
-# Models & Forms
-from .models import MentorVisit, School
+# Models & Forms - Update these imports
+from api.models import MentorVisit, School  # Changed from .models to api.models
 from .forms import MentorVisitForm
 
 # Airtable Services

@@ -2,7 +2,7 @@ import json
 from datetime import datetime, timedelta
 from django.db.models import Count, Avg, Sum, Case, When, IntegerField, F, OuterRef, Subquery
 from django.db.models.functions import TruncMonth, TruncWeek
-from dashboards.models import MentorVisit, School
+from api.models import MentorVisit, School
 import json
 
 def generate_visit_frequency_chart(visits, time_period='week'):
@@ -214,7 +214,7 @@ def generate_schools_last_visited(visits):
     """
     from django.db.models import Max, F, OuterRef, Subquery
     from django.utils import timezone
-    from dashboards.models import School
+    from api.models import School
     import json
     
     today = timezone.now().date()

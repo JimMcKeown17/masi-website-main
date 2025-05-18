@@ -46,6 +46,7 @@ INSTALLED_APPS = [
     'core',
     'pages',
     'dashboards',
+    'api',
 ]
 
 MIDDLEWARE = [

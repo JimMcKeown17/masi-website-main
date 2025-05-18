@@ -1,5 +1,5 @@
 from django import forms
-from .models import MentorVisit
+from api.models import MentorVisit
 
 class MentorVisitForm(forms.ModelForm):
     class Meta:

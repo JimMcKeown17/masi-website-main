@@ -1,4 +1,22 @@
 .
+├── api
+│   ├── management
+│   │   └── commands
+│   ├── migrations
+│   │   ├── 0001_initial.py
+│   │   ├── 0002_alter_youth_account_number_alter_youth_account_type_and_more.py
+│   │   ├── 0003_alter_school_contact_phone_and_more.py
+│   │   ├── 0004_alter_youth_field_lengths.py
+│   │   ├── 0005_alter_youth_employment_status_and_account_type.py
+│   │   ├── 0006_alter_youth_race_field_length.py
+│   │   ├── 0007_alter_youth_race.py
+│   │   └── __init__.py
+│   ├── __init__.py
+│   ├── admin.py
+│   ├── apps.py
+│   ├── models.py
+│   ├── tests.py
+│   └── views.py
 ├── core
 │   ├── management
 │   │   ├── commands
@@ -26,6 +44,7 @@
 │   │   ├── 0001_initial.py
 │   │   ├── 0002_school_type.py
 │   │   ├── 0003_alter_school_type.py
+│   │   ├── 0004_auto_20250514_1450.py
 │   │   └── __init__.py
 │   ├── services
 │   │   ├── __init__.py
@@ -47,6 +66,15 @@
 │   ├── tests.py
 │   ├── urls.py
 │   └── views.py
+├── data_exports
+│   ├── airtable_sessions_data.json
+│   ├── airtable_sessions_sample.json
+│   ├── airtable_youth_data.json
+│   └── airtable_youth_sample.json
+├── logs
+│   ├── youth_import_skip_log_20250514_212703.json
+│   ├── youth_import_skip_log_20250514_213832.json
+│   └── youth_import_skip_log_20250514_213901.json
 ├── masi_website
 │   ├── __init__.py
 │   ├── asgi.py
@@ -69,6 +97,7 @@
 │   ├── export_code.py
 │   ├── export_code_short.py
 │   ├── generate-fake-data.py
+│   ├── import_mentor_visits.py
 │   ├── llm_review.txt
 │   ├── llm_review_short.txt
 │   ├── masi-project-knowledge.md
@@ -85,8 +114,8 @@
 │   │   ├── main.css
 │   │   └── styles.css
 │   ├── data
+│   │   ├── consolidated_visits_2.csv
 │   │   └── schools_list_mar14.csv
-│   ├── fonts
 │   ├── images
 │   │   ├── 2024 Grad Magazine
 │   │   ├── LCs
@@ -402,6 +431,7 @@
 │   │   └── login.html
 │   ├── dashboards
 │   │   ├── dashboard_main.html
+│   │   ├── literacy_management_dashboard.html
 │   │   ├── mentor_dashboard.html
 │   │   ├── mentor_visits.html
 │   │   └── youth_dashboard.html
@@ -426,15 +456,20 @@
 │   │   └── password_reset_form.html
 │   ├── base.html
 │   └── debug.html
+├── 2025-05-14_Website DB Backup.dir.tar.gz
+├── all_data.json
 ├── build.sh
 ├── consolidated_visits.csv
 ├── db.sqlite3
 ├── manage.py
+├── mentor_visits.csv
 ├── moonlit-botany-454016-b5-e20993bb54e0.json
 ├── package-lock.json
 ├── package.json
+├── quick_script.py
 ├── requirements.txt
 ├── staff_profiles.csv
+├── transfer_schools.py
 └── tree-output.txt
 
-64 directories, 374 files
+69 directories, 404 files
