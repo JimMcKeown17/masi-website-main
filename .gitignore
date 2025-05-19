@@ -99,6 +99,7 @@ celerybeat.pid
 .spyproject
 .ropeproject
 /site
+*.dat
 
 moonlit-botany-454016-b5-e20993bb54e0.json
 
