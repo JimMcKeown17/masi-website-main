@@ -1,0 +1,156 @@
+1	2025-04-03 11:58:17.182203+00	2	zola@Masinyusane.org	1	[{"added": {}}]	4	1
+2	2025-04-03 11:58:27.283909+00	2	zola@Masinyusane.org	2	[{"changed": {"fields": ["First name", "Last name", "Email address", "Staff status"]}}]	4	1
+3	2025-04-03 11:58:57.969848+00	3	Zama@Masinyusane.org	1	[{"added": {}}]	4	1
+4	2025-04-03 11:59:07.832367+00	3	Zama@Masinyusane.org	2	[{"changed": {"fields": ["First name", "Last name", "Email address", "Staff status"]}}]	4	1
+5	2025-04-09 11:35:55.305457+00	9	datateam	1	[{"added": {}}]	4	1
+6	2025-04-09 11:46:49.386742+00	1	Google OAuth	1	[{"added": {}}]	13	1
+7	2025-04-09 11:47:18.299952+00	2	www.masinyusane.org	1	[{"added": {}}]	9	1
+8	2025-04-09 11:47:30.526382+00	1	Google OAuth	2	[{"changed": {"fields": ["Sites"]}}]	13	1
+9	2025-04-09 11:48:10.459533+00	2	masinyusane.org	2	[{"changed": {"fields": ["Domain name"]}}]	9	1
+10	2025-04-09 11:48:18.100747+00	1	Google OAuth	2	[]	13	1
+11	2025-04-09 12:01:52.946126+00	10	data@Masinyusane.org	1	[{"added": {}}]	4	1
+12	2025-04-09 12:06:01.313758+00	10	data@Masinyusane.org	2	[]	4	1
+13	2025-04-09 12:07:12.944545+00	10	data@Masinyusane.org	2	[{"changed": {"fields": ["password"]}}]	4	1
+14	2025-04-09 12:07:22.255486+00	10	data@Masinyusane.org	2	[]	4	1
+15	2025-04-15 18:17:25.802954+00	5	chombe.gqabu	3		4	1
+16	2025-04-15 18:17:25.802991+00	10	data@Masinyusane.org	3		4	1
+17	2025-04-15 18:17:25.803006+00	9	datateam	3		4	1
+18	2025-04-15 18:17:25.803019+00	4	elizabeth.taylor	3		4	1
+19	2025-04-15 18:17:25.803031+00	8	jennifer.davis	3		4	1
+20	2025-04-15 18:17:25.803042+00	6	michael.brown	3		4	1
+21	2025-04-15 18:17:25.803053+00	7	zama.zulu	3		4	1
+22	2025-04-15 18:46:26.673654+00	38	Busisiwe@masinyusane.org	2	[{"changed": {"fields": ["Last name"]}}]	4	1
+23	2025-04-15 18:59:10.832662+00	103	jim visited Mavela Secondary on 2025-04-10	3		8	1
+24	2025-04-15 18:59:10.832715+00	102	jim visited Kwabhekokuhle ECDC on 2025-04-09	3		8	1
+25	2025-04-15 18:59:10.832799+00	101	jim visited Siyahlomula Primary on 2025-04-03	3		8	1
+26	2025-04-23 19:32:25.446694+00	24	Buyiswa@masinyusane.org	2	[{"changed": {"fields": ["password"]}}]	4	1
+27	2025-04-23 19:32:47.326494+00	30	Faith@masinyusane.org	2	[{"changed": {"fields": ["password"]}}]	4	1
+28	2025-04-23 19:33:23.451179+00	31	Sibonokuhle@masinyusane.org	2	[{"changed": {"fields": ["password"]}}]	4	1
+29	2025-04-23 19:33:45.433443+00	32	Chombe@masinyusane.org	2	[{"changed": {"fields": ["password"]}}]	4	1
+30	2025-04-23 19:34:10.418205+00	33	Ziyanda@masinyusane.org	2	[{"changed": {"fields": ["password"]}}]	4	1
+31	2025-04-23 19:34:32.31908+00	34	Neliswa@masinyusane.org	2	[{"changed": {"fields": ["password"]}}]	4	1
+32	2025-04-23 19:34:52.649667+00	35	Siphosethu.mlenze@masinyusane.org	2	[{"changed": {"fields": ["password"]}}]	4	1
+33	2025-04-23 19:35:08.429773+00	36	Babalo@masinyusane.org	2	[{"changed": {"fields": ["password"]}}]	4	1
+34	2025-04-23 19:35:32.660483+00	37	Zolani@masinyusane.org	2	[{"changed": {"fields": ["password"]}}]	4	1
+35	2025-04-23 19:36:08.050543+00	38	Busisiwe@masinyusane.org	2	[{"changed": {"fields": ["password"]}}]	4	1
+36	2025-04-23 19:40:08.952021+00	46	Tumelo@masinyusane.org	2	[{"changed": {"fields": ["password"]}}]	4	1
+37	2025-04-23 19:40:21.23512+00	45	Noxolo@masinyusane.org	2	[{"changed": {"fields": ["password"]}}]	4	1
+38	2025-04-23 19:40:35.532355+00	48	Ayabukwa@masinyusane.org	2	[{"changed": {"fields": ["password"]}}]	4	1
+39	2025-04-23 19:41:09.844298+00	23	Suthukazi@masinyusane.org	2	[{"changed": {"fields": ["password"]}}]	4	1
+40	2025-04-23 19:41:55.619423+00	22	Siphosethu.p@masinyusane.org	2	[{"changed": {"fields": ["password"]}}]	4	1
+41	2025-04-23 19:42:21.241665+00	21	Sizondelelokuhle@masinyusane.org	2	[{"changed": {"fields": ["password"]}}]	4	1
+42	2025-04-29 23:31:42.05612+00	24	Buyiswa@masinyusane.org	2	[{"changed": {"fields": ["password"]}}]	4	1
+43	2025-04-30 16:18:02.356483+00	3	Zama@Masinyusane.org	2	[{"changed": {"fields": ["password"]}}]	4	1
+44	2025-04-30 16:18:09.073607+00	3	Zama@Masinyusane.org	2	[]	4	1
+45	2025-04-30 16:18:45.0244+00	2	zola@Masinyusane.org	2	[{"changed": {"fields": ["password"]}}]	4	1
+46	2025-04-30 16:18:48.950134+00	2	zola@Masinyusane.org	2	[]	4	1
+47	2025-04-30 16:23:20.630815+00	3	Zama@Masinyusane.org	2	[]	4	1
+48	2025-04-30 16:35:10.939963+00	3	Zama@Masinyusane.org	2	[{"changed": {"fields": ["password"]}}]	4	1
+49	2025-04-30 16:35:13.909373+00	3	Zama@Masinyusane.org	2	[]	4	1
+50	2025-04-30 16:36:10.79754+00	3	zama@Masinyusane.org	2	[{"changed": {"fields": ["Username"]}}]	4	1
+51	2025-04-30 16:36:24.824466+00	3	zama@masinyusane.org	2	[{"changed": {"fields": ["Username"]}}]	4	1
+52	2025-04-30 19:10:51.247351+00	452	Faith@masinyusane.org visited Isaac Booi on 2025-04-16	1	[{"added": {}}]	8	1
+53	2025-04-30 19:11:05.799759+00	453	Faith@masinyusane.org visited Charles Duna on 2025-04-16	1	[{"added": {}}]	8	1
+54	2025-04-30 19:11:19.777896+00	454	Faith@masinyusane.org visited Seyisi on 2025-04-16	1	[{"added": {}}]	8	1
+55	2025-04-30 19:11:33.103045+00	455	Faith@masinyusane.org visited Aaron Gqadu on 2025-04-16	1	[{"added": {}}]	8	1
+56	2025-04-30 19:12:01.049025+00	456	Ziyanda@masinyusane.org visited Zizamele on 2025-04-16	1	[{"added": {}}]	8	1
+57	2025-04-30 19:12:19.602338+00	457	Ziyanda@masinyusane.org visited Zizamele on 2025-04-17	1	[{"added": {}}]	8	1
+58	2025-04-30 19:12:36.217877+00	458	Ziyanda@masinyusane.org visited Jongilanga on 2025-04-17	1	[{"added": {}}]	8	1
+59	2025-04-30 19:12:56.217782+00	459	Andiswa@masinyusane.org visited Seyisi on 2025-04-15	1	[{"added": {}}]	8	1
+60	2025-04-30 19:13:12.457014+00	460	Andiswa@masinyusane.org visited Aaron Gqadu on 2025-04-16	1	[{"added": {}}]	8	1
+61	2025-04-30 19:13:30.786269+00	461	Andiswa@masinyusane.org visited Isaac Booi on 2025-04-17	1	[{"added": {}}]	8	1
+62	2025-04-30 19:13:48.920711+00	462	Andiswa@masinyusane.org visited Getrude Shope on 2025-04-23	1	[{"added": {}}]	8	1
+63	2025-04-30 19:14:01.053359+00	463	Andiswa@masinyusane.org visited Ebhongweni on 2025-04-24	1	[{"added": {}}]	8	1
+64	2025-04-30 19:14:17.539198+00	464	Andiswa@masinyusane.org visited Seyisi on 2025-04-25	1	[{"added": {}}]	8	1
+65	2025-04-30 19:14:47.705941+00	465	Siphosethu.p@masinyusane.org visited Mpumalanga on 2025-04-07	1	[{"added": {}}]	8	1
+66	2025-04-30 19:15:06.310033+00	466	Siphosethu.p@masinyusane.org visited Enkululekweni on 2025-04-08	1	[{"added": {}}]	8	1
+67	2025-04-30 19:15:31.341598+00	467	Siphosethu.p@masinyusane.org visited Fumisukoma on 2025-04-08	1	[{"added": {}}]	8	1
+68	2025-04-30 19:15:48.156564+00	468	Siphosethu.p@masinyusane.org visited Mpumalanga on 2025-04-08	1	[{"added": {}}]	8	1
+69	2025-04-30 19:16:04.099227+00	469	Siphosethu.p@masinyusane.org visited Mboniselo on 2025-04-08	1	[{"added": {}}]	8	1
+70	2025-04-30 19:16:22.326219+00	470	Siphosethu.p@masinyusane.org visited Melisizwe on 2025-04-08	1	[{"added": {}}]	8	1
+71	2025-04-30 19:16:44.36989+00	471	Siphosethu.p@masinyusane.org visited Fumisukoma on 2025-04-15	1	[{"added": {}}]	8	1
+72	2025-04-30 19:16:58.783296+00	472	Siphosethu.p@masinyusane.org visited Melisizwe on 2025-04-16	1	[{"added": {}}]	8	1
+73	2025-04-30 19:17:20.539332+00	473	Siphosethu.p@masinyusane.org visited Mpumalanga on 2025-04-23	1	[{"added": {}}]	8	1
+74	2025-04-30 19:17:35.706108+00	474	Siphosethu.p@masinyusane.org visited Mpumalanga on 2025-04-25	1	[{"added": {}}]	8	1
+75	2025-04-30 19:18:03.851515+00	475	Suthukazi@masinyusane.org visited Isaac Booi on 2025-04-07	1	[{"added": {}}]	8	1
+76	2025-04-30 19:18:27.511125+00	476	Suthukazi@masinyusane.org visited Sivuyiseni on 2025-04-09	1	[{"added": {}}]	8	1
+77	2025-04-30 19:18:43.084674+00	477	Suthukazi@masinyusane.org visited Charles Duna on 2025-04-15	1	[{"added": {}}]	8	1
+78	2025-04-30 19:19:09.946183+00	478	Suthukazi@masinyusane.org visited Sivuyiseni on 2025-04-16	1	[{"added": {}}]	8	1
+79	2025-04-30 19:19:31.436527+00	479	Suthukazi@masinyusane.org visited Seyisi on 2025-04-16	1	[{"added": {}}]	8	1
+80	2025-04-30 19:19:48.841309+00	480	Suthukazi@masinyusane.org visited Isaac Booi on 2025-04-24	1	[{"added": {}}]	8	1
+81	2025-04-30 19:20:05.397978+00	481	Suthukazi@masinyusane.org visited Charles Duna on 2025-04-24	1	[{"added": {}}]	8	1
+82	2025-04-30 19:20:20.983345+00	482	Suthukazi@masinyusane.org visited Emsengeni on 2025-04-24	1	[{"added": {}}]	8	1
+83	2025-04-30 19:20:37.459445+00	483	Suthukazi@masinyusane.org visited Sivuyiseni on 2025-04-24	1	[{"added": {}}]	8	1
+84	2025-04-30 19:20:53.943024+00	484	Suthukazi@masinyusane.org visited Seyisi on 2025-04-24	1	[{"added": {}}]	8	1
+85	2025-04-30 19:21:14.560485+00	485	Sibonokuhle@masinyusane.org visited Strelitzia on 2025-04-16	1	[{"added": {}}]	8	1
+86	2025-04-30 19:21:27.063526+00	486	Sibonokuhle@masinyusane.org visited Sapphire on 2025-04-17	1	[{"added": {}}]	8	1
+87	2025-04-30 19:21:50.77203+00	487	Zolani@masinyusane.org visited Sandwater on 2025-04-15	1	[{"added": {}}]	8	1
+88	2025-04-30 19:22:04.87122+00	488	Zolani@masinyusane.org visited Living Ubuntu on 2025-04-15	1	[{"added": {}}]	8	1
+89	2025-04-30 19:22:23.985555+00	489	Zolani@masinyusane.org visited Calrkson on 2025-04-16	1	[{"added": {}}]	8	1
+90	2025-04-30 19:22:38.892301+00	490	Zolani@masinyusane.org visited Calrkson on 2025-04-17	1	[{"added": {}}]	8	1
+91	2025-04-30 19:47:47.340012+00	39	Aaron Gqadu	2	[{"changed": {"fields": ["Type"]}}]	7	1
+92	2025-04-30 19:47:57.61746+00	50	Astra	2	[{"changed": {"fields": ["Type"]}}]	7	1
+93	2025-04-30 19:48:02.540572+00	40	Bavumeleni	2	[{"changed": {"fields": ["Type"]}}]	7	1
+94	2025-04-30 19:48:07.119935+00	61	Ben Nyathi	2	[{"changed": {"fields": ["Type"]}}]	7	1
+95	2025-04-30 19:48:12.762425+00	69	Ben Sinuka	2	[{"changed": {"fields": ["Type"]}}]	7	1
+96	2025-04-30 19:48:18.210414+00	73	Bethelsdorp	2	[{"changed": {"fields": ["Type"]}}]	7	1
+97	2025-04-30 19:48:25.190734+00	71	Bethvale	2	[{"changed": {"fields": ["Type"]}}]	7	1
+98	2025-04-30 19:48:30.578113+00	70	Bongweni	2	[{"changed": {"fields": ["Type"]}}]	7	1
+99	2025-04-30 19:48:39.364596+00	33	Bright Angels	2	[{"changed": {"fields": ["Type"]}}]	7	1
+100	2025-04-30 19:48:44.306301+00	63	Calrkson	2	[{"changed": {"fields": ["Type"]}}]	7	1
+101	2025-04-30 19:48:51.881701+00	54	Canzibe	2	[{"changed": {"fields": ["Type"]}}]	7	1
+102	2025-04-30 19:48:57.174115+00	38	Charles Duna	2	[{"changed": {"fields": ["Type"]}}]	7	1
+103	2025-04-30 19:49:04.045015+00	34	Dorothy	2	[{"changed": {"fields": ["Type"]}}]	7	1
+104	2025-04-30 19:49:09.666276+00	51	Dumani	2	[{"changed": {"fields": ["Type"]}}]	7	1
+105	2025-04-30 19:49:15.591875+00	36	Ebhongweni	2	[{"changed": {"fields": ["Type"]}}]	7	1
+106	2025-04-30 19:49:20.668143+00	44	Ekhaya	2	[{"changed": {"fields": ["Type"]}}]	7	1
+107	2025-04-30 19:49:26.885922+00	55	Elufefeni	2	[{"changed": {"fields": ["Type"]}}]	7	1
+108	2025-04-30 19:49:32.882717+00	49	Emmanuel	2	[{"changed": {"fields": ["Type"]}}]	7	1
+109	2025-04-30 19:49:40.108008+00	59	Emsengeni	2	[{"changed": {"fields": ["Type"]}}]	7	1
+110	2025-04-30 19:49:48.142923+00	20	Enkululekweni	2	[{"changed": {"fields": ["Type"]}}]	7	1
+111	2025-04-30 19:49:54.076725+00	17	Fumisukoma	2	[{"changed": {"fields": ["Type"]}}]	7	1
+112	2025-04-30 19:50:04.975829+00	7	Fumisukoma Primary	3		7	1
+113	2025-04-30 19:50:12.347707+00	52	Getrude Shope	2	[{"changed": {"fields": ["Type"]}}]	7	1
+114	2025-04-30 19:50:19.295943+00	21	Green Apple	2	[{"changed": {"fields": ["Type"]}}]	7	1
+115	2025-04-30 19:50:29.36192+00	28	Sifunimfundo	2	[{"changed": {"fields": ["Type"]}}]	7	1
+116	2025-04-30 19:50:35.843055+00	46	Ilitha Lethu Day Care	2	[{"changed": {"fields": ["Type"]}}]	7	1
+117	2025-04-30 19:50:42.672264+00	37	Isaac Booi	2	[{"changed": {"fields": ["Type"]}}]	7	1
+118	2025-04-30 19:50:52.521621+00	53	Jarvis Gqamlana	2	[{"changed": {"fields": ["Type"]}}]	7	1
+119	2025-04-30 19:50:59.583853+00	22	Jongilanga	2	[{"changed": {"fields": ["Type"]}}]	7	1
+120	2025-04-30 19:51:05.156007+00	43	Kids College-Pending	2	[{"changed": {"fields": ["Type"]}}]	7	1
+121	2025-04-30 19:51:10.617247+00	25	Lithemba	2	[{"changed": {"fields": ["Type"]}}]	7	1
+122	2025-04-30 19:51:16.51158+00	66	Living Ubuntu	2	[{"changed": {"fields": ["Type"]}}]	7	1
+123	2025-04-30 19:51:22.743858+00	32	Nobandla	2	[{"changed": {"fields": ["Type"]}}]	7	1
+124	2025-04-30 19:51:28.106317+00	41	Livuse	2	[{"changed": {"fields": ["Type"]}}]	7	1
+125	2025-04-30 19:51:33.011154+00	67	Mbambino	2	[{"changed": {"fields": ["Type"]}}]	7	1
+126	2025-04-30 19:51:39.125632+00	19	Mboniselo	2	[{"changed": {"fields": ["Type"]}}]	7	1
+127	2025-04-30 19:51:45.115871+00	16	Melisizwe	2	[{"changed": {"fields": ["Type"]}}]	7	1
+128	2025-04-30 19:51:50.964241+00	68	Molefe	2	[{"changed": {"fields": ["Type"]}}]	7	1
+129	2025-04-30 19:51:57.625883+00	18	Mpumalanga	2	[{"changed": {"fields": ["Type"]}}]	7	1
+130	2025-04-30 19:52:03.319181+00	58	Msobomvu	2	[{"changed": {"fields": ["Type"]}}]	7	1
+131	2025-04-30 19:52:08.510072+00	57	Mzamomhle	2	[{"changed": {"fields": ["Type"]}}]	7	1
+132	2025-04-30 19:52:14.15072+00	24	Noluthando	2	[{"changed": {"fields": ["Type"]}}]	7	1
+133	2025-04-30 19:52:22.186608+00	13	Masibambane Secondary	2	[{"changed": {"fields": ["Type"]}}]	7	1
+134	2025-04-30 19:52:28.651594+00	56	Nceduluntu	2	[{"changed": {"fields": ["Type"]}}]	7	1
+135	2025-04-30 19:52:38.564533+00	35	Nomtha	2	[{"changed": {"fields": ["Type"]}}]	7	1
+136	2025-04-30 19:52:45.124908+00	30	Nonkqubela	2	[{"changed": {"fields": ["Type"]}}]	7	1
+137	2025-04-30 19:52:51.892431+00	31	Pawulosi Oyingcwele	2	[{"changed": {"fields": ["Type"]}}]	7	1
+138	2025-04-30 19:52:58.164293+00	27	Qaqawuli Godolozi	2	[{"changed": {"fields": ["Type"]}}]	7	1
+139	2025-04-30 19:53:03.749372+00	47	Rise and Shine	2	[{"changed": {"fields": ["Type"]}}]	7	1
+140	2025-04-30 19:53:09.547508+00	48	Sakha Abantwa	2	[{"changed": {"fields": ["Type"]}}]	7	1
+141	2025-04-30 19:53:15.269563+00	64	Sandwater	2	[{"changed": {"fields": ["Type"]}}]	7	1
+142	2025-04-30 19:53:20.859544+00	74	Sapphire	2	[{"changed": {"fields": ["Type"]}}]	7	1
+143	2025-04-30 19:53:28.246421+00	62	Seyisi	2	[{"changed": {"fields": ["Type"]}}]	7	1
+144	2025-04-30 19:53:34.287323+00	29	Sinethemba	2	[{"changed": {"fields": ["Type"]}}]	7	1
+145	2025-04-30 19:53:41.25383+00	23	Sisonke	2	[{"changed": {"fields": ["Type"]}}]	7	1
+146	2025-04-30 19:53:47.727025+00	60	Sivuyiseni	2	[{"changed": {"fields": ["Type"]}}]	7	1
+147	2025-04-30 19:53:52.596925+00	42	Siyabulela	2	[{"changed": {"fields": ["Type"]}}]	7	1
+148	2025-04-30 19:53:58.164188+00	65	Siyazama	2	[{"changed": {"fields": ["Type"]}}]	7	1
+149	2025-04-30 19:54:07.067273+00	45	St Mary Magaldene	2	[{"changed": {"fields": ["Type"]}}]	7	1
+150	2025-04-30 19:54:12.940541+00	72	Strelitzia	2	[{"changed": {"fields": ["Type"]}}]	7	1
+151	2025-04-30 19:54:33.275472+00	26	Zizamele	2	[{"changed": {"fields": ["Type"]}}]	7	1
+152	2025-05-01 11:41:53.98674+00	2	Zola@masinyusane.org	2	[{"changed": {"fields": ["Username"]}}]	4	1
+153	2025-05-14 12:04:50.862293+00	33	Ziyanda.F@masinyusane.org	2	[{"changed": {"fields": ["Username"]}}]	4	1
+\.
+
+

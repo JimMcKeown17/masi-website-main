@@ -9,7 +9,7 @@ class SchoolAdmin(admin.ModelAdmin):
     search_fields = ('name', 'address', 'contact_person')
     fieldsets = (
         ('Basic Information', {
-            'fields': ('name', 'type', 'site_type', 'is_active')
+            'fields': ('school_id', 'name', 'type', 'site_type', 'is_active')
         }),
         ('Contact Information', {
             'fields': ('contact_person', 'contact_phone', 'contact_email')

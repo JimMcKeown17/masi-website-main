@@ -42,9 +42,9 @@ ID_TYPE_CHOICES = [
     ('Passport', 'Passport')
 ]
 
-# Modified version of the existing School model
 class School(models.Model):
     """Model representing a school where youth work and children learn"""
+    school_id = models.IntegerField(null=True, blank=True, help_text="School ID from CSV import")    
     airtable_id = models.CharField(max_length=100, blank=True, null=True, unique=True, help_text="Airtable record ID")
     name = models.CharField(max_length=200)
     type = models.CharField(max_length=200, choices=SCHOOL_TYPE_CHOICES, blank=True, null=True)
@@ -55,6 +55,9 @@ class School(models.Model):
     contact_phone = models.CharField(max_length=40, blank=True, null=True)
     contact_email = models.EmailField(blank=True, null=True)
     contact_person = models.CharField(max_length=200, blank=True, null=True)
+    principal = models.CharField(max_length=200, blank=True, null=True)  # Adding principal field to match CSV
+    city = models.CharField(max_length=100, blank=True, null=True)  # Adding city field to match CSV
+    actively_working_in = models.CharField(max_length=5, blank=True, null=True)  # For "Actively Working In" column
     is_active = models.BooleanField(default=True)
     date_added = models.DateTimeField(auto_now_add=True)
     last_updated = models.DateTimeField(auto_now=True)

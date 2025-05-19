@@ -1,0 +1,41 @@
+1	sites	0001_initial	2025-03-17 18:33:32.550281+00
+2	sites	0002_alter_domain_unique	2025-03-17 18:33:32.565769+00
+3	contenttypes	0001_initial	2025-03-17 18:33:43.347201+00
+4	auth	0001_initial	2025-03-17 18:33:43.548357+00
+5	account	0001_initial	2025-03-17 18:33:43.594363+00
+6	account	0002_email_max_length	2025-03-17 18:33:43.642312+00
+7	account	0003_alter_emailaddress_create_unique_verified_email	2025-03-17 18:33:43.662115+00
+8	account	0004_alter_emailaddress_drop_unique_email	2025-03-17 18:33:43.692251+00
+9	account	0005_emailaddress_idx_upper_email	2025-03-17 18:33:43.747363+00
+10	account	0006_emailaddress_lower	2025-03-17 18:33:43.759126+00
+11	account	0007_emailaddress_idx_email	2025-03-17 18:33:43.778307+00
+12	account	0008_emailaddress_unique_primary_email_fixup	2025-03-17 18:33:43.789139+00
+13	account	0009_emailaddress_unique_primary_email	2025-03-17 18:33:43.798703+00
+14	admin	0001_initial	2025-03-17 18:33:43.847381+00
+15	admin	0002_logentry_remove_auto_add	2025-03-17 18:33:43.855228+00
+16	admin	0003_logentry_add_action_flag_choices	2025-03-17 18:33:43.8631+00
+17	contenttypes	0002_remove_content_type_name	2025-03-17 18:33:43.885553+00
+18	auth	0002_alter_permission_name_max_length	2025-03-17 18:33:43.896389+00
+19	auth	0003_alter_user_email_max_length	2025-03-17 18:33:43.904529+00
+20	auth	0004_alter_user_username_opts	2025-03-17 18:33:43.912349+00
+21	auth	0005_alter_user_last_login_null	2025-03-17 18:33:43.92716+00
+22	auth	0006_require_contenttypes_0002	2025-03-17 18:33:43.929022+00
+23	auth	0007_alter_validators_add_error_messages	2025-03-17 18:33:43.93638+00
+24	auth	0008_alter_user_username_max_length	2025-03-17 18:33:43.9496+00
+25	auth	0009_alter_user_last_name_max_length	2025-03-17 18:33:43.95742+00
+26	auth	0010_alter_group_name_max_length	2025-03-17 18:33:43.966202+00
+27	auth	0011_update_proxy_permissions	2025-03-17 18:33:43.975678+00
+28	auth	0012_alter_user_first_name_max_length	2025-03-17 18:33:43.983313+00
+29	dashboards	0001_initial	2025-03-17 18:33:44.043564+00
+30	dashboards	0002_school_type	2025-03-17 18:33:44.048455+00
+31	sessions	0001_initial	2025-03-17 18:33:44.064404+00
+32	socialaccount	0001_initial	2025-03-17 18:33:44.169032+00
+33	socialaccount	0002_token_max_lengths	2025-03-17 18:33:44.200535+00
+34	socialaccount	0003_extra_data_default_dict	2025-03-17 18:33:44.212698+00
+35	socialaccount	0004_app_provider_id_settings	2025-03-17 18:33:44.240939+00
+36	socialaccount	0005_socialtoken_nullable_app	2025-03-17 18:33:44.264728+00
+37	socialaccount	0006_alter_socialaccount_extra_data	2025-03-17 18:33:44.292645+00
+38	core	0001_initial	2025-04-15 18:30:14.779294+00
+\.
+
+
