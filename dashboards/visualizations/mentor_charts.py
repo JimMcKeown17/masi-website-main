@@ -228,17 +228,17 @@ def generate_schools_last_visited(visits):
         # Let's check our database tables before proceeding
         from django.db import connection
         with connection.cursor() as cursor:
-            cursor.execute("SELECT COUNT(*) FROM dashboards_school")
+            cursor.execute("SELECT COUNT(*) FROM api_school")
             school_count = cursor.fetchone()[0]
-            logger.error(f"Found {school_count} schools in dashboards_school table")
+            logger.error(f"Found {school_count} schools in api_school table")
             
-            # Also check if api_school exists
+            # Also check if api_mentorvisit exists
             try:
-                cursor.execute("SELECT COUNT(*) FROM api_school")
-                api_school_count = cursor.fetchone()[0]
-                logger.error(f"Found {api_school_count} schools in api_school table")
-            except:
-                logger.error("Table api_school does not exist")
+                cursor.execute("SELECT COUNT(*) FROM api_mentorvisit")
+                mentorvisit_count = cursor.fetchone()[0]
+                logger.error(f"Found {mentorvisit_count} visits in api_mentorvisit table")
+            except Exception as e:
+                logger.error(f"Error checking api_mentorvisit table: {str(e)}")
         
         # Try to load a few schools directly to see what we get
         try:
@@ -261,20 +261,20 @@ def generate_schools_last_visited(visits):
                     MAX(v.visit_date) as last_visit_date,
                     CASE WHEN MAX(v.visit_date) IS NOT NULL THEN
                         (SELECT u.first_name FROM auth_user u 
-                         JOIN dashboards_mentorvisit mv ON u.id = mv.mentor_id
+                         JOIN api_mentorvisit mv ON u.id = mv.mentor_id
                          WHERE mv.school_id = s.id 
                          ORDER BY mv.visit_date DESC LIMIT 1)
                     ELSE NULL END as mentor_first_name,
                     CASE WHEN MAX(v.visit_date) IS NOT NULL THEN
                         (SELECT u.last_name FROM auth_user u 
-                         JOIN dashboards_mentorvisit mv ON u.id = mv.mentor_id
+                         JOIN api_mentorvisit mv ON u.id = mv.mentor_id
                          WHERE mv.school_id = s.id
                          ORDER BY mv.visit_date DESC LIMIT 1)
                     ELSE NULL END as mentor_last_name
                 FROM 
-                    dashboards_school s
+                    api_school s
                 LEFT JOIN 
-                    dashboards_mentorvisit v ON s.id = v.school_id
+                    api_mentorvisit v ON s.id = v.school_id
                 GROUP BY 
                     s.id, s.name, s.type
                 ORDER BY 
