@@ -225,7 +225,7 @@ LOGGING = {
     'loggers': {
         'django': {
             'handlers': ['console'],
-            'level': 'DEBUG',  # Set to DEBUG temporarily
+            'level': 'ERROR',  # Set to DEBUG temporarily
         },
     },
 }

@@ -51,8 +51,22 @@ def dashboard_main(request):
     Main dashboard hub page showing links to all available dashboards
     """
     # Initialize stats dictionaries
-    mentor_stats = {}
+    mentor_stats = {
+        'total_visits': 0,
+        'recent_visits': 0,
+        'schools_visited': 0,
+        'avg_quality': 0
+    }
+    
     youth_stats = {}
+    
+    # Add literacy stats that the template is looking for
+    literacy_stats = {
+        'total_visits': 0,
+        'recent_visits': 0,
+        'schools_visited': 0,
+        'avg_quality': 0
+    }
     
     # Try to get mentor stats if available
     try:
@@ -93,6 +107,7 @@ def dashboard_main(request):
     context = {
         'mentor_stats': mentor_stats,
         'youth_stats': youth_stats,
+        'literacy_stats': literacy_stats,  # Add the missing literacy_stats
         'title': 'Dashboards'
     }
     
@@ -121,14 +136,7 @@ def mentor_visit_form(request):
 def mentor_dashboard(request):
     """Main dashboard view for mentor visits"""
     try:
-        # Check if we have any data first
-        if MentorVisit.objects.count() == 0:
-            return render(request, 'dashboards/dashboard_main.html', {
-                'warning_message': "No mentor visit data is available. Please import your data to continue.",
-                'title': 'Mentor Dashboard'
-            })
-            
-        # Get filter parameters
+            # Get filter parameters
         time_filter = request.GET.get('time_filter', 'all')
         school_filter = request.GET.get('school', '')
         mentor_filter = request.GET.get('mentor', '')
@@ -392,14 +400,7 @@ def airtable_debug(request):
 @login_required
 def literacy_management_dashboard(request):
     """Dashboard for literacy management data"""
-    try:
-        # Check if we have any data first
-        if MentorVisit.objects.count() == 0:
-            return render(request, 'dashboards/dashboard_main.html', {
-                'warning_message': "No mentor visit data is available. Please import your data to continue.",
-                'title': 'Literacy Management Dashboard'
-            })
-            
+    try:            
         # Get time period filter
         time_period = request.GET.get('time_period', 'all')
         
