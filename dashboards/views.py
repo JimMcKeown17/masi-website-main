@@ -117,83 +117,103 @@ def mentor_visit_form(request):
         'title': 'Submit School Visit Report'
     })
 
-# Update the mentor_dashboard function in your views.py file
-
 @login_required
 def mentor_dashboard(request):
     """Main dashboard view for mentor visits"""
-    # Get filter parameters
-    time_filter = request.GET.get('time_filter', 'all')
-    school_filter = request.GET.get('school', '')
-    mentor_filter = request.GET.get('mentor', '')
+    try:
+        # Check if we have any data first
+        if MentorVisit.objects.count() == 0:
+            return render(request, 'dashboards/dashboard_main.html', {
+                'warning_message': "No mentor visit data is available. Please import your data to continue.",
+                'title': 'Mentor Dashboard'
+            })
+            
+        # Get filter parameters
+        time_filter = request.GET.get('time_filter', 'all')
+        school_filter = request.GET.get('school', '')
+        mentor_filter = request.GET.get('mentor', '')
+        
+        # Base queryset
+        visits = MentorVisit.objects.all()
+        
+        # Apply time filter
+        if time_filter == '7days':
+            seven_days_ago = timezone.now().date() - timedelta(days=7)
+            visits = visits.filter(visit_date__gte=seven_days_ago)
+        elif time_filter == '30days':
+            thirty_days_ago = timezone.now().date() - timedelta(days=30)
+            visits = visits.filter(visit_date__gte=thirty_days_ago)
+        elif time_filter == '90days':
+            ninety_days_ago = timezone.now().date() - timedelta(days=90)
+            visits = visits.filter(visit_date__gte=ninety_days_ago)
+        elif time_filter == 'thisyear':
+            year_start = timezone.now().date().replace(month=1, day=1)
+            visits = visits.filter(visit_date__gte=year_start)
+        
+        # Apply school filter
+        if school_filter:
+            visits = visits.filter(school_id=school_filter)
+        
+        # Apply mentor filter
+        if mentor_filter:
+            visits = visits.filter(mentor_id=mentor_filter)
+        
+        # Get all schools for the filter dropdown
+        schools = School.objects.filter(is_active=True).order_by('name')
+        
+        # Get all mentors for the filter dropdown
+        mentors = User.objects.filter(visits__isnull=False).distinct().order_by('first_name', 'last_name')
+        
+        # Generate chart data
+        time_period = 'week' if time_filter in ['7days', '30days', '90days'] else 'month'
+        
+        # Get all visits (unfiltered by time) for schools last visited component
+        all_visits = MentorVisit.objects.all()
+        if school_filter:
+            all_visits = all_visits.filter(school_id=school_filter)
+        if mentor_filter:
+            all_visits = all_visits.filter(mentor_id=mentor_filter)
+        
+        # Generate schools last visited data
+        from .visualizations.mentor_charts import generate_schools_last_visited
+        schools_last_visited = generate_schools_last_visited(all_visits)
+        
+        # Get the last 50 submissions
+        recent_submissions = MentorVisit.objects.all().order_by('-created_at')[:50].select_related('mentor', 'school')
+        
+        context = {
+            'schools': schools,
+            'mentors': mentors,
+            'selected_time_filter': time_filter,
+            'selected_school': school_filter,
+            'selected_mentor': mentor_filter,
+            'visit_frequency_chart': generate_visit_frequency_chart(visits, time_period),
+            'quality_rating_chart': generate_quality_rating_chart(visits),
+            'tracker_accuracy_chart': generate_tracker_accuracy_chart(visits),
+            'school_visit_map': generate_school_visit_map(visits),
+            'summary': generate_dashboard_summary(visits),
+            'schools_last_visited': schools_last_visited,  # Add the new data
+            'recent_submissions': recent_submissions,  # Add recent submissions
+            'title': 'Mentor Visit Dashboard'
+        }
+        
+        return render(request, 'dashboards/mentor_dashboard.html', context)
     
-    # Base queryset
-    visits = MentorVisit.objects.all()
-    
-    # Apply time filter
-    if time_filter == '7days':
-        seven_days_ago = timezone.now().date() - timedelta(days=7)
-        visits = visits.filter(visit_date__gte=seven_days_ago)
-    elif time_filter == '30days':
-        thirty_days_ago = timezone.now().date() - timedelta(days=30)
-        visits = visits.filter(visit_date__gte=thirty_days_ago)
-    elif time_filter == '90days':
-        ninety_days_ago = timezone.now().date() - timedelta(days=90)
-        visits = visits.filter(visit_date__gte=ninety_days_ago)
-    elif time_filter == 'thisyear':
-        year_start = timezone.now().date().replace(month=1, day=1)
-        visits = visits.filter(visit_date__gte=year_start)
-    
-    # Apply school filter
-    if school_filter:
-        visits = visits.filter(school_id=school_filter)
-    
-    # Apply mentor filter
-    if mentor_filter:
-        visits = visits.filter(mentor_id=mentor_filter)
-    
-    # Get all schools for the filter dropdown
-    schools = School.objects.filter(is_active=True).order_by('name')
-    
-    # Get all mentors for the filter dropdown
-    mentors = User.objects.filter(visits__isnull=False).distinct().order_by('first_name', 'last_name')
-    
-    # Generate chart data
-    time_period = 'week' if time_filter in ['7days', '30days', '90days'] else 'month'
-    
-    # Get all visits (unfiltered by time) for schools last visited component
-    all_visits = MentorVisit.objects.all()
-    if school_filter:
-        all_visits = all_visits.filter(school_id=school_filter)
-    if mentor_filter:
-        all_visits = all_visits.filter(mentor_id=mentor_filter)
-    
-    # Generate schools last visited data
-    from .visualizations.mentor_charts import generate_schools_last_visited
-    schools_last_visited = generate_schools_last_visited(all_visits)
-    
-    # Get the last 50 submissions
-    recent_submissions = MentorVisit.objects.all().order_by('-created_at')[:50].select_related('mentor', 'school')
-    
-    context = {
-        'schools': schools,
-        'mentors': mentors,
-        'selected_time_filter': time_filter,
-        'selected_school': school_filter,
-        'selected_mentor': mentor_filter,
-        'visit_frequency_chart': generate_visit_frequency_chart(visits, time_period),
-        'quality_rating_chart': generate_quality_rating_chart(visits),
-        'tracker_accuracy_chart': generate_tracker_accuracy_chart(visits),
-        'school_visit_map': generate_school_visit_map(visits),
-        'summary': generate_dashboard_summary(visits),
-        'schools_last_visited': schools_last_visited,  # Add the new data
-        'recent_submissions': recent_submissions,  # Add recent submissions
-        'title': 'Mentor Visit Dashboard'
-    }
-    
-    return render(request, 'dashboards/mentor_dashboard.html', context)
-
-# YOUTH DASHBOARD
+    except Exception as e:
+        import traceback
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        # Log the full exception traceback
+        logger.error(f"MENTOR DASHBOARD ERROR: {str(e)}")
+        logger.error(traceback.format_exc())
+        
+        # Return a more informative error page
+        return render(request, 'dashboards/dashboard_main.html', {
+            'error_message': f"Error: {str(e)}",
+            'traceback': traceback.format_exc(),
+            'title': 'Error in Mentor Dashboard'
+        })
 
 @login_required
 def youth_dashboard(request):
@@ -288,7 +308,6 @@ def youth_dashboard(request):
             'title': 'Youth Dashboard'
         })
         
-        
 @login_required
 def airtable_debug(request):
     """
@@ -372,9 +391,16 @@ def airtable_debug(request):
 
 @login_required
 def literacy_management_dashboard(request):
-    
+    """Dashboard for literacy management data"""
     try:
-    # Get time period filter
+        # Check if we have any data first
+        if MentorVisit.objects.count() == 0:
+            return render(request, 'dashboards/dashboard_main.html', {
+                'warning_message': "No mentor visit data is available. Please import your data to continue.",
+                'title': 'Literacy Management Dashboard'
+            })
+            
+        # Get time period filter
         time_period = request.GET.get('time_period', 'all')
         
         # Get current date and calculate filter dates
@@ -551,22 +577,21 @@ def literacy_management_dashboard(request):
         return render(request, 'dashboards/literacy_management_dashboard.html', context)
 
     except Exception as e:
-            import traceback
-            import logging
-            logger = logging.getLogger(__name__)
-            
-            # Log the full exception traceback
-            logger.error(f"LITERACY VIEW ERROR: {str(e)}")
-            logger.error(traceback.format_exc())
-            
-            # Return a more informative error page
-            return render(request, 'dashboards/dashboard_main.html', {
-                'error_message': f"Error: {str(e)}",
-                'traceback': traceback.format_exc(),
-                'title': 'Error in Literacy Dashboard'
+        import traceback
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        # Log the full exception traceback
+        logger.error(f"LITERACY VIEW ERROR: {str(e)}")
+        logger.error(traceback.format_exc())
+        
+        # Return a more informative error page
+        return render(request, 'dashboards/dashboard_main.html', {
+            'error_message': f"Error: {str(e)}",
+            'traceback': traceback.format_exc(),
+            'title': 'Error in Literacy Dashboard'
         })
 
-# Add this to dashboards/views.py
 def database_check(request):
     """Temporary diagnostic view"""
     from django.db import connection
@@ -610,3 +635,36 @@ def database_check(request):
         "api_mentorvisit_exists": api_mentorvisit_exists,
         "record_counts": counts
     })
+
+def debug_check(request):
+    """Ultra-simple diagnostic view"""
+    from django.http import HttpResponse
+    import sys
+    import os
+    
+    debug_info = [
+        f"Python version: {sys.version}",
+        f"Environment: {os.environ.get('ENVIRONMENT', 'Not set')}",
+        f"Database URL: {os.environ.get('DATABASE_URL', '[REDACTED]')[:10]}...",
+    ]
+    
+    # Check tables directly
+    try:
+        from django.db import connection
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'")
+            tables = [row[0] for row in cursor.fetchall()]
+            debug_info.append(f"Tables: {', '.join(tables)}")
+            
+            # Check specific tables
+            for table in ['dashboards_school', 'dashboards_mentorvisit', 'api_school', 'api_mentorvisit']:
+                try:
+                    cursor.execute(f"SELECT COUNT(*) FROM {table}")
+                    count = cursor.fetchone()[0]
+                    debug_info.append(f"Table {table}: {count} rows")
+                except Exception as e:
+                    debug_info.append(f"Table {table}: Error - {str(e)}")
+    except Exception as e:
+        debug_info.append(f"Database error: {str(e)}")
+    
+    return HttpResponse("<br>".join(debug_info), content_type="text/plain")
