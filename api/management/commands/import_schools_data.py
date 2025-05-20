@@ -18,7 +18,13 @@ class Command(BaseCommand):
 
             for row in reader:
                 try:
-                    school_id = int(row['School ID'])
+                    school_id_raw = row.get('School ID') or row.get('\ufeffSchool ID')
+                    try:
+                        school_id = int(school_id_raw)
+                    except (ValueError, TypeError):
+                        self.stdout.write(self.style.WARNING(f"Invalid or missing School ID in row: {row}"))
+                        continue
+
                 except (ValueError, KeyError):
                     self.stdout.write(self.style.WARNING(f"Invalid or missing School ID in row: {row}"))
                     continue
