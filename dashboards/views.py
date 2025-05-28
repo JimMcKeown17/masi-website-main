@@ -13,8 +13,8 @@ from zoneinfo import ZoneInfo
 from django.http import JsonResponse
 
 # Models & Forms - Update these imports
-from api.models import MentorVisit, School  # Changed from .models to api.models
-from .forms import MentorVisitForm
+from api.models import MentorVisit, School, YeboVisit, ThousandStoriesVisit  # Changed from .models to api.models
+from .forms import MentorVisitForm, YeboVisitForm, ThousandStoriesVisitForm
 
 # Airtable Services
 from .services.airtable_service import fetch_youth_airtable_records
@@ -116,19 +116,46 @@ def dashboard_main(request):
 @login_required
 def mentor_visit_form(request):
     """View for creating a new mentor visit report"""
+    form_type = request.GET.get('type', 'masi_literacy')  # Default to Masi Literacy
+    
     if request.method == 'POST':
-        form = MentorVisitForm(request.POST)
-        if form.is_valid():
-            visit = form.save(commit=False)
-            visit.mentor = request.user
-            visit.save()
-            messages.success(request, 'Visit report submitted successfully!')
-            return redirect('mentor_dashboard')
+        form_type = request.POST.get('form_type', 'masi_literacy')
+        
+        if form_type == 'yebo':
+            form = YeboVisitForm(request.POST)
+            if form.is_valid():
+                visit = form.save(commit=False)
+                visit.mentor = request.user
+                visit.save()
+                messages.success(request, 'Yebo visit report submitted successfully!')
+                return redirect('mentor_dashboard')
+        elif form_type == '1000_stories':
+            form = ThousandStoriesVisitForm(request.POST)
+            if form.is_valid():
+                visit = form.save(commit=False)
+                visit.mentor = request.user
+                visit.save()
+                messages.success(request, '1000 Stories visit report submitted successfully!')
+                return redirect('mentor_dashboard')
+        else:  # Default to masi_literacy
+            form = MentorVisitForm(request.POST)
+            if form.is_valid():
+                visit = form.save(commit=False)
+                visit.mentor = request.user
+                visit.save()
+                messages.success(request, 'Masi Literacy visit report submitted successfully!')
+                return redirect('mentor_dashboard')
     else:
-        form = MentorVisitForm()
+        if form_type == 'yebo':
+            form = YeboVisitForm()
+        elif form_type == '1000_stories':
+            form = ThousandStoriesVisitForm()
+        else:  # Default to masi_literacy
+            form = MentorVisitForm()
     
     return render(request, 'dashboards/mentor_visits.html', {
         'form': form,
+        'form_type': form_type,
         'title': 'Submit School Visit Report'
     })
 

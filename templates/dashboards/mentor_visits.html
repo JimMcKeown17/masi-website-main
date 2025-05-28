@@ -189,6 +189,21 @@
                     
                     <form method="post" id="visitForm">
                         {% csrf_token %}
+                        <input type="hidden" name="form_type" id="form_type" value="{{ form_type }}">
+                        
+                        <!-- Form Type Selection -->
+                        <div class="row mb-4">
+                            <div class="col-12">
+                                <label class="form-label">
+                                    <i class="fas fa-list me-2"></i>Form Type
+                                </label>
+                                <select class="form-select" id="formTypeSelector" onchange="changeFormType()">
+                                    <option value="masi_literacy" {% if form_type == 'masi_literacy' %}selected{% endif %}>Masi Literacy</option>
+                                    <option value="yebo" {% if form_type == 'yebo' %}selected{% endif %}>Yebo</option>
+                                    <option value="1000_stories" {% if form_type == '1000_stories' %}selected{% endif %}>1000 Stories</option>
+                                </select>
+                            </div>
+                        </div>
                         
                         <div class="row mb-4">
                             <div class="col-md-6 mb-3 mb-md-0">
@@ -215,6 +230,8 @@
                             <i class="fas fa-clipboard-list me-2"></i>Mentor Observations
                         </h4>
                         
+                        <!-- Masi Literacy Form Fields -->
+                        {% if form_type == 'masi_literacy' %}
                         <div class="row mb-4">
                             <div class="col-md-6">
                                 <div class="form-check mb-3">
@@ -271,8 +288,104 @@
                                 <div id="supplies-counter" class="textarea-counter">0/500 characters</div>
                             </div>
                         </div>
+                        {% endif %}
+                        
+                        <!-- Yebo Form Fields -->
+                        {% if form_type == 'yebo' %}
+                        <div class="row mb-4">
+                            <div class="col-md-6">
+                                <div class="form-check mb-3">
+                                    {{ form.paired_reading_took_place }}
+                                    <label class="form-check-label" for="{{ form.paired_reading_took_place.id_for_label }}">
+                                        Did paired reading take place?
+                                    </label>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <div class="form-check mb-3">
+                                    {{ form.paired_reading_tracking_updated }}
+                                    <label class="form-check-label" for="{{ form.paired_reading_tracking_updated.id_for_label }}">
+                                        Paired reading tracking up to date
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="rating-container mb-4">
+                            <label for="{{ form.afternoon_session_quality.id_for_label }}" class="form-label">
+                                <i class="fas fa-star me-2"></i>Afternoon Session Quality
+                            </label>
+                            {{ form.afternoon_session_quality }}
+                            <div class="rating-labels">
+                                <span>Poor</span>
+                                <span>Average</span>
+                                <span>Excellent</span>
+                            </div>
+                            <div id="rating-value" class="rating-value text-center mt-2">5</div>
+                        </div>
+                        {% endif %}
+                        
+                        <!-- 1000 Stories Form Fields -->
+                        {% if form_type == '1000_stories' %}
+                        <div class="row mb-4">
+                            <div class="col-md-6">
+                                <div class="form-check mb-3">
+                                    {{ form.library_neat_and_tidy }}
+                                    <label class="form-check-label" for="{{ form.library_neat_and_tidy.id_for_label }}">
+                                        Is the library neat and tidy?
+                                    </label>
+                                </div>
+                                
+                                <div class="form-check mb-3">
+                                    {{ form.tracking_sheets_up_to_date }}
+                                    <label class="form-check-label" for="{{ form.tracking_sheets_up_to_date.id_for_label }}">
+                                        Are all tracking sheets up to date?
+                                    </label>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <div class="form-check mb-3">
+                                    {{ form.book_boxes_and_borrowing }}
+                                    <label class="form-check-label" for="{{ form.book_boxes_and_borrowing.id_for_label }}">
+                                        Is book boxes and book borrowing taking place?
+                                    </label>
+                                </div>
+                                
+                                <div class="form-check mb-3">
+                                    {{ form.daily_target_met }}
+                                    <label class="form-check-label" for="{{ form.daily_target_met.id_for_label }}">
+                                        Daily target of stories read is met?
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="rating-container mb-4">
+                            <label for="{{ form.story_time_quality.id_for_label }}" class="form-label">
+                                <i class="fas fa-star me-2"></i>Quality of Story Time Session
+                            </label>
+                            {{ form.story_time_quality }}
+                            <div class="rating-labels">
+                                <span>Poor</span>
+                                <span>Average</span>
+                                <span>Excellent</span>
+                            </div>
+                            <div id="rating-value" class="rating-value text-center mt-2">5</div>
+                        </div>
+                        {% endif %}
                         
                         <div class="mb-4">
+                            {% if form_type == '1000_stories' %}
+                            <label for="{{ form.other_comments.id_for_label }}" class="form-label">
+                                <i class="fas fa-comment-alt me-2"></i>Other Comments
+                            </label>
+                            <div class="form-floating">
+                                {{ form.other_comments }}
+                                <div id="commentary-counter" class="textarea-counter">0/1000 characters</div>
+                            </div>
+                            {% else %}
                             <label for="{{ form.commentary.id_for_label }}" class="form-label">
                                 <i class="fas fa-comment-alt me-2"></i>Commentary
                             </label>
@@ -280,6 +393,7 @@
                                 {{ form.commentary }}
                                 <div id="commentary-counter" class="textarea-counter">0/1000 characters</div>
                             </div>
+                            {% endif %}
                         </div>
                         
                         <div class="d-grid gap-2 mt-4">
@@ -297,6 +411,12 @@
 
 {% block extra_js %}
 <script>
+    function changeFormType() {
+        const formType = document.getElementById('formTypeSelector').value;
+        // Redirect to the same page with the new form type
+        window.location.href = `?type=${formType}`;
+    }
+    
     document.addEventListener('DOMContentLoaded', function() {
         // Initialize date picker with better formatting and options
         const dateInput = document.getElementById('{{ form.visit_date.id_for_label }}');
@@ -363,7 +483,7 @@
         });
         
         // Quality rating slider enhancement
-        const slider = document.getElementById('{{ form.quality_rating.id_for_label }}');
+        const slider = document.querySelector('input[type="range"]');
         const output = document.getElementById('rating-value');
         
         if (slider && output) {

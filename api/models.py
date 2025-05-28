@@ -223,6 +223,70 @@ class MentorVisit(models.Model):
         verbose_name_plural = "Mentor Visits"
 
 
+class YeboVisit(models.Model):
+    """Model representing a mentor's Yebo program visit to a school"""
+    mentor = models.ForeignKey(User, on_delete=models.CASCADE, related_name='yebo_visits')
+    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name='yebo_visits')
+    visit_date = models.DateField(default=timezone.now)
+    
+    # Yebo-specific observations
+    paired_reading_took_place = models.BooleanField(default=False, verbose_name="Did paired reading take place?")
+    paired_reading_tracking_updated = models.BooleanField(default=False, verbose_name="Paired reading tracking up to date")
+    
+    # Afternoon session quality rating
+    RATING_CHOICES = [(i, str(i)) for i in range(1, 11)]
+    afternoon_session_quality = models.IntegerField(choices=RATING_CHOICES, default=5, 
+                                                   verbose_name="Afternoon session quality")
+    
+    # Commentary
+    commentary = models.TextField(blank=True, null=True, verbose_name="Commentary")
+    
+    # Metadata
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    def __str__(self):
+        return f"{self.mentor.username} visited {self.school.name} (Yebo) on {self.visit_date}"
+    
+    class Meta:
+        ordering = ['-visit_date']
+        verbose_name = "Yebo Visit"
+        verbose_name_plural = "Yebo Visits"
+
+
+class ThousandStoriesVisit(models.Model):
+    """Model representing a mentor's 1000 Stories program visit to a school"""
+    mentor = models.ForeignKey(User, on_delete=models.CASCADE, related_name='thousand_stories_visits')
+    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name='thousand_stories_visits')
+    visit_date = models.DateField(default=timezone.now)
+    
+    # 1000 Stories-specific observations
+    library_neat_and_tidy = models.BooleanField(default=False, verbose_name="Is the library neat and tidy?")
+    tracking_sheets_up_to_date = models.BooleanField(default=False, verbose_name="Are all tracking sheets up to date?")
+    book_boxes_and_borrowing = models.BooleanField(default=False, verbose_name="Is book boxes and book borrowing taking place?")
+    daily_target_met = models.BooleanField(default=False, verbose_name="Daily target of stories read is met?")
+    
+    # Quality rating for story time session
+    RATING_CHOICES = [(i, str(i)) for i in range(1, 11)]
+    story_time_quality = models.IntegerField(choices=RATING_CHOICES, default=5, 
+                                           verbose_name="Quality of Story time session")
+    
+    # Other comments
+    other_comments = models.TextField(blank=True, null=True, verbose_name="Other comments")
+    
+    # Metadata
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    def __str__(self):
+        return f"{self.mentor.username} visited {self.school.name} (1000 Stories) on {self.visit_date}"
+    
+    class Meta:
+        ordering = ['-visit_date']
+        verbose_name = "1000 Stories Visit"
+        verbose_name_plural = "1000 Stories Visits"
+
+
 class Session(models.Model):
     """Model representing a teaching session between a youth and a child"""
     # Identification
