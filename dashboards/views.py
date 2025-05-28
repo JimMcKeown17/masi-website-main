@@ -24,11 +24,23 @@ from .services.data_processing import get_active_records, count_job_titles
 # Mentor Dashboard Visualizations
 from .visualizations.charts import create_job_title_chart
 from .visualizations.mentor_charts import (
+    generate_combined_visit_frequency_chart,
     generate_visit_frequency_chart,
+    generate_combined_quality_rating_chart,
     generate_quality_rating_chart,
+    generate_yebo_quality_rating_chart,
+    generate_thousand_stories_quality_rating_chart,
+    generate_letter_tracker_accuracy_chart,
     generate_tracker_accuracy_chart,
+    generate_combined_school_visit_map,
     generate_school_visit_map,
-    generate_dashboard_summary
+    generate_yebo_school_visit_map,
+    generate_thousand_stories_school_visit_map,
+    generate_combined_dashboard_summary,
+    generate_dashboard_summary,
+    get_recent_literacy_submissions,
+    get_recent_yebo_submissions,
+    get_recent_thousand_stories_submissions
 )
 
 # Youth Dashboard Visualizations
@@ -161,60 +173,80 @@ def mentor_visit_form(request):
 
 @login_required
 def mentor_dashboard(request):
-    """Main dashboard view for mentor visits"""
+    """Main dashboard view for mentor visits - updated to handle all three visit types"""
     try:
-            # Get filter parameters
+        # Get filter parameters
         time_filter = request.GET.get('time_filter', 'all')
         school_filter = request.GET.get('school', '')
         mentor_filter = request.GET.get('mentor', '')
         
-        # Base queryset
-        visits = MentorVisit.objects.all()
+        # Base querysets for all three visit types
+        mentor_visits = MentorVisit.objects.all()
+        yebo_visits = YeboVisit.objects.all()
+        thousand_stories_visits = ThousandStoriesVisit.objects.all()
         
-        # Apply time filter
+        # Apply time filter to all visit types
         if time_filter == '7days':
             seven_days_ago = timezone.now().date() - timedelta(days=7)
-            visits = visits.filter(visit_date__gte=seven_days_ago)
+            mentor_visits = mentor_visits.filter(visit_date__gte=seven_days_ago)
+            yebo_visits = yebo_visits.filter(visit_date__gte=seven_days_ago)
+            thousand_stories_visits = thousand_stories_visits.filter(visit_date__gte=seven_days_ago)
         elif time_filter == '30days':
             thirty_days_ago = timezone.now().date() - timedelta(days=30)
-            visits = visits.filter(visit_date__gte=thirty_days_ago)
+            mentor_visits = mentor_visits.filter(visit_date__gte=thirty_days_ago)
+            yebo_visits = yebo_visits.filter(visit_date__gte=thirty_days_ago)
+            thousand_stories_visits = thousand_stories_visits.filter(visit_date__gte=thirty_days_ago)
         elif time_filter == '90days':
             ninety_days_ago = timezone.now().date() - timedelta(days=90)
-            visits = visits.filter(visit_date__gte=ninety_days_ago)
+            mentor_visits = mentor_visits.filter(visit_date__gte=ninety_days_ago)
+            yebo_visits = yebo_visits.filter(visit_date__gte=ninety_days_ago)
+            thousand_stories_visits = thousand_stories_visits.filter(visit_date__gte=ninety_days_ago)
         elif time_filter == 'thisyear':
             year_start = timezone.now().date().replace(month=1, day=1)
-            visits = visits.filter(visit_date__gte=year_start)
+            mentor_visits = mentor_visits.filter(visit_date__gte=year_start)
+            yebo_visits = yebo_visits.filter(visit_date__gte=year_start)
+            thousand_stories_visits = thousand_stories_visits.filter(visit_date__gte=year_start)
         
-        # Apply school filter
+        # Apply school filter to all visit types
         if school_filter:
-            visits = visits.filter(school_id=school_filter)
+            mentor_visits = mentor_visits.filter(school_id=school_filter)
+            yebo_visits = yebo_visits.filter(school_id=school_filter)
+            thousand_stories_visits = thousand_stories_visits.filter(school_id=school_filter)
         
-        # Apply mentor filter
+        # Apply mentor filter to all visit types
         if mentor_filter:
-            visits = visits.filter(mentor_id=mentor_filter)
+            mentor_visits = mentor_visits.filter(mentor_id=mentor_filter)
+            yebo_visits = yebo_visits.filter(mentor_id=mentor_filter)
+            thousand_stories_visits = thousand_stories_visits.filter(mentor_id=mentor_filter)
         
         # Get all schools for the filter dropdown
         schools = School.objects.filter(is_active=True).order_by('name')
         
-        # Get all mentors for the filter dropdown
-        mentors = User.objects.filter(visits__isnull=False).distinct().order_by('first_name', 'last_name')
+        # Get all mentors for the filter dropdown (mentors who have submitted any type of visit)
+        mentor_ids = set()
+        mentor_ids.update(MentorVisit.objects.values_list('mentor_id', flat=True))
+        mentor_ids.update(YeboVisit.objects.values_list('mentor_id', flat=True))
+        mentor_ids.update(ThousandStoriesVisit.objects.values_list('mentor_id', flat=True))
+        mentors = User.objects.filter(id__in=mentor_ids).distinct().order_by('first_name', 'last_name')
         
         # Generate chart data
         time_period = 'week' if time_filter in ['7days', '30days', '90days'] else 'month'
         
         # Get all visits (unfiltered by time) for schools last visited component
-        all_visits = MentorVisit.objects.all()
+        all_mentor_visits = MentorVisit.objects.all()
         if school_filter:
-            all_visits = all_visits.filter(school_id=school_filter)
+            all_mentor_visits = all_mentor_visits.filter(school_id=school_filter)
         if mentor_filter:
-            all_visits = all_visits.filter(mentor_id=mentor_filter)
+            all_mentor_visits = all_mentor_visits.filter(mentor_id=mentor_filter)
         
-        # Generate schools last visited data
+        # Generate schools last visited data (using literacy visits for now)
         from .visualizations.mentor_charts import generate_schools_last_visited
-        schools_last_visited = generate_schools_last_visited(all_visits)
+        schools_last_visited = generate_schools_last_visited(all_mentor_visits)
         
-        # Get the last 50 submissions
-        recent_submissions = MentorVisit.objects.all().order_by('-created_at')[:50].select_related('mentor', 'school')
+        # Get recent submissions for each visit type
+        recent_literacy_submissions = get_recent_literacy_submissions(mentor_visits, 50)
+        recent_yebo_submissions = get_recent_yebo_submissions(yebo_visits, 50)
+        recent_stories_submissions = get_recent_thousand_stories_submissions(thousand_stories_visits, 50)
         
         context = {
             'schools': schools,
@@ -222,13 +254,36 @@ def mentor_dashboard(request):
             'selected_time_filter': time_filter,
             'selected_school': school_filter,
             'selected_mentor': mentor_filter,
-            'visit_frequency_chart': generate_visit_frequency_chart(visits, time_period),
-            'quality_rating_chart': generate_quality_rating_chart(visits),
-            'tracker_accuracy_chart': generate_tracker_accuracy_chart(visits),
-            'school_visit_map': generate_school_visit_map(visits),
-            'summary': generate_dashboard_summary(visits),
-            'schools_last_visited': schools_last_visited,  # Add the new data
-            'recent_submissions': recent_submissions,  # Add recent submissions
+            
+            # Combined charts showing all visit types
+            'combined_visit_frequency_chart': generate_combined_visit_frequency_chart(mentor_visits, yebo_visits, thousand_stories_visits, time_period),
+            'combined_quality_rating_chart': generate_combined_quality_rating_chart(mentor_visits, yebo_visits, thousand_stories_visits),
+            'combined_school_visit_map': generate_combined_school_visit_map(mentor_visits, yebo_visits, thousand_stories_visits),
+            'combined_summary': generate_combined_dashboard_summary(mentor_visits, yebo_visits, thousand_stories_visits),
+            
+            # Literacy-specific charts
+            'literacy_visit_frequency_chart': generate_visit_frequency_chart(mentor_visits, time_period),
+            'literacy_quality_rating_chart': generate_quality_rating_chart(mentor_visits),
+            'letter_tracker_accuracy_chart': generate_letter_tracker_accuracy_chart(mentor_visits),
+            'literacy_school_visit_map': generate_school_visit_map(mentor_visits),
+            'literacy_summary': generate_dashboard_summary(mentor_visits),
+            
+            # Yebo-specific charts
+            'yebo_visit_frequency_chart': generate_visit_frequency_chart(yebo_visits, time_period),
+            'yebo_quality_rating_chart': generate_yebo_quality_rating_chart(yebo_visits),
+            'yebo_school_visit_map': generate_yebo_school_visit_map(yebo_visits),
+            
+            # 1000 Stories-specific charts  
+            'stories_visit_frequency_chart': generate_visit_frequency_chart(thousand_stories_visits, time_period),
+            'stories_quality_rating_chart': generate_thousand_stories_quality_rating_chart(thousand_stories_visits),
+            'stories_school_visit_map': generate_thousand_stories_school_visit_map(thousand_stories_visits),
+            
+            # Recent submissions for each type
+            'recent_literacy_submissions': recent_literacy_submissions,
+            'recent_yebo_submissions': recent_yebo_submissions,
+            'recent_stories_submissions': recent_stories_submissions,
+            
+            'schools_last_visited': schools_last_visited,
             'title': 'Mentor Visit Dashboard'
         }
         

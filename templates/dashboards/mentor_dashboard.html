@@ -32,6 +32,15 @@
   .stat-card.info {
     background: linear-gradient(45deg, #6a82fb, #fc5c7d);
   }
+  .stat-card.literacy {
+    background: linear-gradient(45deg, #3a7bd5, #00d2ff);
+  }
+  .stat-card.yebo {
+    background: linear-gradient(45deg, #ff6b6b, #ff8e8e);
+  }
+  .stat-card.stories {
+    background: linear-gradient(45deg, #4ecdc4, #44a08d);
+  }
   .stat-value {
     font-size: 2.5rem;
     font-weight: bold;
@@ -40,7 +49,7 @@
     font-size: 1rem;
     opacity: 0.8;
   }
-  #map-container {
+  #map-container, #combined-map-container {
     height: 400px;
     border-radius: 10px;
     overflow: hidden;
@@ -74,6 +83,21 @@
     box-shadow: 0 2px 4px rgba(0,0,0,0.05);
     background-color: #f8f9fa;
   }
+
+  .section-header {
+    border-left: 4px solid;
+    padding-left: 1rem;
+    margin: 2rem 0 1rem 0;
+  }
+  .section-header.literacy {
+    border-color: #3a7bd5;
+  }
+  .section-header.yebo {
+    border-color: #ff6b6b;
+  }
+  .section-header.stories {
+    border-color: #4ecdc4;
+  }
 </style>
 {% endblock %}
 
@@ -81,7 +105,7 @@
 <div class="container-fluid py-7">
   <h1 class="mb-4">Mentor Visit Dashboard</h1>
   
-  <!-- Filter Bar (Updated with Mentor Filter) -->
+  <!-- Filter Bar -->
   <div class="filter-bar mb-4">
     <form method="get" class="row g-3 align-items-end">
       <div class="col-md-3">
@@ -118,88 +142,103 @@
     </form>
   </div>
   
-  <!-- Summary Stats -->
+  <!-- Combined Summary Stats -->
   <div class="row mb-4">
     <div class="col-md-3">
       <div class="stat-card primary">
-        <div class="stat-value">{{ summary.total_visits }}</div>
-        <div class="stat-label">Total Visits</div>
+        <div class="stat-value">{{ combined_summary.total_visits }}</div>
+        <div class="stat-label">Total Visits (All Programs)</div>
       </div>
     </div>
     <div class="col-md-3">
       <div class="stat-card success">
-        <div class="stat-value">{{ summary.recent_visits }}</div>
+        <div class="stat-value">{{ combined_summary.recent_visits }}</div>
         <div class="stat-label">Visits in Last 30 Days</div>
       </div>
     </div>
     <div class="col-md-3">
       <div class="stat-card warning">
-        <div class="stat-value">{{ summary.schools_visited }}</div>
+        <div class="stat-value">{{ combined_summary.schools_visited }}</div>
         <div class="stat-label">Schools Visited</div>
       </div>
     </div>
     <div class="col-md-3">
       <div class="stat-card info">
-        <div class="stat-value">{{ summary.avg_quality|floatformat:1 }}</div>
+        <div class="stat-value">{{ combined_summary.avg_quality|floatformat:1 }}</div>
         <div class="stat-label">Avg. Quality Rating</div>
       </div>
     </div>
   </div>
+
+  <!-- Program Breakdown Stats -->
+  <div class="row mb-4">
+    <div class="col-md-4">
+      <div class="stat-card literacy">
+        <div class="stat-value">{{ combined_summary.literacy_visits }}</div>
+        <div class="stat-label">Masi Literacy Visits</div>
+        <small>{{ combined_summary.literacy_recent_visits }} in last 30 days</small>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="stat-card yebo">
+        <div class="stat-value">{{ combined_summary.yebo_visits }}</div>
+        <div class="stat-label">Yebo Visits</div>
+        <small>{{ combined_summary.yebo_recent_visits }} in last 30 days</small>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="stat-card stories">
+        <div class="stat-value">{{ combined_summary.stories_visits }}</div>
+        <div class="stat-label">1000 Stories Visits</div>
+        <small>{{ combined_summary.stories_recent_visits }} in last 30 days</small>
+      </div>
+    </div>
+  </div>
   
-  <!-- Charts Row 1 -->
+  <!-- Combined Charts Row -->
   <div class="row mb-4">
     <div class="col-md-8">
       <div class="card dashboard-card shadow-sm">
         <div class="card-header bg-white">
-          <h5 class="card-title mb-0">Visit Frequency Over Time</h5>
+          <h5 class="card-title mb-0">Combined Visit Frequency Over Time</h5>
         </div>
         <div class="card-body">
-          <canvas id="visitFrequencyChart"></canvas>
+          <canvas id="combinedVisitFrequencyChart"></canvas>
         </div>
       </div>
     </div>
     <div class="col-md-4">
       <div class="card dashboard-card shadow-sm">
         <div class="card-header bg-white">
-          <h5 class="card-title mb-0">Quality Rating Distribution</h5>
+          <h5 class="card-title mb-0">Combined Quality Rating Distribution</h5>
         </div>
         <div class="card-body">
-          <canvas id="qualityRatingChart"></canvas>
+          <canvas id="combinedQualityRatingChart"></canvas>
         </div>
       </div>
     </div>
   </div>
-  
-  <!-- Charts Row 2 -->
+
+  <!-- Combined School Visit Map -->
   <div class="row mb-4">
-    <div class="col-md-5">
+    <div class="col-md-12">
       <div class="card dashboard-card shadow-sm">
         <div class="card-header bg-white">
-          <h5 class="card-title mb-0">Tracker Accuracy Metrics</h5>
+          <h5 class="card-title mb-0">Combined School Visit Distribution</h5>
         </div>
         <div class="card-body">
-          <canvas id="trackerAccuracyChart"></canvas>
-        </div>
-      </div>
-    </div>
-    <div class="col-md-7">
-      <div class="card dashboard-card shadow-sm">
-        <div class="card-header bg-white">
-          <h5 class="card-title mb-0">School Visit Distribution</h5>
-        </div>
-        <div class="card-body">
-          <div id="map-container"></div>
+          <div id="combined-map-container"></div>
         </div>
       </div>
     </div>
   </div>
 
-
+  <!-- Schools Visit Recency -->
   <div class="row mb-4">
     <div class="col-md-12">
       <div class="card dashboard-card shadow-sm mb-4">
         <div class="card-header bg-white d-flex justify-content-between align-items-center">
-          <h5 class="card-title mb-0">Schools Visit Recency</h5>
+          <h5 class="card-title mb-0">Schools Visit Recency (Literacy)</h5>
           <div class="btn-group" role="group">
             <button type="button" class="btn btn-sm btn-outline-secondary active" id="showAllSchools">Show All</button>
             <button type="button" class="btn btn-sm btn-outline-danger" id="showOverdueSchools">Show Overdue</button>
@@ -257,14 +296,57 @@
     </div>
   </div>
 
-  <!-- Recent Submissions Table -->
+  <!-- ================================ LITERACY SECTION ================================ -->
+  <div class="section-header literacy">
+    <h2>Masi Literacy Program</h2>
+  </div>
+
+  <!-- Literacy Charts Row -->
+  <div class="row mb-4">
+    <div class="col-md-6">
+      <div class="card dashboard-card shadow-sm">
+        <div class="card-header bg-white">
+          <h5 class="card-title mb-0">Literacy Visit Frequency</h5>
+        </div>
+        <div class="card-body">
+          <canvas id="literacyVisitFrequencyChart"></canvas>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="card dashboard-card shadow-sm">
+        <div class="card-header bg-white">
+          <h5 class="card-title mb-0">Literacy Quality Ratings</h5>
+        </div>
+        <div class="card-body">
+          <canvas id="literacyQualityRatingChart"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Letter Tracker Accuracy Chart -->
+  <div class="row mb-4">
+    <div class="col-md-6">
+      <div class="card dashboard-card shadow-sm">
+        <div class="card-header bg-white">
+          <h5 class="card-title mb-0">Letter Tracker Accuracy Metrics</h5>
+        </div>
+        <div class="card-body">
+          <canvas id="letterTrackerAccuracyChart"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Recent Literacy Visit Submissions -->
   <div class="row mb-4">
     <div class="col-md-12">
       <div class="card dashboard-card shadow-sm mb-4">
         <div class="card-header bg-white d-flex justify-content-between align-items-center">
-          <h5 class="card-title mb-0">Recent Visit Submissions</h5>
-          <a href="{% url 'mentor_visit_form' %}" class="btn btn-sm btn-primary">
-            <i class="fas fa-plus"></i> New Visit
+          <h5 class="card-title mb-0">Recent Literacy Visit Submissions</h5>
+          <a href="{% url 'mentor_visit_form' %}?type=masi_literacy" class="btn btn-sm btn-primary">
+            <i class="fas fa-plus"></i> New Literacy Visit
           </a>
         </div>
         <div class="card-body p-0">
@@ -282,7 +364,7 @@
                 </tr>
               </thead>
               <tbody>
-                {% for visit in recent_submissions %}
+                {% for visit in recent_literacy_submissions %}
                 <tr>
                   <td>{{ visit.visit_date }}</td>
                   <td>{{ visit.school.name }}</td>
@@ -317,7 +399,205 @@
                 </tr>
                 {% empty %}
                 <tr>
-                  <td colspan="7" class="text-center py-3">No recent visit submissions.</td>
+                  <td colspan="7" class="text-center py-3">No recent literacy visit submissions.</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================================ YEBO SECTION ================================ -->
+  <div class="section-header yebo">
+    <h2>Yebo Program</h2>
+  </div>
+
+  <!-- Yebo Charts Row -->
+  <div class="row mb-4">
+    <div class="col-md-6">
+      <div class="card dashboard-card shadow-sm">
+        <div class="card-header bg-white">
+          <h5 class="card-title mb-0">Yebo Visit Frequency</h5>
+        </div>
+        <div class="card-body">
+          <canvas id="yeboVisitFrequencyChart"></canvas>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="card dashboard-card shadow-sm">
+        <div class="card-header bg-white">
+          <h5 class="card-title mb-0">Yebo Quality Ratings</h5>
+        </div>
+        <div class="card-body">
+          <canvas id="yeboQualityRatingChart"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Recent Yebo Visit Submissions -->
+  <div class="row mb-4">
+    <div class="col-md-12">
+      <div class="card dashboard-card shadow-sm mb-4">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+          <h5 class="card-title mb-0">Recent Yebo Visit Submissions</h5>
+          <a href="{% url 'mentor_visit_form' %}?type=yebo" class="btn btn-sm btn-danger">
+            <i class="fas fa-plus"></i> New Yebo Visit
+          </a>
+        </div>
+        <div class="card-body p-0">
+          <div class="table-responsive" style="max-height: 420px; overflow-y: auto;">
+            <table class="table table-hover mb-0">
+              <thead class="table-light sticky-top" style="position: sticky; top: 0; z-index: 1;">
+                <tr>
+                  <th scope="col">Date</th>
+                  <th scope="col">School</th>
+                  <th scope="col">Mentor</th>
+                  <th scope="col" class="text-center">Session Quality</th>
+                  <th scope="col" class="text-center">Paired Reading</th>
+                  <th scope="col">Commentary</th>
+                  <th scope="col">Submitted</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for visit in recent_yebo_submissions %}
+                <tr>
+                  <td>{{ visit.visit_date }}</td>
+                  <td>{{ visit.school.name }}</td>
+                  <td>{{ visit.mentor.get_full_name|default:visit.mentor.username }}</td>
+                  <td class="text-center">
+                    <span class="badge rounded-pill 
+                      {% if visit.afternoon_session_quality >= 8 %}bg-success
+                      {% elif visit.afternoon_session_quality >= 6 %}bg-info
+                      {% elif visit.afternoon_session_quality >= 4 %}bg-warning text-dark
+                      {% else %}bg-danger{% endif %}">
+                      {{ visit.afternoon_session_quality }}/10
+                    </span>
+                  </td>
+                  <td class="text-center">
+                    <div class="small">
+                      {% if visit.paired_reading_took_place %}<span class="badge bg-success">Yes ✓</span>{% else %}<span class="badge bg-secondary">No ✗</span>{% endif %}
+                      {% if visit.paired_reading_tracking_updated %}<span class="badge bg-success">Updated ✓</span>{% else %}<span class="badge bg-secondary">Not Updated ✗</span>{% endif %}
+                    </div>
+                  </td>
+                  <td>
+                    {% if visit.commentary %}
+                    <span class="text-truncate d-inline-block" style="max-width: 200px;" title="{{ visit.commentary }}">
+                      {{ visit.commentary|truncatechars:30 }}
+                    </span>
+                    {% else %}
+                    <span class="text-muted">None</span>
+                    {% endif %}
+                  </td>
+                  <td><small class="text-muted">{{ visit.created_at|date:"M d, Y" }}</small></td>
+                </tr>
+                {% empty %}
+                <tr>
+                  <td colspan="7" class="text-center py-3">No recent Yebo visit submissions.</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================================ 1000 STORIES SECTION ================================ -->
+  <div class="section-header stories">
+    <h2>1000 Stories Program</h2>
+  </div>
+
+  <!-- 1000 Stories Charts Row -->
+  <div class="row mb-4">
+    <div class="col-md-6">
+      <div class="card dashboard-card shadow-sm">
+        <div class="card-header bg-white">
+          <h5 class="card-title mb-0">1000 Stories Visit Frequency</h5>
+        </div>
+        <div class="card-body">
+          <canvas id="storiesVisitFrequencyChart"></canvas>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="card dashboard-card shadow-sm">
+        <div class="card-header bg-white">
+          <h5 class="card-title mb-0">1000 Stories Quality Ratings</h5>
+        </div>
+        <div class="card-body">
+          <canvas id="storiesQualityRatingChart"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Recent 1000 Stories Visit Submissions -->
+  <div class="row mb-4">
+    <div class="col-md-12">
+      <div class="card dashboard-card shadow-sm mb-4">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+          <h5 class="card-title mb-0">Recent 1000 Stories Visit Submissions</h5>
+          <a href="{% url 'mentor_visit_form' %}?type=1000_stories" class="btn btn-sm btn-success">
+            <i class="fas fa-plus"></i> New 1000 Stories Visit
+          </a>
+        </div>
+        <div class="card-body p-0">
+          <div class="table-responsive" style="max-height: 420px; overflow-y: auto;">
+            <table class="table table-hover mb-0">
+              <thead class="table-light sticky-top" style="position: sticky; top: 0; z-index: 1;">
+                <tr>
+                  <th scope="col">Date</th>
+                  <th scope="col">School</th>
+                  <th scope="col">Mentor</th>
+                  <th scope="col" class="text-center">Story Time Quality</th>
+                  <th scope="col" class="text-center">Library & Tracking</th>
+                  <th scope="col">Comments</th>
+                  <th scope="col">Submitted</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for visit in recent_stories_submissions %}
+                <tr>
+                  <td>{{ visit.visit_date }}</td>
+                  <td>{{ visit.school.name }}</td>
+                  <td>{{ visit.mentor.get_full_name|default:visit.mentor.username }}</td>
+                  <td class="text-center">
+                    <span class="badge rounded-pill 
+                      {% if visit.story_time_quality >= 8 %}bg-success
+                      {% elif visit.story_time_quality >= 6 %}bg-info
+                      {% elif visit.story_time_quality >= 4 %}bg-warning text-dark
+                      {% else %}bg-danger{% endif %}">
+                      {{ visit.story_time_quality }}/10
+                    </span>
+                  </td>
+                  <td class="text-center">
+                    <div class="small">
+                      {% if visit.library_neat_and_tidy %}<span class="badge bg-success">Tidy ✓</span>{% else %}<span class="badge bg-secondary">Tidy ✗</span>{% endif %}
+                      {% if visit.tracking_sheets_up_to_date %}<span class="badge bg-success">Tracking ✓</span>{% else %}<span class="badge bg-secondary">Tracking ✗</span>{% endif %}
+                      {% if visit.book_boxes_and_borrowing %}<span class="badge bg-success">Books ✓</span>{% else %}<span class="badge bg-secondary">Books ✗</span>{% endif %}
+                      {% if visit.daily_target_met %}<span class="badge bg-success">Target ✓</span>{% else %}<span class="badge bg-secondary">Target ✗</span>{% endif %}
+                    </div>
+                  </td>
+                  <td>
+                    {% if visit.other_comments %}
+                    <span class="text-truncate d-inline-block" style="max-width: 200px;" title="{{ visit.other_comments }}">
+                      {{ visit.other_comments|truncatechars:30 }}
+                    </span>
+                    {% else %}
+                    <span class="text-muted">None</span>
+                    {% endif %}
+                  </td>
+                  <td><small class="text-muted">{{ visit.created_at|date:"M d, Y" }}</small></td>
+                </tr>
+                {% empty %}
+                <tr>
+                  <td colspan="7" class="text-center py-3">No recent 1000 Stories visit submissions.</td>
                 </tr>
                 {% endfor %}
               </tbody>
@@ -337,22 +617,9 @@
 <script>
   // Chart color palette
   const colors = {
-    blue: {
-      fill: 'rgba(54, 162, 235, 0.2)',
-      stroke: 'rgba(54, 162, 235, 1)'
-    },
-    red: {
-      fill: 'rgba(255, 99, 132, 0.2)',
-      stroke: 'rgba(255, 99, 132, 1)'
-    },
-    green: {
-      fill: 'rgba(75, 192, 192, 0.2)',
-      stroke: 'rgba(75, 192, 192, 1)'
-    },
-    orange: {
-      fill: 'rgba(255, 159, 64, 0.2)',
-      stroke: 'rgba(255, 159, 64, 1)'
-    }
+    literacy: { fill: 'rgba(54, 162, 235, 0.5)', stroke: 'rgba(54, 162, 235, 1)' },
+    yebo: { fill: 'rgba(255, 99, 132, 0.5)', stroke: 'rgba(255, 99, 132, 1)' },
+    stories: { fill: 'rgba(75, 192, 192, 0.5)', stroke: 'rgba(75, 192, 192, 1)' }
   };
 
   // Schools filter buttons
@@ -376,89 +643,163 @@
   });
 
   // Parse chart data from the backend
-  const visitFrequencyData = JSON.parse('{{ visit_frequency_chart|escapejs }}');
-  const qualityRatingData = JSON.parse('{{ quality_rating_chart|escapejs }}');
-  const trackerAccuracyData = JSON.parse('{{ tracker_accuracy_chart|escapejs }}');
-  const schoolMapData = JSON.parse('{{ school_visit_map|escapejs }}');
+  const combinedVisitFrequencyData = JSON.parse('{{ combined_visit_frequency_chart|escapejs }}');
+  const combinedQualityRatingData = JSON.parse('{{ combined_quality_rating_chart|escapejs }}');
+  const combinedSchoolMapData = JSON.parse('{{ combined_school_visit_map|escapejs }}');
   
-  // Create Visit Frequency Chart
-  const visitFrequencyCtx = document.getElementById('visitFrequencyChart').getContext('2d');
-  new Chart(visitFrequencyCtx, {
+  const literacyVisitFrequencyData = JSON.parse('{{ literacy_visit_frequency_chart|escapejs }}');
+  const literacyQualityRatingData = JSON.parse('{{ literacy_quality_rating_chart|escapejs }}');
+  const letterTrackerAccuracyData = JSON.parse('{{ letter_tracker_accuracy_chart|escapejs }}');
+  
+  const yeboVisitFrequencyData = JSON.parse('{{ yebo_visit_frequency_chart|escapejs }}');
+  const yeboQualityRatingData = JSON.parse('{{ yebo_quality_rating_chart|escapejs }}');
+  
+  const storiesVisitFrequencyData = JSON.parse('{{ stories_visit_frequency_chart|escapejs }}');
+  const storiesQualityRatingData = JSON.parse('{{ stories_quality_rating_chart|escapejs }}');
+  
+  // Create Combined Visit Frequency Chart
+  const combinedVisitFrequencyCtx = document.getElementById('combinedVisitFrequencyChart').getContext('2d');
+  new Chart(combinedVisitFrequencyCtx, {
     type: 'bar',
-    data: visitFrequencyData,
+    data: combinedVisitFrequencyData,
     options: {
       responsive: true,
       maintainAspectRatio: false,
       scales: {
-        y: {
-          beginAtZero: true,
-          title: {
-            display: true,
-            text: 'Number of Visits'
-          }
-        },
-        x: {
-          title: {
-            display: true,
-            text: 'Time Period'
-          }
-        }
+        y: { beginAtZero: true, title: { display: true, text: 'Number of Visits' } },
+        x: { title: { display: true, text: 'Time Period' } }
       }
     }
   });
   
-  // Create Quality Rating Chart
-  const qualityRatingCtx = document.getElementById('qualityRatingChart').getContext('2d');
-  new Chart(qualityRatingCtx, {
+  // Create Combined Quality Rating Chart
+  const combinedQualityRatingCtx = document.getElementById('combinedQualityRatingChart').getContext('2d');
+  new Chart(combinedQualityRatingCtx, {
     type: 'bar',
-    data: qualityRatingData,
+    data: combinedQualityRatingData,
     options: {
       responsive: true,
       maintainAspectRatio: false,
       scales: {
-        y: {
-          beginAtZero: true,
-          title: {
-            display: true,
-            text: 'Number of Visits'
-          }
-        }
+        y: { beginAtZero: true, title: { display: true, text: 'Number of Visits' } }
       }
     }
   });
 
-  // Create Tracker Accuracy Chart (Radar)
-  const trackerAccuracyCtx = document.getElementById('trackerAccuracyChart').getContext('2d');
-  new Chart(trackerAccuracyCtx, {
+  // Create Literacy Visit Frequency Chart
+  const literacyVisitFrequencyCtx = document.getElementById('literacyVisitFrequencyChart').getContext('2d');
+  new Chart(literacyVisitFrequencyCtx, {
+    type: 'bar',
+    data: literacyVisitFrequencyData,
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        y: { beginAtZero: true, title: { display: true, text: 'Number of Visits' } }
+      }
+    }
+  });
+  
+  // Create Literacy Quality Rating Chart
+  const literacyQualityRatingCtx = document.getElementById('literacyQualityRatingChart').getContext('2d');
+  new Chart(literacyQualityRatingCtx, {
+    type: 'bar',
+    data: literacyQualityRatingData,
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        y: { beginAtZero: true, title: { display: true, text: 'Number of Visits' } }
+      }
+    }
+  });
+
+  // Create Letter Tracker Accuracy Chart (Radar)
+  const letterTrackerAccuracyCtx = document.getElementById('letterTrackerAccuracyChart').getContext('2d');
+  new Chart(letterTrackerAccuracyCtx, {
     type: 'radar',
-    data: trackerAccuracyData,
+    data: letterTrackerAccuracyData,
     options: {
       responsive: true,
       maintainAspectRatio: false,
       scales: {
         r: {
-          angleLines: {
-            display: true
-          },
+          angleLines: { display: true },
           suggestedMin: 0,
           suggestedMax: 100
         }
       }
     }
   });
+
+  // Create Yebo Visit Frequency Chart
+  const yeboVisitFrequencyCtx = document.getElementById('yeboVisitFrequencyChart').getContext('2d');
+  new Chart(yeboVisitFrequencyCtx, {
+    type: 'bar',
+    data: yeboVisitFrequencyData,
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        y: { beginAtZero: true, title: { display: true, text: 'Number of Visits' } }
+      }
+    }
+  });
   
-  // Initialize the map
-  const map = L.map('map-container').setView([-29.2, 30.5], 7); // Set to South Africa's KZN region
+  // Create Yebo Quality Rating Chart
+  const yeboQualityRatingCtx = document.getElementById('yeboQualityRatingChart').getContext('2d');
+  new Chart(yeboQualityRatingCtx, {
+    type: 'bar',
+    data: yeboQualityRatingData,
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        y: { beginAtZero: true, title: { display: true, text: 'Number of Visits' } }
+      }
+    }
+  });
+
+  // Create 1000 Stories Visit Frequency Chart
+  const storiesVisitFrequencyCtx = document.getElementById('storiesVisitFrequencyChart').getContext('2d');
+  new Chart(storiesVisitFrequencyCtx, {
+    type: 'bar',
+    data: storiesVisitFrequencyData,
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        y: { beginAtZero: true, title: { display: true, text: 'Number of Visits' } }
+      }
+    }
+  });
+  
+  // Create 1000 Stories Quality Rating Chart
+  const storiesQualityRatingCtx = document.getElementById('storiesQualityRatingChart').getContext('2d');
+  new Chart(storiesQualityRatingCtx, {
+    type: 'bar',
+    data: storiesQualityRatingData,
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        y: { beginAtZero: true, title: { display: true, text: 'Number of Visits' } }
+      }
+    }
+  });
+  
+  // Initialize the combined map
+  const combinedMap = L.map('combined-map-container').setView([-29.2, 30.5], 7);
   
   // Add OpenStreetMap tile layer
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-  }).addTo(map);
+  }).addTo(combinedMap);
   
-  // Add school markers
-  schoolMapData.forEach(school => {
-    // Determine marker size based on visit count
-    const markerSize = Math.max(5, Math.min(15, school.visit_count * 2));
+  // Add school markers for combined map
+  combinedSchoolMapData.forEach(school => {
+    // Determine marker size based on total visit count
+    const markerSize = Math.max(5, Math.min(20, school.total_visits * 2));
     
     // Determine marker color based on school type
     let markerColor = '#3388ff'; // Default blue
@@ -478,21 +819,24 @@
       weight: 1,
       opacity: 1,
       fillOpacity: 0.8
-    }).addTo(map);
+    }).addTo(combinedMap);
     
     // Add popup with school info
     marker.bindPopup(`
       <strong>${school.name}</strong><br>
       Type: ${school.type}<br>
-      Visits: ${school.visit_count}<br>
-      Avg. Quality: ${school.avg_quality}
+      <hr>
+      <strong>Total Visits: ${school.total_visits}</strong><br>
+      Literacy: ${school.literacy_visits} (avg: ${school.literacy_avg_quality})<br>
+      Yebo: ${school.yebo_visits} (avg: ${school.yebo_avg_quality})<br>
+      1000 Stories: ${school.stories_visits} (avg: ${school.stories_avg_quality})
     `);
   });
   
   // If we have markers, fit the map to show all schools
-  if (schoolMapData.length > 0) {
-    const bounds = schoolMapData.map(school => [school.latitude, school.longitude]);
-    map.fitBounds(bounds);
+  if (combinedSchoolMapData.length > 0) {
+    const bounds = combinedSchoolMapData.map(school => [school.latitude, school.longitude]);
+    combinedMap.fitBounds(bounds);
   }
 </script>
 {% endblock %}
