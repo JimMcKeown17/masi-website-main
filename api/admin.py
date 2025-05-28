@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.utils.html import format_html
-from .models import School, Youth, Child, Mentor, MentorVisit, Session, AirtableSyncLog
+from .models import School, Youth, Child, Mentor, MentorVisit, YeboVisit, ThousandStoriesVisit, Session, AirtableSyncLog
 
 @admin.register(School)
 class SchoolAdmin(admin.ModelAdmin):
@@ -110,6 +110,89 @@ class MentorVisitAdmin(admin.ModelAdmin):
     def school_name(self, obj):
         return obj.school.name
     school_name.short_description = 'School'
+
+@admin.register(YeboVisit)
+class YeboVisitAdmin(admin.ModelAdmin):
+    list_display = ('mentor_name', 'school_name', 'visit_date', 'afternoon_session_quality', 'paired_reading_took_place')
+    list_filter = ('visit_date', 'afternoon_session_quality', 'paired_reading_took_place', 'paired_reading_tracking_updated', 'school')
+    search_fields = ('mentor__username', 'mentor__first_name', 'mentor__last_name', 'school__name', 'commentary')
+    date_hierarchy = 'visit_date'
+    ordering = ('-visit_date',)
+    
+    fieldsets = (
+        ('Visit Details', {
+            'fields': ('mentor', 'school', 'visit_date')
+        }),
+        ('Yebo Program Observations', {
+            'fields': ('paired_reading_took_place', 'paired_reading_tracking_updated')
+        }),
+        ('Quality Assessment', {
+            'fields': ('afternoon_session_quality', 'commentary')
+        }),
+        ('System Information', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    readonly_fields = ('created_at', 'updated_at')
+    
+    def mentor_name(self, obj):
+        return f"{obj.mentor.first_name} {obj.mentor.last_name}" if obj.mentor.first_name else obj.mentor.username
+    mentor_name.short_description = 'Mentor'
+    mentor_name.admin_order_field = 'mentor__username'
+    
+    def school_name(self, obj):
+        return obj.school.name
+    school_name.short_description = 'School'
+    school_name.admin_order_field = 'school__name'
+
+@admin.register(ThousandStoriesVisit)
+class ThousandStoriesVisitAdmin(admin.ModelAdmin):
+    list_display = ('mentor_name', 'school_name', 'visit_date', 'story_time_quality', 'library_status', 'daily_target_met')
+    list_filter = ('visit_date', 'story_time_quality', 'library_neat_and_tidy', 'tracking_sheets_up_to_date', 
+                   'book_boxes_and_borrowing', 'daily_target_met', 'school')
+    search_fields = ('mentor__username', 'mentor__first_name', 'mentor__last_name', 'school__name', 'other_comments')
+    date_hierarchy = 'visit_date'
+    ordering = ('-visit_date',)
+    
+    fieldsets = (
+        ('Visit Details', {
+            'fields': ('mentor', 'school', 'visit_date')
+        }),
+        ('Library Management', {
+            'fields': ('library_neat_and_tidy', 'tracking_sheets_up_to_date', 'book_boxes_and_borrowing')
+        }),
+        ('Program Performance', {
+            'fields': ('daily_target_met', 'story_time_quality')
+        }),
+        ('Comments', {
+            'fields': ('other_comments',)
+        }),
+        ('System Information', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    readonly_fields = ('created_at', 'updated_at')
+    
+    def mentor_name(self, obj):
+        return f"{obj.mentor.first_name} {obj.mentor.last_name}" if obj.mentor.first_name else obj.mentor.username
+    mentor_name.short_description = 'Mentor'
+    mentor_name.admin_order_field = 'mentor__username'
+    
+    def school_name(self, obj):
+        return obj.school.name
+    school_name.short_description = 'School'
+    school_name.admin_order_field = 'school__name'
+    
+    def library_status(self, obj):
+        if obj.library_neat_and_tidy:
+            return format_html('<span style="color: green;">✓ Tidy</span>')
+        else:
+            return format_html('<span style="color: red;">✗ Needs attention</span>')
+    library_status.short_description = 'Library Status'
 
 @admin.register(Session)
 class SessionAdmin(admin.ModelAdmin):
