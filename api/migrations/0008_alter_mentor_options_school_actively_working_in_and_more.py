@@ -29,9 +29,9 @@ class Migration(migrations.Migration):
             name='principal',
             field=models.CharField(blank=True, max_length=200, null=True),
         ),
-        # migrations.AddField(
-        #     model_name='school',
-        #     name='school_id',
-        #     field=models.IntegerField(blank=True, help_text='School ID from CSV import', null=True),
-        # ),
+        migrations.AddField(
+            model_name='school',
+            name='school_id',
+            field=models.IntegerField(blank=True, help_text='School ID from CSV import', null=True),
+        ),
     ]
