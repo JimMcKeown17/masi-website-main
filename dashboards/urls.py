@@ -10,4 +10,8 @@ urlpatterns = [
     path('literacy/', views.literacy_management_dashboard, name='literacy_management_dashboard'),
     path('database-check/', views.database_check, name='database_check'),
     path('debug-check/', views.debug_check, name='debug_check'),
+    # Assessment dashboard URLs
+    path('assessments/', views.assessment_dashboard, name='assessment_dashboard'),
+    path('assessment-data/', views.assessment_data_api, name='assessment_data_api'),
+    path('student/<str:mcode>/', views.student_detail_view, name='student_detail'),
 ]

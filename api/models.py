@@ -1,6 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import User
 from django.utils import timezone
+from django.core.validators import MinValueValidator, MaxValueValidator
 
 # Existing choices
 SCHOOL_TYPE_CHOICES = [
@@ -349,3 +350,121 @@ class AirtableSyncLog(models.Model):
         verbose_name = "Airtable Sync Log"
         verbose_name_plural = "Airtable Sync Logs"
         ordering = ['-started_at']
+        
+        
+# api/models.py (add to your existing models)
+
+from django.db import models
+from django.core.validators import MinValueValidator, MaxValueValidator
+
+class WELA_assessments(models.Model):
+    # Core identification
+    mcode = models.CharField(max_length=20, db_index=True, help_text="Unique student identifier")
+    assessment_year = models.IntegerField(help_text="Assessment year (2022, 2023, 2024)")
+    
+    # School and demographic info
+    school = models.CharField(max_length=200)
+    city = models.CharField(max_length=100)
+    centre = models.CharField(max_length=100, blank=True, null=True)
+    type = models.CharField(max_length=50, blank=True, null=True)  # Primary/Both
+    class_name = models.CharField(max_length=20, blank=True, null=True)
+    teacher = models.CharField(max_length=100, blank=True, null=True)
+    grade = models.CharField(max_length=20)
+    language = models.CharField(max_length=50)
+    
+    # Mentor info
+    mentor = models.CharField(max_length=100, blank=True, null=True)
+    
+    # Student info
+    surname = models.CharField(max_length=100)
+    name = models.CharField(max_length=100)
+    full_name = models.CharField(max_length=200)
+    gender = models.CharField(max_length=1, choices=[('M', 'Male'), ('F', 'Female')])
+    
+    # Program participation
+    total_sessions = models.IntegerField(blank=True, null=True)
+    on_programme = models.CharField(max_length=10, blank=True, null=True)
+    current_lc = models.CharField(max_length=100, blank=True, null=True)
+    
+    # January Assessment Scores
+    jan_letter_sounds = models.IntegerField(blank=True, null=True, validators=[MinValueValidator(0), MaxValueValidator(100)])
+    jan_story_comprehension = models.IntegerField(blank=True, null=True, validators=[MinValueValidator(0), MaxValueValidator(100)])
+    jan_listen_first_sound = models.IntegerField(blank=True, null=True, validators=[MinValueValidator(0), MaxValueValidator(100)])
+    jan_listen_words = models.IntegerField(blank=True, null=True, validators=[MinValueValidator(0), MaxValueValidator(100)])
+    jan_writing_letters = models.IntegerField(blank=True, null=True, validators=[MinValueValidator(0), MaxValueValidator(100)])
+    jan_read_words = models.IntegerField(blank=True, null=True, validators=[MinValueValidator(0), MaxValueValidator(100)])
+    jan_read_sentences = models.IntegerField(blank=True, null=True, validators=[MinValueValidator(0), MaxValueValidator(100)])
+    jan_read_story = models.IntegerField(blank=True, null=True, validators=[MinValueValidator(0), MaxValueValidator(100)])
+    jan_write_cvcs = models.IntegerField(blank=True, null=True, validators=[MinValueValidator(0), MaxValueValidator(100)])
+    jan_write_sentences = models.IntegerField(blank=True, null=True, validators=[MinValueValidator(0), MaxValueValidator(100)])
+    jan_write_story = models.IntegerField(blank=True, null=True, validators=[MinValueValidator(0), MaxValueValidator(100)])
+    jan_total = models.IntegerField(blank=True, null=True, validators=[MinValueValidator(0)])
+    
+    # June Assessment Scores
+    june_letter_sounds = models.IntegerField(blank=True, null=True, validators=[MinValueValidator(0), MaxValueValidator(100)])
+    june_story_comprehension = models.IntegerField(blank=True, null=True, validators=[MinValueValidator(0), MaxValueValidator(100)])
+    june_listen_first_sound = models.IntegerField(blank=True, null=True, validators=[MinValueValidator(0), MaxValueValidator(100)])
+    june_listen_words = models.IntegerField(blank=True, null=True, validators=[MinValueValidator(0), MaxValueValidator(100)])
+    june_writing_letters = models.IntegerField(blank=True, null=True, validators=[MinValueValidator(0), MaxValueValidator(100)])
+    june_read_words = models.IntegerField(blank=True, null=True, validators=[MinValueValidator(0), MaxValueValidator(100)])
+    june_read_sentences = models.IntegerField(blank=True, null=True, validators=[MinValueValidator(0), MaxValueValidator(100)])
+    june_read_story = models.IntegerField(blank=True, null=True, validators=[MinValueValidator(0), MaxValueValidator(100)])
+    june_write_cvcs = models.IntegerField(blank=True, null=True, validators=[MinValueValidator(0), MaxValueValidator(100)])
+    june_write_sentences = models.IntegerField(blank=True, null=True, validators=[MinValueValidator(0), MaxValueValidator(100)])
+    june_write_story = models.IntegerField(blank=True, null=True, validators=[MinValueValidator(0), MaxValueValidator(100)])
+    june_total = models.IntegerField(blank=True, null=True, validators=[MinValueValidator(0)])
+    
+    # November Assessment Scores  
+    nov_letter_sounds = models.IntegerField(blank=True, null=True, validators=[MinValueValidator(0), MaxValueValidator(100)])
+    nov_story_comprehension = models.IntegerField(blank=True, null=True, validators=[MinValueValidator(0), MaxValueValidator(100)])
+    nov_listen_first_sound = models.IntegerField(blank=True, null=True, validators=[MinValueValidator(0), MaxValueValidator(100)])
+    nov_listen_words = models.IntegerField(blank=True, null=True, validators=[MinValueValidator(0), MaxValueValidator(100)])
+    nov_writing_letters = models.IntegerField(blank=True, null=True, validators=[MinValueValidator(0), MaxValueValidator(100)])
+    nov_read_words = models.IntegerField(blank=True, null=True, validators=[MinValueValidator(0), MaxValueValidator(100)])
+    nov_read_sentences = models.IntegerField(blank=True, null=True, validators=[MinValueValidator(0), MaxValueValidator(100)])
+    nov_read_story = models.IntegerField(blank=True, null=True, validators=[MinValueValidator(0), MaxValueValidator(100)])
+    nov_write_cvcs = models.IntegerField(blank=True, null=True, validators=[MinValueValidator(0), MaxValueValidator(100)])
+    nov_write_sentences = models.IntegerField(blank=True, null=True, validators=[MinValueValidator(0), MaxValueValidator(100)])
+    nov_write_story = models.IntegerField(blank=True, null=True, validators=[MinValueValidator(0), MaxValueValidator(100)])
+    nov_total = models.IntegerField(blank=True, null=True, validators=[MinValueValidator(0)])
+    
+    # Data capture info
+    captured_by = models.CharField(max_length=100, blank=True, null=True)
+    
+    # Metadata
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'wela_assessments'
+        indexes = [
+            models.Index(fields=['mcode', 'assessment_year']),
+            models.Index(fields=['school', 'assessment_year']),
+            models.Index(fields=['grade', 'assessment_year']),
+            models.Index(fields=['mentor', 'assessment_year']),
+        ]
+        unique_together = ['mcode', 'assessment_year']  # Same student can have multiple years
+    
+    def __str__(self):
+        return f"{self.full_name} ({self.mcode}) - {self.assessment_year}"
+    
+    @property
+    def jan_improvement_from_baseline(self):
+        """Calculate improvement from January to June"""
+        if self.jan_total and self.june_total:
+            return self.june_total - self.jan_total
+        return None
+    
+    @property 
+    def year_end_improvement(self):
+        """Calculate improvement from January to November"""
+        if self.jan_total and self.nov_total:
+            return self.nov_total - self.jan_total
+        return None
+    
+    @property
+    def improvement_percentage(self):
+        """Calculate percentage improvement from Jan to Nov"""
+        if self.jan_total and self.nov_total and self.jan_total > 0:
+            return round(((self.nov_total - self.jan_total) / self.jan_total) * 100, 2)
+        return None

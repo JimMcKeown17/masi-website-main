@@ -3,6 +3,7 @@
 │   ├── management
 │   │   └── commands
 │   ├── migrations
+│   │   ├── __init__.py
 │   │   ├── 0001_initial.py
 │   │   ├── 0002_alter_youth_account_number_alter_youth_account_type_and_more.py
 │   │   ├── 0003_alter_school_contact_phone_and_more.py
@@ -10,7 +11,11 @@
 │   │   ├── 0005_alter_youth_employment_status_and_account_type.py
 │   │   ├── 0006_alter_youth_race_field_length.py
 │   │   ├── 0007_alter_youth_race.py
-│   │   └── __init__.py
+│   │   ├── 0008_alter_mentor_options_school_actively_working_in_and_more.py
+│   │   ├── 0009_school_school_id_yebovisit.py
+│   │   ├── 0010_school_school_id_thousandstoriesvisit.py
+│   │   ├── 0011_add_wela_assessments_only.py
+│   │   └── 0012_mark_school_id_exists.py
 │   ├── __init__.py
 │   ├── admin.py
 │   ├── apps.py
@@ -22,8 +27,8 @@
 │   │   ├── commands
 │   │   └── __init__.py
 │   ├── migrations
-│   │   ├── 0001_initial.py
-│   │   └── __init__.py
+│   │   ├── __init__.py
+│   │   └── 0001_initial.py
 │   ├── utils
 │   │   ├── __init__.py
 │   │   └── helpers.py
@@ -41,11 +46,11 @@
 │   │   ├── commands
 │   │   └── __init__.py
 │   ├── migrations
+│   │   ├── __init__.py
 │   │   ├── 0001_initial.py
 │   │   ├── 0002_school_type.py
 │   │   ├── 0003_alter_school_type.py
-│   │   ├── 0004_auto_20250514_1450.py
-│   │   └── __init__.py
+│   │   └── 0004_auto_20250514_1450.py
 │   ├── services
 │   │   ├── __init__.py
 │   │   ├── airtable_service.py
@@ -55,6 +60,7 @@
 │   │   └── text_utils.py
 │   ├── visualizations
 │   │   ├── __init__.py
+│   │   ├── assessment_charts.py
 │   │   ├── charts.py
 │   │   ├── mentor_charts.py
 │   │   └── youth_charts.py
@@ -94,12 +100,12 @@
 ├── scripts
 │   ├── delete-fake-data.py
 │   ├── django-project-parser.js
-│   ├── export_code.py
 │   ├── export_code_short.py
+│   ├── export_code.py
 │   ├── generate-fake-data.py
 │   ├── import_mentor_visits.py
-│   ├── llm_review.txt
 │   ├── llm_review_short.txt
+│   ├── llm_review.txt
 │   ├── masi-project-knowledge.md
 │   ├── my_snippets.txt
 │   ├── node-tree-formatter.js
@@ -114,19 +120,25 @@
 │   │   ├── main.css
 │   │   └── styles.css
 │   ├── data
+│   │   ├── 2024 Children's Database - Final Results.csv
 │   │   ├── consolidated_visits_2.csv
 │   │   └── schools_list_mar14.csv
 │   ├── images
 │   │   ├── 2024 Grad Magazine
-│   │   ├── LCs
-│   │   ├── Mid-year 2024
 │   │   ├── grads
+│   │   ├── LCs
 │   │   ├── logos
+│   │   ├── Mid-year 2024
 │   │   ├── staff
-│   │   ├── AR 23 Cover Page.png
 │   │   ├── About_Us_Hero_Video.mp4
 │   │   ├── Alungile Magwajana (1).png
+│   │   ├── AR 23 Cover Page.png
+│   │   ├── banner.jpg
+│   │   ├── black-background.jpg
+│   │   ├── book.svg
 │   │   ├── Children_Video_Strip.mp4
+│   │   ├── children-run-school.jpg
+│   │   ├── dark-background.jpg
 │   │   ├── Early Childhood Education.png
 │   │   ├── Eastern-Cape-1.jpg
 │   │   ├── Eastern-Cape-2.JPG
@@ -136,6 +148,8 @@
 │   │   ├── Empowering Banner_raw (1).mp4
 │   │   ├── Female Staff.jpg
 │   │   ├── Girls Scholarship Fund banner_small_1.mp4
+│   │   ├── google-icon.png
+│   │   ├── graduate-chart.png
 │   │   ├── Graph.png
 │   │   ├── Guidestar Platinum Seal.png
 │   │   ├── Home_Hero_Video.mp4
@@ -157,14 +171,27 @@
 │   │   ├── Mid-Year Report 2024.jpg
 │   │   ├── Nikelo Simnikiwe (1).png
 │   │   ├── Our Solution.png
+│   │   ├── pic01.jpg
+│   │   ├── pic02.jpg
+│   │   ├── pic03.jpg
+│   │   ├── pic04.jpg
+│   │   ├── pic05.jpg
+│   │   ├── pic06.jpg
 │   │   ├── Platinum Seal.png
+│   │   ├── polar_chart_transparent_white_labels_with_padding.png
+│   │   ├── polar_chart_transparent_white_labels.png
+│   │   ├── polar_chart_transparent.png
 │   │   ├── Potential.png
+│   │   ├── quote - esethu.png
+│   │   ├── quote-amlindile.png
+│   │   ├── quote-azama.png
 │   │   ├── Report 1 Cover.png
 │   │   ├── Report Cover 2.png
 │   │   ├── Report Cover 3.png
 │   │   ├── Report Cover 4.png
 │   │   ├── Sandwater Primary - Literacy Session 2.jpg
 │   │   ├── Sinethemba - ECD [06 October 2023] edited (1).jpg
+│   │   ├── spider-plot.png
 │   │   ├── Staff 1.jpg
 │   │   ├── Staff 3.jpg
 │   │   ├── Staff 4.jpg
@@ -174,44 +201,13 @@
 │   │   ├── Strip - Graduate.jpg
 │   │   ├── Strip - Thuto.jpg
 │   │   ├── Sume Video Strip.mp4
-│   │   ├── The Problem.png
-│   │   ├── Website Strip - Child Red.png
-│   │   ├── Website Strip - Child copy red.png
-│   │   ├── Website Strip - Child.jpg
-│   │   ├── Website Strip - TL 2.jpg
-│   │   ├── Website Strip - TL.png
-│   │   ├── Website Strip - TL_edited.png
-│   │   ├── Website Strip Community jobs 2 (sml).png
-│   │   ├── Youth_Video_Strip.mp4
-│   │   ├── ZZ Background 3.mp4
-│   │   ├── Zama Zulu.png
-│   │   ├── Zazi Video Strip.mp4
-│   │   ├── banner.jpg
-│   │   ├── black-background.jpg
-│   │   ├── book.svg
-│   │   ├── children-run-school.jpg
-│   │   ├── dark-background.jpg
-│   │   ├── google-icon.png
-│   │   ├── graduate-chart.png
-│   │   ├── pic01.jpg
-│   │   ├── pic02.jpg
-│   │   ├── pic03.jpg
-│   │   ├── pic04.jpg
-│   │   ├── pic05.jpg
-│   │   ├── pic06.jpg
-│   │   ├── polar_chart_transparent.png
-│   │   ├── polar_chart_transparent_white_labels.png
-│   │   ├── polar_chart_transparent_white_labels_with_padding.png
-│   │   ├── quote - esethu.png
-│   │   ├── quote-amlindile.png
-│   │   ├── quote-azama.png
-│   │   ├── spider-plot.png
 │   │   ├── the problem 1.png
 │   │   ├── the problem 2.png
 │   │   ├── the problem 3.png
 │   │   ├── the problem 4.png
 │   │   ├── the problem 5.png
 │   │   ├── the problem 6.png
+│   │   ├── The Problem.png
 │   │   ├── the-solution-model.png
 │   │   ├── tl-photo-1.webp
 │   │   ├── tl-photo-2.webp
@@ -220,12 +216,23 @@
 │   │   ├── tl-photo-5.webp
 │   │   ├── tl-strip-yellow.webp
 │   │   ├── vid thumbnail.png
+│   │   ├── Website Strip - Child copy red.png
+│   │   ├── Website Strip - Child Red.png
+│   │   ├── Website Strip - Child.jpg
+│   │   ├── Website Strip - TL 2.jpg
+│   │   ├── Website Strip - TL_edited.png
+│   │   ├── Website Strip - TL.png
+│   │   ├── Website Strip Community jobs 2 (sml).png
+│   │   ├── youth_jobs_thumbnail.png
+│   │   ├── Youth_Video_Strip.mp4
 │   │   ├── youth-1.webp
 │   │   ├── youth-2.webp
 │   │   ├── youth-3.webp
 │   │   ├── youth-4.webp
 │   │   ├── youth-5.webp
-│   │   └── youth_jobs_thumbnail.png
+│   │   ├── Zama Zulu.png
+│   │   ├── Zazi Video Strip.mp4
+│   │   └── ZZ Background 3.mp4
 │   ├── js
 │   │   ├── bootstrap.bundle.min.js
 │   │   ├── lightbox-plus-jquery.min.js
@@ -279,15 +286,20 @@
 │   │   └── schools_list_mar14.csv
 │   ├── images
 │   │   ├── 2024 Grad Magazine
-│   │   ├── LCs
-│   │   ├── Mid-year 2024
 │   │   ├── grads
+│   │   ├── LCs
 │   │   ├── logos
+│   │   ├── Mid-year 2024
 │   │   ├── staff
-│   │   ├── AR 23 Cover Page.png
 │   │   ├── About_Us_Hero_Video.mp4
 │   │   ├── Alungile Magwajana (1).png
+│   │   ├── AR 23 Cover Page.png
+│   │   ├── banner.jpg
+│   │   ├── black-background.jpg
+│   │   ├── book.svg
 │   │   ├── Children_Video_Strip.mp4
+│   │   ├── children-run-school.jpg
+│   │   ├── dark-background.jpg
 │   │   ├── Early Childhood Education.png
 │   │   ├── Eastern-Cape-1.jpg
 │   │   ├── Eastern-Cape-2.JPG
@@ -297,6 +309,7 @@
 │   │   ├── Empowering Banner_raw (1).mp4
 │   │   ├── Female Staff.jpg
 │   │   ├── Girls Scholarship Fund banner_small_1.mp4
+│   │   ├── graduate-chart.png
 │   │   ├── Graph.png
 │   │   ├── Guidestar Platinum Seal.png
 │   │   ├── Home_Hero_Video.mp4
@@ -318,14 +331,27 @@
 │   │   ├── Mid-Year Report 2024.jpg
 │   │   ├── Nikelo Simnikiwe (1).png
 │   │   ├── Our Solution.png
+│   │   ├── pic01.jpg
+│   │   ├── pic02.jpg
+│   │   ├── pic03.jpg
+│   │   ├── pic04.jpg
+│   │   ├── pic05.jpg
+│   │   ├── pic06.jpg
 │   │   ├── Platinum Seal.png
+│   │   ├── polar_chart_transparent_white_labels_with_padding.png
+│   │   ├── polar_chart_transparent_white_labels.png
+│   │   ├── polar_chart_transparent.png
 │   │   ├── Potential.png
+│   │   ├── quote - esethu.png
+│   │   ├── quote-amlindile.png
+│   │   ├── quote-azama.png
 │   │   ├── Report 1 Cover.png
 │   │   ├── Report Cover 2.png
 │   │   ├── Report Cover 3.png
 │   │   ├── Report Cover 4.png
 │   │   ├── Sandwater Primary - Literacy Session 2.jpg
 │   │   ├── Sinethemba - ECD [06 October 2023] edited (1).jpg
+│   │   ├── spider-plot.png
 │   │   ├── Staff 1.jpg
 │   │   ├── Staff 3.jpg
 │   │   ├── Staff 4.jpg
@@ -335,43 +361,13 @@
 │   │   ├── Strip - Graduate.jpg
 │   │   ├── Strip - Thuto.jpg
 │   │   ├── Sume Video Strip.mp4
-│   │   ├── The Problem.png
-│   │   ├── Website Strip - Child Red.png
-│   │   ├── Website Strip - Child copy red.png
-│   │   ├── Website Strip - Child.jpg
-│   │   ├── Website Strip - TL 2.jpg
-│   │   ├── Website Strip - TL.png
-│   │   ├── Website Strip - TL_edited.png
-│   │   ├── Website Strip Community jobs 2 (sml).png
-│   │   ├── Youth_Video_Strip.mp4
-│   │   ├── ZZ Background 3.mp4
-│   │   ├── Zama Zulu.png
-│   │   ├── Zazi Video Strip.mp4
-│   │   ├── banner.jpg
-│   │   ├── black-background.jpg
-│   │   ├── book.svg
-│   │   ├── children-run-school.jpg
-│   │   ├── dark-background.jpg
-│   │   ├── graduate-chart.png
-│   │   ├── pic01.jpg
-│   │   ├── pic02.jpg
-│   │   ├── pic03.jpg
-│   │   ├── pic04.jpg
-│   │   ├── pic05.jpg
-│   │   ├── pic06.jpg
-│   │   ├── polar_chart_transparent.png
-│   │   ├── polar_chart_transparent_white_labels.png
-│   │   ├── polar_chart_transparent_white_labels_with_padding.png
-│   │   ├── quote - esethu.png
-│   │   ├── quote-amlindile.png
-│   │   ├── quote-azama.png
-│   │   ├── spider-plot.png
 │   │   ├── the problem 1.png
 │   │   ├── the problem 2.png
 │   │   ├── the problem 3.png
 │   │   ├── the problem 4.png
 │   │   ├── the problem 5.png
 │   │   ├── the problem 6.png
+│   │   ├── The Problem.png
 │   │   ├── the-solution-model.png
 │   │   ├── tl-photo-1.webp
 │   │   ├── tl-photo-2.webp
@@ -380,12 +376,23 @@
 │   │   ├── tl-photo-5.webp
 │   │   ├── tl-strip-yellow.webp
 │   │   ├── vid thumbnail.png
+│   │   ├── Website Strip - Child copy red.png
+│   │   ├── Website Strip - Child Red.png
+│   │   ├── Website Strip - Child.jpg
+│   │   ├── Website Strip - TL 2.jpg
+│   │   ├── Website Strip - TL_edited.png
+│   │   ├── Website Strip - TL.png
+│   │   ├── Website Strip Community jobs 2 (sml).png
+│   │   ├── youth_jobs_thumbnail.png
+│   │   ├── Youth_Video_Strip.mp4
 │   │   ├── youth-1.webp
 │   │   ├── youth-2.webp
 │   │   ├── youth-3.webp
 │   │   ├── youth-4.webp
 │   │   ├── youth-5.webp
-│   │   └── youth_jobs_thumbnail.png
+│   │   ├── Zama Zulu.png
+│   │   ├── Zazi Video Strip.mp4
+│   │   └── ZZ Background 3.mp4
 │   ├── js
 │   │   ├── bootstrap.bundle.min.js
 │   │   ├── lightbox-plus-jquery.min.js
@@ -430,10 +437,12 @@
 │   ├── account
 │   │   └── login.html
 │   ├── dashboards
+│   │   ├── assessment_dashboard.html
 │   │   ├── dashboard_main.html
 │   │   ├── literacy_management_dashboard.html
 │   │   ├── mentor_dashboard.html
 │   │   ├── mentor_visits.html
+│   │   ├── student_detail.html
 │   │   └── youth_dashboard.html
 │   ├── pages
 │   │   ├── about.html
@@ -462,6 +471,8 @@
 ├── consolidated_visits.csv
 ├── db.sqlite3
 ├── manage.py
+├── masi_schools_may19.csv
+├── masi_schools_may20.csv
 ├── mentor_visits.csv
 ├── moonlit-botany-454016-b5-e20993bb54e0.json
 ├── package-lock.json
@@ -472,4 +483,4 @@
 ├── transfer_schools.py
 └── tree-output.txt
 
-69 directories, 404 files
+69 directories, 415 files

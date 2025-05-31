@@ -1,0 +1,260 @@
+{# templates/dashboard/assessment_dashboard.html #}
+{% extends 'base.html' %}
+
+{% block title %}Assessment Dashboard{% endblock %}
+
+{% block extra_css %}
+<style>
+    .stats-card {
+        background: white;
+        border-radius: 8px;
+        padding: 1.5rem;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        text-align: center;
+        margin-bottom: 1rem;
+    }
+    
+    .stats-card h3 {
+        margin: 0;
+        font-size: 2rem;
+        font-weight: bold;
+        color: #2E86AB;
+    }
+    
+    .stats-card p {
+        margin: 0.5rem 0 0 0;
+        color: #666;
+    }
+    
+    .chart-container {
+        background: white;
+        border-radius: 8px;
+        padding: 1rem;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        margin-bottom: 2rem;
+    }
+    
+    .filter-section {
+        background: #f8f9fa;
+        padding: 1rem;
+        border-radius: 8px;
+        margin-bottom: 2rem;
+    }
+    
+    .improvement-positive {
+        color: #28a745;
+    }
+    
+    .improvement-negative {
+        color: #dc3545;
+    }
+    
+    .btn-filter {
+        margin-right: 0.5rem;
+        margin-bottom: 0.5rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row">
+        <div class="col-12">
+            <h1 class="mb-4">Student Assessment Dashboard</h1>
+            
+            <!-- Filter Section -->
+            <div class="filter-section">
+                <h5>Filters</h5>
+                <form method="get" id="filterForm">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <label for="year">Year:</label>
+                            <select class="form-control" name="year" id="year">
+                                <option value="">All Years</option>
+                                {% for year in available_years %}
+                                    <option value="{{ year }}" {% if year == selected_year %}selected{% endif %}>{{ year }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="school">School:</label>
+                            <select class="form-control" name="school" id="school">
+                                <option value="">All Schools</option>
+                                {% for school in available_schools %}
+                                    <option value="{{ school }}" {% if school == selected_school %}selected{% endif %}>{{ school }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label for="grade">Grade:</label>
+                            <select class="form-control" name="grade" id="grade">
+                                <option value="">All Grades</option>
+                                {% for grade in available_grades %}
+                                    <option value="{{ grade }}" {% if grade == selected_grade %}selected{% endif %}>{{ grade }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label>&nbsp;</label>
+                            <button type="submit" class="btn btn-primary form-control">Apply Filters</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            
+            <!-- Summary Statistics -->
+            <div class="row mb-4">
+                <div class="col-md-2">
+                    <div class="stats-card">
+                        <h3>{{ stats.total_students }}</h3>
+                        <p>Total Students</p>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <div class="stats-card">
+                        <h3>{{ stats.schools_count }}</h3>
+                        <p>Schools</p>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <div class="stats-card">
+                        <h3>{{ stats.jan_average }}</h3>
+                        <p>Jan Average</p>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <div class="stats-card">
+                        <h3>{{ stats.nov_average }}</h3>
+                        <p>Nov Average</p>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <div class="stats-card">
+                        <h3 class="{% if stats.avg_improvement >= 0 %}improvement-positive{% else %}improvement-negative{% endif %}">
+                            {% if stats.avg_improvement >= 0 %}+{% endif %}{{ stats.avg_improvement }}
+                        </h3>
+                        <p>Avg Improvement</p>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <div class="stats-card">
+                        <h3 class="improvement-positive">{{ stats.improvement_rate }}%</h3>
+                        <p>Students Improved</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Progress Over Time Chart -->
+            <div class="chart-container">
+                <h4>Average Progress Over Academic Year</h4>
+                <div id="progressChart">
+                    {{ progress_chart|safe }}
+                </div>
+            </div>
+            
+            <!-- School Comparison Chart -->
+            <div class="chart-container">
+                <h4>School Performance Comparison</h4>
+                <div id="schoolChart">
+                    {{ school_comparison_chart|safe }}
+                </div>
+            </div>
+            
+            <!-- Skill Breakdown and Grade Performance -->
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="chart-container">
+                        <h4>Skill Performance Breakdown</h4>
+                        <div class="mb-3">
+                            <button class="btn btn-sm btn-outline-primary btn-filter" onclick="updateSkillChart('jan')">January</button>
+                            <button class="btn btn-sm btn-outline-primary btn-filter" onclick="updateSkillChart('june')">June</button>
+                            <button class="btn btn-sm btn-primary btn-filter" onclick="updateSkillChart('nov')">November</button>
+                        </div>
+                        <div id="skillChart">
+                            {{ skill_breakdown_chart|safe }}
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="chart-container">
+                        <h4>Grade Performance Distribution</h4>
+                        <div id="gradeChart">
+                            {{ grade_performance_chart|safe }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Student Search -->
+            <div class="chart-container">
+                <h4>Student Search</h4>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="studentSearch" placeholder="Enter Mcode to view individual student progress...">
+                            <div class="input-group-append">
+                                <button class="btn btn-primary" type="button" onclick="searchStudent()">Search</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Auto-submit form when filters change
+    document.getElementById('year').addEventListener('change', function() {
+        document.getElementById('filterForm').submit();
+    });
+    
+    document.getElementById('school').addEventListener('change', function() {
+        document.getElementById('filterForm').submit();
+    });
+    
+    document.getElementById('grade').addEventListener('change', function() {
+        document.getElementById('filterForm').submit();
+    });
+    
+    // Function to update skill chart
+    function updateSkillChart(period) {
+        const currentUrl = new URL(window.location);
+        const params = new URLSearchParams(currentUrl.search);
+        params.set('period', period);
+        
+        fetch(`/dashboard/assessment-data/?chart_type=skills&${params.toString()}`)
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('skillChart').innerHTML = data.chart_html;
+                
+                // Update button states
+                document.querySelectorAll('.btn-filter').forEach(btn => {
+                    btn.classList.remove('btn-primary');
+                    btn.classList.add('btn-outline-primary');
+                });
+                event.target.classList.remove('btn-outline-primary');
+                event.target.classList.add('btn-primary');
+            })
+            .catch(error => console.error('Error:', error));
+    }
+    
+    // Function to search for individual student
+    function searchStudent() {
+        const mcode = document.getElementById('studentSearch').value.trim();
+        if (mcode) {
+            window.location.href = `/dashboard/student/${mcode}/`;
+        }
+    }
+    
+    // Allow Enter key for student search
+    document.getElementById('studentSearch').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            searchStudent();
+        }
+    });
+</script>
+{% endblock %}

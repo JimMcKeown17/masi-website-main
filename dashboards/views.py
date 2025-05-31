@@ -13,8 +13,7 @@ from zoneinfo import ZoneInfo
 from django.http import JsonResponse
 
 # Models & Forms - Update these imports
-from api.models import MentorVisit, School, YeboVisit, ThousandStoriesVisit  # Changed from .models to api.models
-from .forms import MentorVisitForm, YeboVisitForm, ThousandStoriesVisitForm
+from api.models import MentorVisit, School, YeboVisit, ThousandStoriesVisit, WELA_assessments
 
 # Airtable Services
 from .services.airtable_service import fetch_youth_airtable_records
@@ -57,6 +56,8 @@ from .visualizations.youth_charts import (
     generate_employment_duration_chart,
     generate_site_placement_table
 )
+
+from dashboards.visualizations.assessment_charts import AssessmentCharts
 
 def dashboard_main(request):
     """
@@ -751,3 +752,157 @@ def debug_check(request):
         debug_info.append(f"Database error: {str(e)}")
     
     return HttpResponse("<br>".join(debug_info), content_type="text/plain")
+
+@login_required
+def assessment_dashboard(request):
+    """Main assessment dashboard view"""
+    
+    # Get filter parameters
+    year = request.GET.get('year')
+    school = request.GET.get('school')
+    grade = request.GET.get('grade')
+    
+    # Convert year to int if provided
+    if year:
+        try:
+            year = int(year)
+        except ValueError:
+            year = None
+    
+    # Get summary statistics
+    stats = AssessmentCharts.get_summary_stats(year=year)
+    
+    # Get available filter options
+    available_years = WELA_assessments.objects.values_list('assessment_year', flat=True).distinct().order_by('-assessment_year')
+    available_schools = WELA_assessments.objects.values_list('school', flat=True).distinct().order_by('school')
+    available_grades = WELA_assessments.objects.values_list('grade', flat=True).distinct().order_by('grade')
+    
+    # Generate charts
+    progress_chart = AssessmentCharts.get_progress_over_time_chart(year=year, school=school, grade=grade)
+    school_comparison_chart = AssessmentCharts.get_school_comparison_chart(year=year)
+    skill_breakdown_chart = AssessmentCharts.get_skill_breakdown_chart(year=year, period='nov')
+    grade_performance_chart = AssessmentCharts.get_grade_performance_chart(year=year)
+    
+    context = {
+        'stats': stats,
+        'progress_chart': progress_chart,
+        'school_comparison_chart': school_comparison_chart,
+        'skill_breakdown_chart': skill_breakdown_chart,
+        'grade_performance_chart': grade_performance_chart,
+        'available_years': available_years,
+        'available_schools': available_schools,
+        'available_grades': available_grades,
+        'selected_year': year,
+        'selected_school': school,
+        'selected_grade': grade,
+    }
+    
+    return render(request, 'dashboards/assessment_dashboard.html', context)
+
+@login_required
+def assessment_data_api(request):
+    """API endpoint for dynamic chart updates"""
+    
+    year = request.GET.get('year')
+    school = request.GET.get('school')
+    grade = request.GET.get('grade')
+    chart_type = request.GET.get('chart_type')
+    
+    if year:
+        try:
+            year = int(year)
+        except ValueError:
+            year = None
+    
+    if chart_type == 'progress':
+        chart_html = AssessmentCharts.get_progress_over_time_chart(year=year, school=school, grade=grade)
+    elif chart_type == 'schools':
+        chart_html = AssessmentCharts.get_school_comparison_chart(year=year)
+    elif chart_type == 'skills':
+        period = request.GET.get('period', 'nov')
+        chart_html = AssessmentCharts.get_skill_breakdown_chart(year=year, period=period)
+    elif chart_type == 'grades':
+        chart_html = AssessmentCharts.get_grade_performance_chart(year=year)
+    else:
+        return JsonResponse({'error': 'Invalid chart type'}, status=400)
+    
+    return JsonResponse({'chart_html': chart_html})
+
+@login_required
+def student_detail_view(request, mcode):
+    """Detailed view for individual student progress"""
+    
+    try:
+        # Get all assessment records for this student
+        student_assessments = WELA_assessments.objects.filter(mcode=mcode).order_by('assessment_year')
+        
+        if not student_assessments.exists():
+            return render(request, 'dashboards/student_not_found.html', {'mcode': mcode})
+        
+        # Get the latest record for basic info
+        latest_assessment = student_assessments.last()
+        
+        # Prepare data for individual student progress chart
+        years = []
+        jan_scores = []
+        june_scores = []
+        nov_scores = []
+        
+        for assessment in student_assessments:
+            years.append(assessment.assessment_year)
+            jan_scores.append(assessment.jan_total or 0)
+            june_scores.append(assessment.june_total or 0)
+            nov_scores.append(assessment.nov_total or 0)
+        
+        # Create individual progress chart
+        import plotly.graph_objects as go
+        
+        fig = go.Figure()
+        
+        fig.add_trace(go.Scatter(
+            x=years,
+            y=jan_scores,
+            mode='lines+markers',
+            name='January',
+            line=dict(color='#F18F01', width=2),
+            marker=dict(size=8)
+        ))
+        
+        fig.add_trace(go.Scatter(
+            x=years,
+            y=june_scores,
+            mode='lines+markers',
+            name='June',
+            line=dict(color='#C73E1D', width=2),
+            marker=dict(size=8)
+        ))
+        
+        fig.add_trace(go.Scatter(
+            x=years,
+            y=nov_scores,
+            mode='lines+markers',
+            name='November',
+            line=dict(color='#2E86AB', width=2),
+            marker=dict(size=8)
+        ))
+        
+        fig.update_layout(
+            title=f'Individual Progress: {latest_assessment.full_name}',
+            xaxis_title='Year',
+            yaxis_title='Total Score',
+            template='plotly_white',
+            height=400
+        )
+        
+        individual_chart = fig.to_html(include_plotlyjs=True)
+        
+        context = {
+            'student': latest_assessment,
+            'assessments': student_assessments,
+            'individual_chart': individual_chart,
+        }
+        
+        return render(request, 'dashboards/student_detail.html', context)
+        
+    except Exception as e:
+        return render(request, 'dashboards/error.html', {'error': str(e)})
