@@ -1,5 +1,5 @@
 from django import forms
-from api.models import MentorVisit, YeboVisit, ThousandStoriesVisit
+from api.models import MentorVisit, School, YeboVisit, ThousandStoriesVisit, WELA_assessments
 
 class MentorVisitForm(forms.ModelForm):
     class Meta:
