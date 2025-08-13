@@ -288,6 +288,41 @@ class ThousandStoriesVisit(models.Model):
         verbose_name_plural = "1000 Stories Visits"
 
 
+class NumeracyVisit(models.Model):
+    """Model representing a mentor's Numeracy program visit to a school"""
+    mentor = models.ForeignKey(User, on_delete=models.CASCADE, related_name='numeracy_visits')
+    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name='numeracy_visits')
+    visit_date = models.DateField(default=timezone.now)
+    
+    # Numeracy-specific observations
+    numeracy_tracker_correct = models.BooleanField(default=False, verbose_name="Using Numeracy Tracker Correctly")
+    teaching_counting = models.BooleanField(default=False, verbose_name="Teaching Counting")
+    teaching_number_concepts = models.BooleanField(default=False, verbose_name="Teaching Number Concepts")
+    teaching_patterns = models.BooleanField(default=False, verbose_name="Teaching Patterns")
+    teaching_addition_subtraction = models.BooleanField(default=False, verbose_name="Teaching Addition/Subtraction")
+    
+    # Quality rating
+    RATING_CHOICES = [(i, str(i)) for i in range(1, 11)]
+    quality_rating = models.IntegerField(choices=RATING_CHOICES, default=5, 
+                                        verbose_name="Quality of Sessions Observed")
+    
+    # Text fields
+    supplies_needed = models.TextField(blank=True, null=True, verbose_name="Any Supplies Needed")
+    commentary = models.TextField(blank=True, null=True, verbose_name="Commentary")
+    
+    # Metadata
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    def __str__(self):
+        return f"{self.mentor.username} visited {self.school.name} (Numeracy) on {self.visit_date}"
+    
+    class Meta:
+        ordering = ['-visit_date']
+        verbose_name = "Numeracy Visit"
+        verbose_name_plural = "Numeracy Visits"
+
+
 class Session(models.Model):
     """Model representing a teaching session between a youth and a child"""
     # Identification

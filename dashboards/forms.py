@@ -1,5 +1,5 @@
 from django import forms
-from api.models import MentorVisit, School, YeboVisit, ThousandStoriesVisit, WELA_assessments
+from api.models import MentorVisit, School, YeboVisit, ThousandStoriesVisit, NumeracyVisit, WELA_assessments
 
 class MentorVisitForm(forms.ModelForm):
     class Meta:
@@ -157,4 +157,69 @@ class ThousandStoriesVisitForm(forms.ModelForm):
             'daily_target_met': 'Daily target of stories read is met?',
             'story_time_quality': 'Quality of Story time session',
             'other_comments': 'Other comments',
+        }
+
+class NumeracyVisitForm(forms.ModelForm):
+    class Meta:
+        model = NumeracyVisit
+        fields = ['visit_date', 'school', 'numeracy_tracker_correct', 'teaching_counting', 
+                  'teaching_number_concepts', 'teaching_patterns', 'teaching_addition_subtraction',
+                  'quality_rating', 'supplies_needed', 'commentary']
+        widgets = {
+            'visit_date': forms.DateInput(attrs={
+                'type': 'date',
+                'class': 'form-control',
+                'required': True,
+            }),
+            'school': forms.Select(attrs={
+                'class': 'form-select',
+                'required': True,
+            }),
+            'numeracy_tracker_correct': forms.CheckboxInput(attrs={
+                'class': 'form-check-input',
+            }),
+            'teaching_counting': forms.CheckboxInput(attrs={
+                'class': 'form-check-input',
+            }),
+            'teaching_number_concepts': forms.CheckboxInput(attrs={
+                'class': 'form-check-input',
+            }),
+            'teaching_patterns': forms.CheckboxInput(attrs={
+                'class': 'form-check-input',
+            }),
+            'teaching_addition_subtraction': forms.CheckboxInput(attrs={
+                'class': 'form-check-input',
+            }),
+            'quality_rating': forms.NumberInput(attrs={
+                'type': 'range',
+                'class': 'form-range',
+                'min': '1',
+                'max': '10',
+                'step': '1',
+                'value': '5',
+            }),
+            'supplies_needed': forms.Textarea(attrs={
+                'class': 'form-control',
+                'rows': '4',
+                'placeholder': 'List any supplies that are needed at this school',
+                'maxlength': '500',
+            }),
+            'commentary': forms.Textarea(attrs={
+                'class': 'form-control',
+                'rows': '5',
+                'placeholder': 'Add any additional comments or observations',
+                'maxlength': '1000',
+            }),
+        }
+        labels = {
+            'visit_date': 'Visit Date',
+            'school': 'School Visited',
+            'numeracy_tracker_correct': 'Using Numeracy Tracker Correctly',
+            'teaching_counting': 'Teaching Counting',
+            'teaching_number_concepts': 'Teaching Number Concepts',
+            'teaching_patterns': 'Teaching Patterns',
+            'teaching_addition_subtraction': 'Teaching Addition/Subtraction',
+            'quality_rating': 'Quality Rating',
+            'supplies_needed': 'Supplies Needed',
+            'commentary': 'Commentary',
         }
