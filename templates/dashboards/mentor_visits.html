@@ -201,6 +201,7 @@
                                     <option value="masi_literacy" {% if form_type == 'masi_literacy' %}selected{% endif %}>Masi Literacy</option>
                                     <option value="yebo" {% if form_type == 'yebo' %}selected{% endif %}>Yebo</option>
                                     <option value="1000_stories" {% if form_type == '1000_stories' %}selected{% endif %}>1000 Stories</option>
+                                    <option value="numeracy" {% if form_type == 'numeracy' %}selected{% endif %}>Numeracy</option>
                                 </select>
                             </div>
                         </div>
@@ -373,10 +374,77 @@
                                 <span>Excellent</span>
                             </div>
                             <div id="rating-value" class="rating-value text-center mt-2">5</div>
-                        </div>
-                        {% endif %}
-                        
-                        <div class="mb-4">
+                                </div>
+        {% endif %}
+        
+        <!-- Numeracy Form Fields -->
+        {% if form_type == 'numeracy' %}
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="form-check mb-3">
+                    {{ form.numeracy_tracker_correct }}
+                    <label class="form-check-label" for="{{ form.numeracy_tracker_correct.id_for_label }}">
+                        Using Numeracy Tracker Correctly
+                    </label>
+                </div>
+                
+                <div class="form-check mb-3">
+                    {{ form.teaching_counting }}
+                    <label class="form-check-label" for="{{ form.teaching_counting.id_for_label }}">
+                        Teaching Counting
+                    </label>
+                </div>
+                
+                <div class="form-check mb-3">
+                    {{ form.teaching_number_concepts }}
+                    <label class="form-check-label" for="{{ form.teaching_number_concepts.id_for_label }}">
+                        Teaching Number Concepts
+                    </label>
+                </div>
+            </div>
+            
+            <div class="col-md-6">
+                <div class="form-check mb-3">
+                    {{ form.teaching_patterns }}
+                    <label class="form-check-label" for="{{ form.teaching_patterns.id_for_label }}">
+                        Teaching Patterns
+                    </label>
+                </div>
+                
+                <div class="form-check mb-3">
+                    {{ form.teaching_addition_subtraction }}
+                    <label class="form-check-label" for="{{ form.teaching_addition_subtraction.id_for_label }}">
+                        Teaching Addition/Subtraction
+                    </label>
+                </div>
+            </div>
+        </div>
+        
+        <div class="rating-container mb-4">
+            <label for="{{ form.quality_rating.id_for_label }}" class="form-label">
+                <i class="fas fa-star me-2"></i>Quality Rating
+            </label>
+            {{ form.quality_rating }}
+            <div class="rating-labels">
+                <span>Poor</span>
+                <span>Average</span>
+                <span>Excellent</span>
+            </div>
+            <div id="rating-value" class="rating-value text-center mt-2">5</div>
+        </div>
+        
+        <div class="mb-4">
+            <label for="{{ form.supplies_needed.id_for_label }}" class="form-label">
+                <i class="fas fa-box-open me-2"></i>Supplies Needed
+            </label>
+            <div class="form-floating">
+                {{ form.supplies_needed }}
+                <div id="supplies-counter" class="textarea-counter">0/500 characters</div>
+            </div>
+        </div>
+        {% endif %}
+        
+        <div class="mb-4">
                             {% if form_type == '1000_stories' %}
                             <label for="{{ form.other_comments.id_for_label }}" class="form-label">
                                 <i class="fas fa-comment-alt me-2"></i>Other Comments

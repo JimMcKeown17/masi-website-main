@@ -2,17 +2,18 @@ import json
 from datetime import datetime, timedelta
 from django.db.models import Count, Avg, Sum, Case, When, IntegerField, F, OuterRef, Subquery
 from django.db.models.functions import TruncMonth, TruncWeek
-from api.models import MentorVisit, YeboVisit, ThousandStoriesVisit, School
+from api.models import MentorVisit, YeboVisit, ThousandStoriesVisit, NumeracyVisit, School
 import json
 
-def generate_combined_visit_frequency_chart(mentor_visits, yebo_visits, thousand_stories_visits, time_period='week'):
+def generate_combined_visit_frequency_chart(mentor_visits, yebo_visits, thousand_stories_visits, numeracy_visits, time_period='week'):
     """
-    Generate chart data for combined visit frequency over time from all three visit types
+    Generate chart data for combined visit frequency over time from all four visit types
     
     Args:
         mentor_visits: QuerySet of MentorVisit objects
         yebo_visits: QuerySet of YeboVisit objects  
         thousand_stories_visits: QuerySet of ThousandStoriesVisit objects
+        numeracy_visits: QuerySet of NumeracyVisit objects
         time_period: 'week' or 'month'
     
     Returns:
@@ -26,11 +27,13 @@ def generate_combined_visit_frequency_chart(mentor_visits, yebo_visits, thousand
         mentor_by_time = mentor_visits.annotate(period=TruncWeek('visit_date')).values('period').annotate(count=Count('id')).order_by('period')
         yebo_by_time = yebo_visits.annotate(period=TruncWeek('visit_date')).values('period').annotate(count=Count('id')).order_by('period')
         stories_by_time = thousand_stories_visits.annotate(period=TruncWeek('visit_date')).values('period').annotate(count=Count('id')).order_by('period')
+        numeracy_by_time = numeracy_visits.annotate(period=TruncWeek('visit_date')).values('period').annotate(count=Count('id')).order_by('period')
         date_format = '%b %d'
     else:
         mentor_by_time = mentor_visits.annotate(period=TruncMonth('visit_date')).values('period').annotate(count=Count('id')).order_by('period')
         yebo_by_time = yebo_visits.annotate(period=TruncMonth('visit_date')).values('period').annotate(count=Count('id')).order_by('period')
         stories_by_time = thousand_stories_visits.annotate(period=TruncMonth('visit_date')).values('period').annotate(count=Count('id')).order_by('period')
+        numeracy_by_time = numeracy_visits.annotate(period=TruncMonth('visit_date')).values('period').annotate(count=Count('id')).order_by('period')
         date_format = '%b %Y'
     
     # Collect all periods
@@ -40,6 +43,8 @@ def generate_combined_visit_frequency_chart(mentor_visits, yebo_visits, thousand
         all_periods.add(item['period'])
     for item in stories_by_time:
         all_periods.add(item['period'])
+    for item in numeracy_by_time:
+        all_periods.add(item['period'])
     
     # Sort periods
     sorted_periods = sorted(all_periods)
@@ -48,12 +53,14 @@ def generate_combined_visit_frequency_chart(mentor_visits, yebo_visits, thousand
     mentor_data = {item['period']: item['count'] for item in mentor_by_time}
     yebo_data = {item['period']: item['count'] for item in yebo_by_time}
     stories_data = {item['period']: item['count'] for item in stories_by_time}
+    numeracy_data = {item['period']: item['count'] for item in numeracy_by_time}
     
     # Build chart data
     labels = [period.strftime(date_format) for period in sorted_periods]
     mentor_values = [mentor_data.get(period, 0) for period in sorted_periods]
     yebo_values = [yebo_data.get(period, 0) for period in sorted_periods]
     stories_values = [stories_data.get(period, 0) for period in sorted_periods]
+    numeracy_values = [numeracy_data.get(period, 0) for period in sorted_periods]
     
     chart_data = {
         'labels': labels,
@@ -77,6 +84,13 @@ def generate_combined_visit_frequency_chart(mentor_visits, yebo_visits, thousand
                 'data': stories_values,
                 'backgroundColor': 'rgba(75, 192, 192, 0.5)',
                 'borderColor': 'rgba(75, 192, 192, 1)',
+                'borderWidth': 1
+            },
+            {
+                'label': 'Numeracy Visits',
+                'data': numeracy_values,
+                'backgroundColor': 'rgba(153, 102, 255, 0.5)',
+                'borderColor': 'rgba(153, 102, 255, 1)',
                 'borderWidth': 1
             }
         ]
@@ -127,7 +141,7 @@ def generate_visit_frequency_chart(visits, time_period='week'):
     
     return json.dumps(chart_data)
 
-def generate_combined_quality_rating_chart(mentor_visits, yebo_visits, thousand_stories_visits):
+def generate_combined_quality_rating_chart(mentor_visits, yebo_visits, thousand_stories_visits, numeracy_visits):
     """
     Generate chart data for quality ratings distribution from all visit types
     
@@ -135,6 +149,7 @@ def generate_combined_quality_rating_chart(mentor_visits, yebo_visits, thousand_
         mentor_visits: QuerySet of MentorVisit objects
         yebo_visits: QuerySet of YeboVisit objects
         thousand_stories_visits: QuerySet of ThousandStoriesVisit objects
+        numeracy_visits: QuerySet of NumeracyVisit objects
     
     Returns:
         JSON-serialized chart data
@@ -146,22 +161,29 @@ def generate_combined_quality_rating_chart(mentor_visits, yebo_visits, thousand_
     literacy_ratings = mentor_visits.values('quality_rating').annotate(count=Count('id')).order_by('quality_rating')
     for item in literacy_ratings:
         rating = item['quality_rating']
-        all_ratings[rating] = all_ratings.get(rating, {'literacy': 0, 'yebo': 0, 'stories': 0})
+        all_ratings[rating] = all_ratings.get(rating, {'literacy': 0, 'yebo': 0, 'stories': 0, 'numeracy': 0})
         all_ratings[rating]['literacy'] = item['count']
     
     # Count Yebo visits by afternoon session quality
     yebo_ratings = yebo_visits.values('afternoon_session_quality').annotate(count=Count('id')).order_by('afternoon_session_quality')
     for item in yebo_ratings:
         rating = item['afternoon_session_quality']
-        all_ratings[rating] = all_ratings.get(rating, {'literacy': 0, 'yebo': 0, 'stories': 0})
+        all_ratings[rating] = all_ratings.get(rating, {'literacy': 0, 'yebo': 0, 'stories': 0, 'numeracy': 0})
         all_ratings[rating]['yebo'] = item['count']
     
     # Count 1000 Stories visits by story time quality
     stories_ratings = thousand_stories_visits.values('story_time_quality').annotate(count=Count('id')).order_by('story_time_quality')
     for item in stories_ratings:
         rating = item['story_time_quality']
-        all_ratings[rating] = all_ratings.get(rating, {'literacy': 0, 'yebo': 0, 'stories': 0})
+        all_ratings[rating] = all_ratings.get(rating, {'literacy': 0, 'yebo': 0, 'stories': 0, 'numeracy': 0})
         all_ratings[rating]['stories'] = item['count']
+    
+    # Count Numeracy visits by quality rating
+    numeracy_ratings = numeracy_visits.values('quality_rating').annotate(count=Count('id')).order_by('quality_rating')
+    for item in numeracy_ratings:
+        rating = item['quality_rating']
+        all_ratings[rating] = all_ratings.get(rating, {'literacy': 0, 'yebo': 0, 'stories': 0, 'numeracy': 0})
+        all_ratings[rating]['numeracy'] = item['count']
     
     # Sort ratings
     sorted_ratings = sorted(all_ratings.keys())
@@ -171,6 +193,7 @@ def generate_combined_quality_rating_chart(mentor_visits, yebo_visits, thousand_
     literacy_values = [all_ratings[rating]['literacy'] for rating in sorted_ratings]
     yebo_values = [all_ratings[rating]['yebo'] for rating in sorted_ratings]
     stories_values = [all_ratings[rating]['stories'] for rating in sorted_ratings]
+    numeracy_values = [all_ratings[rating]['numeracy'] for rating in sorted_ratings]
     
     chart_data = {
         'labels': labels,
@@ -194,6 +217,13 @@ def generate_combined_quality_rating_chart(mentor_visits, yebo_visits, thousand_
                 'data': stories_values,
                 'backgroundColor': 'rgba(75, 192, 192, 0.7)',
                 'borderColor': 'rgba(75, 192, 192, 1)',
+                'borderWidth': 1
+            },
+            {
+                'label': 'Numeracy',
+                'data': numeracy_values,
+                'backgroundColor': 'rgba(153, 102, 255, 0.7)',
+                'borderColor': 'rgba(153, 102, 255, 1)',
                 'borderWidth': 1
             }
         ]
@@ -290,7 +320,7 @@ def generate_tracker_accuracy_chart(visits):
     """Legacy function name - calls generate_letter_tracker_accuracy_chart"""
     return generate_letter_tracker_accuracy_chart(visits)
 
-def generate_combined_school_visit_map(mentor_visits, yebo_visits, thousand_stories_visits):
+def generate_combined_school_visit_map(mentor_visits, yebo_visits, thousand_stories_visits, numeracy_visits):
     """
     Generate map data for school visit distribution from all visit types
     
@@ -324,7 +354,9 @@ def generate_combined_school_visit_map(mentor_visits, yebo_visits, thousand_stor
             'yebo_visits': 0,
             'yebo_avg_quality': 0,
             'stories_visits': 0,
-            'stories_avg_quality': 0
+            'stories_avg_quality': 0,
+            'numeracy_visits': 0,
+            'numeracy_avg_quality': 0
         }
     
     # Process Yebo visits
@@ -347,7 +379,9 @@ def generate_combined_school_visit_map(mentor_visits, yebo_visits, thousand_stor
                 'yebo_visits': 0,
                 'yebo_avg_quality': 0,
                 'stories_visits': 0,
-                'stories_avg_quality': 0
+                'stories_avg_quality': 0,
+                'numeracy_visits': 0,
+                'numeracy_avg_quality': 0
             }
         schools_data[school_id]['yebo_visits'] = school['visit_count']
         schools_data[school_id]['yebo_avg_quality'] = round(school['avg_quality'], 1) if school['avg_quality'] else 0
@@ -372,10 +406,39 @@ def generate_combined_school_visit_map(mentor_visits, yebo_visits, thousand_stor
                 'yebo_visits': 0,
                 'yebo_avg_quality': 0,
                 'stories_visits': 0,
-                'stories_avg_quality': 0
+                'stories_avg_quality': 0,
+                'numeracy_visits': 0,
+                'numeracy_avg_quality': 0
             }
         schools_data[school_id]['stories_visits'] = school['visit_count']
         schools_data[school_id]['stories_avg_quality'] = round(school['avg_quality'], 1) if school['avg_quality'] else 0
+    
+    # Process Numeracy visits
+    numeracy_schools = School.objects.filter(numeracy_visits__in=numeracy_visits).annotate(
+        visit_count=Count('numeracy_visits'),
+        avg_quality=Avg('numeracy_visits__quality_rating')
+    ).values('id', 'name', 'latitude', 'longitude', 'type', 'visit_count', 'avg_quality')
+    
+    for school in numeracy_schools:
+        school_id = school['id']
+        if school_id not in schools_data:
+            schools_data[school_id] = {
+                'id': school_id,
+                'name': school['name'],
+                'type': school['type'] or 'Unknown',
+                'latitude': float(school['latitude']) if school['latitude'] else None,
+                'longitude': float(school['longitude']) if school['longitude'] else None,
+                'literacy_visits': 0,
+                'literacy_avg_quality': 0,
+                'yebo_visits': 0,
+                'yebo_avg_quality': 0,
+                'stories_visits': 0,
+                'stories_avg_quality': 0,
+                'numeracy_visits': 0,
+                'numeracy_avg_quality': 0
+            }
+        schools_data[school_id]['numeracy_visits'] = school['visit_count']
+        schools_data[school_id]['numeracy_avg_quality'] = round(school['avg_quality'], 1) if school['avg_quality'] else 0
     
     # Format for map display
     map_data = []
@@ -523,7 +586,7 @@ def generate_thousand_stories_school_visit_map(thousand_stories_visits):
     
     return json.dumps(map_data)
 
-def generate_combined_dashboard_summary(mentor_visits, yebo_visits, thousand_stories_visits):
+def generate_combined_dashboard_summary(mentor_visits, yebo_visits, thousand_stories_visits, numeracy_visits):
     """
     Generate combined dashboard summary statistics from all three visit types
     
@@ -543,21 +606,24 @@ def generate_combined_dashboard_summary(mentor_visits, yebo_visits, thousand_sto
     literacy_total = mentor_visits.count()
     yebo_total = yebo_visits.count()
     stories_total = thousand_stories_visits.count()
+    numeracy_total = numeracy_visits.count()
     
     # Recent visit counts (last 30 days)
     literacy_recent = mentor_visits.filter(visit_date__gte=thirty_days_ago).count()
     yebo_recent = yebo_visits.filter(visit_date__gte=thirty_days_ago).count()
     stories_recent = thousand_stories_visits.filter(visit_date__gte=thirty_days_ago).count()
+    numeracy_recent = numeracy_visits.filter(visit_date__gte=thirty_days_ago).count()
     
     # Combined totals
-    total_visits = literacy_total + yebo_total + stories_total
-    total_recent = literacy_recent + yebo_recent + stories_recent
+    total_visits = literacy_total + yebo_total + stories_total + numeracy_total
+    total_recent = literacy_recent + yebo_recent + stories_recent + numeracy_recent
     
     # Combined schools visited
     literacy_schools = set(mentor_visits.values_list('school_id', flat=True))
     yebo_schools = set(yebo_visits.values_list('school_id', flat=True))
     stories_schools = set(thousand_stories_visits.values_list('school_id', flat=True))
-    combined_schools = literacy_schools.union(yebo_schools).union(stories_schools)
+    numeracy_schools = set(numeracy_visits.values_list('school_id', flat=True))
+    combined_schools = literacy_schools.union(yebo_schools).union(stories_schools).union(numeracy_schools)
     
     # Calculate average quality ratings
     literacy_avg_quality = mentor_visits.aggregate(
@@ -572,11 +638,16 @@ def generate_combined_dashboard_summary(mentor_visits, yebo_visits, thousand_sto
         avg_quality=Avg('story_time_quality')
     )['avg_quality'] or 0
     
+    numeracy_avg_quality = numeracy_visits.aggregate(
+        avg_quality=Avg('quality_rating')
+    )['avg_quality'] or 0
+    
     # Calculate weighted average quality (weighted by number of visits)
     total_quality_points = (
         literacy_avg_quality * literacy_total +
         yebo_avg_quality * yebo_total +
-        stories_avg_quality * stories_total
+        stories_avg_quality * stories_total +
+        numeracy_avg_quality * numeracy_total
     )
     combined_avg_quality = total_quality_points / total_visits if total_visits > 0 else 0
     
@@ -591,6 +662,8 @@ def generate_combined_dashboard_summary(mentor_visits, yebo_visits, thousand_sto
         'yebo_recent_visits': yebo_recent,
         'stories_visits': stories_total,
         'stories_recent_visits': stories_recent,
+        'numeracy_visits': numeracy_total,
+        'numeracy_recent_visits': numeracy_recent,
     }
 
 def generate_dashboard_summary(visits):
@@ -625,124 +698,110 @@ def generate_dashboard_summary(visits):
 
 def generate_schools_last_visited(visits):
     """
-    Generate data for schools last visited component, including schools that have never been visited
-    
-    Args:
-        visits: QuerySet of MentorVisit objects
-    
-    Returns:
-        List of school visit data sorted by days since last visit (descending)
+    Generate data for schools last visited component
+    Shows schools and when they were last visited
     """
-    try:
-        from django.db.models import Max, F, OuterRef, Subquery
-        from django.utils import timezone
-        from api.models import School
-        import json
-        import logging
-        logger = logging.getLogger(__name__)
+    from datetime import datetime
+    from api.models import School
+    
+    schools_data = []
+    schools = School.objects.all()
+    
+    for school in schools:
+        last_visit = visits.filter(school=school).order_by('-visit_date').first()
         
-        # Log what we're doing
-        logger.error(f"Starting generate_schools_last_visited with {len(visits)} visits")
-        
-        today = timezone.now().date()
-        
-        # Let's check our database tables before proceeding
-        from django.db import connection
-        with connection.cursor() as cursor:
-            cursor.execute("SELECT COUNT(*) FROM api_school")
-            school_count = cursor.fetchone()[0]
-            logger.error(f"Found {school_count} schools in api_school table")
-            
-            # Also check if api_mentorvisit exists
-            try:
-                cursor.execute("SELECT COUNT(*) FROM api_mentorvisit")
-                mentorvisit_count = cursor.fetchone()[0]
-                logger.error(f"Found {mentorvisit_count} visits in api_mentorvisit table")
-            except Exception as e:
-                logger.error(f"Error checking api_mentorvisit table: {str(e)}")
-        
-        # Try to load a few schools directly to see what we get
-        try:
-            direct_schools = School.objects.all()[:3]
-            logger.error(f"Direct School query returned: {[s.name for s in direct_schools]}")
-        except Exception as e:
-            logger.error(f"Error in direct School query: {str(e)}")
-        
-        # FALLBACK APPROACH: Use raw SQL instead of ORM
-        # This bypasses any ORM/model issues
-        result = []
-        
-        with connection.cursor() as cursor:
-            # Get schools with their last visit
-            cursor.execute("""
-                SELECT 
-                    s.id, 
-                    s.name, 
-                    s.type,
-                    MAX(v.visit_date) as last_visit_date,
-                    CASE WHEN MAX(v.visit_date) IS NOT NULL THEN
-                        (SELECT u.first_name FROM auth_user u 
-                         JOIN api_mentorvisit mv ON u.id = mv.mentor_id
-                         WHERE mv.school_id = s.id 
-                         ORDER BY mv.visit_date DESC LIMIT 1)
-                    ELSE NULL END as mentor_first_name,
-                    CASE WHEN MAX(v.visit_date) IS NOT NULL THEN
-                        (SELECT u.last_name FROM auth_user u 
-                         JOIN api_mentorvisit mv ON u.id = mv.mentor_id
-                         WHERE mv.school_id = s.id
-                         ORDER BY mv.visit_date DESC LIMIT 1)
-                    ELSE NULL END as mentor_last_name
-                FROM 
-                    api_school s
-                LEFT JOIN 
-                    api_mentorvisit v ON s.id = v.school_id
-                GROUP BY 
-                    s.id, s.name, s.type
-                ORDER BY 
-                    last_visit_date DESC NULLS LAST
-            """)
-            
-            # Process the rows
-            schools_data = cursor.fetchall()
-            
-            for row in schools_data:
-                school_id, name, school_type, last_visit_date, mentor_first, mentor_last = row
-                
-                days_ago = 999 if last_visit_date is None else (today - last_visit_date).days
-                
-                # Format mentor name
-                mentor_name = "None"
-                if mentor_first and mentor_last:
-                    mentor_name = f"{mentor_first} {mentor_last}"
-                elif mentor_first:
-                    mentor_name = mentor_first
-                elif last_visit_date:
-                    mentor_name = "Unknown"
-                    
-                result.append({
-                    'school_id': school_id,
-                    'school_name': name,
-                    'school_type': school_type or 'Unknown',
-                    'last_visit_date': last_visit_date.strftime('%Y-%m-%d') if last_visit_date else 'Never',
-                    'days_ago': days_ago,
-                    'last_mentor': mentor_name
-                })
-        
-        # Sort by days_ago in descending order
-        result.sort(key=lambda x: x['days_ago'], reverse=True)
-        
-        return result
-        
-    except Exception as e:
-        # Log the error
-        import traceback
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.error(f"ERROR in generate_schools_last_visited: {str(e)}")
-        logger.error(traceback.format_exc())
-        
-        # Return an empty result to prevent the entire view from crashing
-        return []
+        if last_visit:
+            days_ago = (datetime.now().date() - last_visit.visit_date).days
+            schools_data.append({
+                'school_name': school.name,
+                'last_visit_date': last_visit.visit_date.strftime('%Y-%m-%d'),
+                'days_ago': days_ago,
+                'mentor_name': f"{last_visit.mentor.first_name} {last_visit.mentor.last_name}" if last_visit.mentor.first_name else last_visit.mentor.username
+            })
+        else:
+            schools_data.append({
+                'school_name': school.name,
+                'last_visit_date': 'Never',
+                'days_ago': 999,
+                'mentor_name': 'N/A'
+            })
+    
+    # Sort by days since last visit (most urgent first)
+    schools_data.sort(key=lambda x: x['days_ago'], reverse=True)
+    
+    return schools_data
+
+# Numeracy-specific chart functions (using existing generic functions)
+def generate_numeracy_quality_rating_chart(numeracy_visits):
+    """Generate quality rating chart for numeracy visits"""
+    return generate_quality_rating_chart(numeracy_visits)
+
+def generate_numeracy_school_visit_map(numeracy_visits):
+    """Generate school visit map for numeracy visits"""
+    # Get schools with numeracy visit counts
+    schools_data = []
+    
+    # Get schools that have numeracy visits
+    school_visits = School.objects.filter(numeracy_visits__in=numeracy_visits).annotate(
+        visit_count=Count('numeracy_visits'),
+        avg_quality=Avg('numeracy_visits__quality_rating')
+    ).values('id', 'name', 'latitude', 'longitude', 'type', 'visit_count', 'avg_quality')
+    
+    # Create map data
+    map_data = []
+    for school in school_visits:
+        if school['latitude'] and school['longitude']:
+            map_data.append({
+                'id': school['id'],
+                'name': school['name'],
+                'type': school['type'] or 'Unknown',
+                'latitude': float(school['latitude']),
+                'longitude': float(school['longitude']),
+                'visit_count': school['visit_count'],
+                'avg_quality': round(school['avg_quality'], 1) if school['avg_quality'] else 'N/A'
+            })
+    
+    return json.dumps(map_data)
+
+def generate_numeracy_tracker_accuracy_chart(numeracy_visits):
+    """Generate tracker accuracy chart for numeracy visits"""
+    # Calculate percentage of correct usage for numeracy-specific fields
+    total_visits = numeracy_visits.count()
+    if total_visits == 0:
+        return json.dumps({})
+    
+    metrics = {
+        'Numeracy Tracker': numeracy_visits.filter(numeracy_tracker_correct=True).count() / total_visits * 100,
+        'Teaching Counting': numeracy_visits.filter(teaching_counting=True).count() / total_visits * 100,
+        'Number Concepts': numeracy_visits.filter(teaching_number_concepts=True).count() / total_visits * 100,
+        'Teaching Patterns': numeracy_visits.filter(teaching_patterns=True).count() / total_visits * 100,
+        'Addition/Subtraction': numeracy_visits.filter(teaching_addition_subtraction=True).count() / total_visits * 100
+    }
+    
+    # Format for chart display
+    labels = list(metrics.keys())
+    values = list(metrics.values())
+    
+    # Prepare chart data for radar chart
+    chart_data = {
+        'labels': labels,
+        'datasets': [{
+            'label': 'Teaching Areas (%)',
+            'data': values,
+            'backgroundColor': 'rgba(153, 102, 255, 0.2)',
+            'borderColor': 'rgba(153, 102, 255, 1)',
+            'pointBackgroundColor': 'rgba(153, 102, 255, 1)',
+            'pointBorderColor': '#fff',
+            'pointHoverBackgroundColor': '#fff',
+            'pointHoverBorderColor': 'rgba(153, 102, 255, 1)'
+        }]
+    }
+    
+    return json.dumps(chart_data)
+
+def get_recent_numeracy_submissions(numeracy_visits, limit=50):
+    """Get recent numeracy visit submissions"""
+    return numeracy_visits.order_by('-created_at').select_related('mentor', 'school')[:limit]
 
 def get_recent_literacy_submissions(mentor_visits, limit=50):
     """

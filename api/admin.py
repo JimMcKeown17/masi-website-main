@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.utils.html import format_html
-from .models import School, Youth, Child, Mentor, MentorVisit, YeboVisit, ThousandStoriesVisit, Session, AirtableSyncLog
+from .models import School, Youth, Child, Mentor, MentorVisit, YeboVisit, ThousandStoriesVisit, NumeracyVisit, Session, AirtableSyncLog
 
 @admin.register(School)
 class SchoolAdmin(admin.ModelAdmin):
@@ -193,6 +193,68 @@ class ThousandStoriesVisitAdmin(admin.ModelAdmin):
         else:
             return format_html('<span style="color: red;">✗ Needs attention</span>')
     library_status.short_description = 'Library Status'
+
+@admin.register(NumeracyVisit)
+class NumeracyVisitAdmin(admin.ModelAdmin):
+    list_display = ('mentor_name', 'school_name', 'visit_date', 'quality_rating', 'numeracy_tracker_status', 'teaching_summary')
+    list_filter = ('visit_date', 'quality_rating', 'numeracy_tracker_correct', 'teaching_counting', 
+                   'teaching_number_concepts', 'teaching_patterns', 'teaching_addition_subtraction', 'school')
+    search_fields = ('mentor__username', 'mentor__first_name', 'mentor__last_name', 'school__name', 'commentary')
+    date_hierarchy = 'visit_date'
+    ordering = ('-visit_date',)
+    
+    fieldsets = (
+        ('Visit Details', {
+            'fields': ('mentor', 'school', 'visit_date')
+        }),
+        ('Numeracy Program Observations', {
+            'fields': ('numeracy_tracker_correct', 'teaching_counting', 'teaching_number_concepts', 
+                      'teaching_patterns', 'teaching_addition_subtraction')
+        }),
+        ('Quality Assessment', {
+            'fields': ('quality_rating', 'supplies_needed', 'commentary')
+        }),
+        ('System Information', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    readonly_fields = ('created_at', 'updated_at')
+    
+    def mentor_name(self, obj):
+        return f"{obj.mentor.first_name} {obj.mentor.last_name}" if obj.mentor.first_name else obj.mentor.username
+    mentor_name.short_description = 'Mentor'
+    mentor_name.admin_order_field = 'mentor__username'
+    
+    def school_name(self, obj):
+        return obj.school.name
+    school_name.short_description = 'School'
+    school_name.admin_order_field = 'school__name'
+    
+    def numeracy_tracker_status(self, obj):
+        if obj.numeracy_tracker_correct:
+            return format_html('<span style="color: green;">✓ Correct</span>')
+        else:
+            return format_html('<span style="color: red;">✗ Needs attention</span>')
+    numeracy_tracker_status.short_description = 'Tracker Status'
+    
+    def teaching_summary(self, obj):
+        teaching_areas = []
+        if obj.teaching_counting:
+            teaching_areas.append('Counting')
+        if obj.teaching_number_concepts:
+            teaching_areas.append('Numbers')
+        if obj.teaching_patterns:
+            teaching_areas.append('Patterns')
+        if obj.teaching_addition_subtraction:
+            teaching_areas.append('Add/Sub')
+        
+        if teaching_areas:
+            return ', '.join(teaching_areas)
+        else:
+            return 'None observed'
+    teaching_summary.short_description = 'Teaching Areas'
 
 @admin.register(Session)
 class SessionAdmin(admin.ModelAdmin):
