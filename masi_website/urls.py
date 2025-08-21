@@ -32,6 +32,7 @@ urlpatterns = [
     path('accounts/reset/done/', auth_views.PasswordResetCompleteView.as_view(), name='password_reset_complete'),
     path('dashboard/', include('dashboards.urls')),
     path('core/', include('core.urls', namespace='core')),
+    path('api/', include('api.urls', namespace='api')),
     re_path(r'^reports/(?P<path>.*)$', serve, {
         'document_root': settings.MEDIA_ROOT + '/reports'
     }),

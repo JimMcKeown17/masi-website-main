@@ -11,6 +11,7 @@ dj-database-url==2.3.0
 Django==5.1.6
 django-allauth==65.4.1
 django-storages==1.14.5
+djangorestframework==3.15.2
 dotenv==0.9.9
 fonttools==4.57.0
 google-api-core==2.24.2
