@@ -41,6 +41,9 @@
   .stat-card.stories {
     background: linear-gradient(45deg, #4ecdc4, #44a08d);
   }
+  .stat-card.numeracy {
+    background: linear-gradient(45deg, #ffc107, #ff8f00);
+  }
   .stat-value {
     font-size: 2.5rem;
     font-weight: bold;
@@ -97,6 +100,9 @@
   }
   .section-header.stories {
     border-color: #4ecdc4;
+  }
+  .section-header.numeracy {
+    border-color: #ffc107;
   }
 </style>
 {% endblock %}
@@ -172,25 +178,32 @@
 
   <!-- Program Breakdown Stats -->
   <div class="row mb-4">
-    <div class="col-md-4">
+    <div class="col-md-3">
       <div class="stat-card literacy">
         <div class="stat-value">{{ combined_summary.literacy_visits }}</div>
         <div class="stat-label">Masi Literacy Visits</div>
         <small>{{ combined_summary.literacy_recent_visits }} in last 30 days</small>
       </div>
     </div>
-    <div class="col-md-4">
+    <div class="col-md-3">
       <div class="stat-card yebo">
         <div class="stat-value">{{ combined_summary.yebo_visits }}</div>
         <div class="stat-label">Yebo Visits</div>
         <small>{{ combined_summary.yebo_recent_visits }} in last 30 days</small>
       </div>
     </div>
-    <div class="col-md-4">
+    <div class="col-md-3">
       <div class="stat-card stories">
         <div class="stat-value">{{ combined_summary.stories_visits }}</div>
         <div class="stat-label">1000 Stories Visits</div>
         <small>{{ combined_summary.stories_recent_visits }} in last 30 days</small>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="stat-card numeracy">
+        <div class="stat-value">{{ combined_summary.numeracy_visits }}</div>
+        <div class="stat-label">Numeracy Visits</div>
+        <small>{{ combined_summary.numeracy_recent_visits }} in last 30 days</small>
       </div>
     </div>
   </div>
@@ -607,6 +620,106 @@
       </div>
     </div>
   </div>
+
+  <!-- ================================ NUMERACY SECTION ================================ -->
+  <div class="section-header numeracy">
+    <h2>Numeracy Program</h2>
+  </div>
+
+  <!-- Numeracy Charts Row -->
+  <div class="row mb-4">
+    <div class="col-md-6">
+      <div class="card dashboard-card shadow-sm">
+        <div class="card-header bg-white">
+          <h5 class="card-title mb-0">Numeracy Visit Frequency</h5>
+        </div>
+        <div class="card-body">
+          <canvas id="numeracyVisitFrequencyChart"></canvas>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="card dashboard-card shadow-sm">
+        <div class="card-header bg-white">
+          <h5 class="card-title mb-0">Numeracy Quality Ratings</h5>
+        </div>
+        <div class="card-body">
+          <canvas id="numeracyQualityRatingChart"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Recent Numeracy Visit Submissions -->
+  <div class="row mb-4">
+    <div class="col-md-12">
+      <div class="card dashboard-card shadow-sm mb-4">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+          <h5 class="card-title mb-0">Recent Numeracy Visit Submissions</h5>
+          <a href="{% url 'mentor_visit_form' %}?type=numeracy" class="btn btn-sm btn-warning">
+            <i class="fas fa-plus"></i> New Numeracy Visit
+          </a>
+        </div>
+        <div class="card-body p-0">
+          <div class="table-responsive" style="max-height: 420px; overflow-y: auto;">
+            <table class="table table-hover mb-0">
+              <thead class="table-light sticky-top" style="position: sticky; top: 0; z-index: 1;">
+                <tr>
+                  <th scope="col">Date</th>
+                  <th scope="col">School</th>
+                  <th scope="col">Mentor</th>
+                  <th scope="col" class="text-center">Quality Rating</th>
+                  <th scope="col" class="text-center">Teaching Areas</th>
+                  <th scope="col">Comments</th>
+                  <th scope="col">Submitted</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for visit in recent_numeracy_submissions %}
+                <tr>
+                  <td>{{ visit.visit_date }}</td>
+                  <td>{{ visit.school.name }}</td>
+                  <td>{{ visit.mentor.get_full_name|default:visit.mentor.username }}</td>
+                  <td class="text-center">
+                    <span class="badge rounded-pill 
+                      {% if visit.quality_rating >= 8 %}bg-success
+                      {% elif visit.quality_rating >= 6 %}bg-info
+                      {% elif visit.quality_rating >= 4 %}bg-warning text-dark
+                      {% else %}bg-danger{% endif %}">
+                      {{ visit.quality_rating }}/10
+                    </span>
+                  </td>
+                  <td class="text-center">
+                    <div class="small">
+                      {% if visit.numeracy_tracker_correct %}<span class="badge bg-success">Tracker ✓</span>{% else %}<span class="badge bg-secondary">Tracker ✗</span>{% endif %}
+                      {% if visit.teaching_counting %}<span class="badge bg-success">Counting ✓</span>{% else %}<span class="badge bg-secondary">Counting ✗</span>{% endif %}
+                      {% if visit.teaching_number_concepts %}<span class="badge bg-success">Numbers ✓</span>{% else %}<span class="badge bg-secondary">Numbers ✗</span>{% endif %}
+                      {% if visit.teaching_patterns %}<span class="badge bg-success">Patterns ✓</span>{% else %}<span class="badge bg-secondary">Patterns ✗</span>{% endif %}
+                    </div>
+                  </td>
+                  <td>
+                    {% if visit.commentary %}
+                    <span class="text-truncate d-inline-block" style="max-width: 200px;" title="{{ visit.commentary }}">
+                      {{ visit.commentary|truncatechars:30 }}
+                    </span>
+                    {% else %}
+                    <span class="text-muted">None</span>
+                    {% endif %}
+                  </td>
+                  <td><small class="text-muted">{{ visit.created_at|date:"M d, Y" }}</small></td>
+                </tr>
+                {% empty %}
+                <tr>
+                  <td colspan="7" class="text-center py-3">No recent Numeracy visit submissions.</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 {% endblock %}
 
@@ -656,6 +769,9 @@
   
   const storiesVisitFrequencyData = JSON.parse('{{ stories_visit_frequency_chart|escapejs }}');
   const storiesQualityRatingData = JSON.parse('{{ stories_quality_rating_chart|escapejs }}');
+  
+  const numeracyVisitFrequencyData = JSON.parse('{{ numeracy_visit_frequency_chart|escapejs }}');
+  const numeracyQualityRatingData = JSON.parse('{{ numeracy_quality_rating_chart|escapejs }}');
   
   // Create Combined Visit Frequency Chart
   const combinedVisitFrequencyCtx = document.getElementById('combinedVisitFrequencyChart').getContext('2d');
@@ -779,6 +895,34 @@
   new Chart(storiesQualityRatingCtx, {
     type: 'bar',
     data: storiesQualityRatingData,
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        y: { beginAtZero: true, title: { display: true, text: 'Number of Visits' } }
+      }
+    }
+  });
+
+  // Create Numeracy Visit Frequency Chart
+  const numeracyVisitFrequencyCtx = document.getElementById('numeracyVisitFrequencyChart').getContext('2d');
+  new Chart(numeracyVisitFrequencyCtx, {
+    type: 'bar',
+    data: numeracyVisitFrequencyData,
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        y: { beginAtZero: true, title: { display: true, text: 'Number of Visits' } }
+      }
+    }
+  });
+  
+  // Create Numeracy Quality Rating Chart
+  const numeracyQualityRatingCtx = document.getElementById('numeracyQualityRatingChart').getContext('2d');
+  new Chart(numeracyQualityRatingCtx, {
+    type: 'bar',
+    data: numeracyQualityRatingData,
     options: {
       responsive: true,
       maintainAspectRatio: false,
