@@ -684,6 +684,53 @@ def literacy_management_dashboard(request):
         # Sort by average visits per week in descending order
         mentor_weekly_stats.sort(key=lambda x: x['avg_visits_per_week'], reverse=True)
         
+        # Calculate visit activity for past 10 weekdays
+        from datetime import datetime, timedelta
+        import calendar
+        
+        # Get the past 10 weekdays (excluding weekends)
+        weekdays = []
+        current_date = today.date()
+        days_added = 0
+        
+        while len(weekdays) < 10:
+            if current_date.weekday() < 5:  # Monday=0, Sunday=6, so 0-4 are weekdays
+                weekdays.append(current_date)
+                days_added += 1
+            current_date -= timedelta(days=1)
+        
+        weekdays.reverse()  # Show oldest to newest
+        
+        # Create visit activity matrix
+        visit_activity = []
+        for mentor in mentors:
+            mentor_activity = {
+                'mentor_name': f"{mentor.first_name} {mentor.last_name}",
+                'activity': []
+            }
+            
+            for day in weekdays:
+                has_visit = MentorVisit.objects.filter(
+                    mentor=mentor,
+                    visit_date=day
+                ).exists()
+                mentor_activity['activity'].append({
+                    'date': day,
+                    'has_visit': has_visit,
+                    'date_str': day.strftime('%m/%d')
+                })
+            
+            visit_activity.append(mentor_activity)
+        
+        # Format weekday headers for display
+        weekday_headers = []
+        for day in weekdays:
+            weekday_headers.append({
+                'date': day,
+                'day_name': calendar.day_name[day.weekday()][:3],  # Mon, Tue, etc.
+                'date_str': day.strftime('%m/%d')
+            })
+        
         context = {
             'total_visits': total_visits,
             'visits_last_30_days': recent_visits,
@@ -696,7 +743,9 @@ def literacy_management_dashboard(request):
             'schools_not_visited': schools_not_visited,
             'cumulative_visits_data': json.dumps(cumulative_data),
             'selected_time_period': time_period,
-            'mentor_weekly_stats': mentor_weekly_stats
+            'mentor_weekly_stats': mentor_weekly_stats,
+            'visit_activity': visit_activity,
+            'weekday_headers': weekday_headers
         }
         
         return render(request, 'dashboards/literacy_management_dashboard.html', context)

@@ -89,6 +89,65 @@
     box-shadow: 0 2px 4px rgba(0,0,0,0.05);
     background-color: #f8f9fa;
   }
+  
+  /* Visit Activity Table Styles */
+  .visit-activity-table {
+    background: white;
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  }
+  
+  .mentor-name-col {
+    width: 150px;
+    min-width: 150px;
+    background-color: #f8f9fa;
+    font-weight: 600;
+  }
+  
+  .visit-day-col {
+    width: 80px;
+    min-width: 80px;
+    background-color: #f8f9fa;
+  }
+  
+  .day-header {
+    line-height: 1.2;
+  }
+  
+  .day-name {
+    font-weight: 600;
+    color: #495057;
+  }
+  
+  .date-str {
+    color: #6c757d;
+  }
+  
+  .mentor-name {
+    font-weight: 500;
+    background-color: #f8f9fa;
+    vertical-align: middle;
+  }
+  
+  .visit-cell {
+    vertical-align: middle;
+    padding: 8px 4px;
+    width: 80px;
+  }
+  
+  .visit-present {
+    background-color: #d4edda;
+  }
+  
+  .visit-absent {
+    background-color: #f8f9fa;
+  }
+  
+  .visit-cell i {
+    font-size: 16px;
+  }
 </style>
 {% endblock %}
 
@@ -131,40 +190,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // Quality Ratings Chart
-    const qualityCtx = document.getElementById('qualityChart').getContext('2d');
-    new Chart(qualityCtx, {
-        type: 'bar',
-        data: {
-            labels: {{ mentor_names|safe }},
-            datasets: [{
-                label: 'Average Quality Rating',
-                data: {{ quality_ratings|safe }},
-                backgroundColor: 'rgba(131, 77, 155, 0.8)',
-                borderColor: 'rgba(131, 77, 155, 1)',
-                borderWidth: 1
-            }]
-        },
-        options: {
-            responsive: true,
-            plugins: {
-                title: {
-                    display: true,
-                    text: 'Average Quality Rating by Mentor'
-                }
-            },
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    max: 5,
-                    title: {
-                        display: true,
-                        text: 'Rating'
-                    }
-                }
-            }
-        }
-    });
+
 
     // Cumulative Visits Line Chart
     const cumulativeCtx = document.getElementById('cumulativeChart').getContext('2d');
@@ -342,6 +368,49 @@ document.addEventListener('DOMContentLoaded', function() {
         </div>
     </div>
 
+    <!-- Visit Activity Table -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="chart-container">
+                <h3 class="mb-3">Daily Visit Activity - Past 2 Work Weeks</h3>
+                <p class="text-muted mb-3">Shows mentor visit activity over the last 10 weekdays</p>
+                <div class="table-responsive">
+                    <table class="table table-sm table-bordered mb-0">
+                        <thead>
+                            <tr>
+                                <th class="mentor-name-col">Mentor</th>
+                                {% for header in weekday_headers %}
+                                <th class="text-center visit-day-col">
+                                    <div class="day-header">
+                                        <small class="day-name">{{ header.day_name }}</small><br>
+                                        <small class="date-str">{{ header.date_str }}</small>
+                                    </div>
+                                </th>
+                                {% endfor %}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for mentor in visit_activity %}
+                            <tr>
+                                <td class="mentor-name">{{ mentor.mentor_name }}</td>
+                                {% for day in mentor.activity %}
+                                <td class="text-center visit-cell {% if day.has_visit %}visit-present{% else %}visit-absent{% endif %}">
+                                    {% if day.has_visit %}
+                                        <i class="fas fa-check text-success"></i>
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                {% endfor %}
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Charts Rows -->
     <div class="row mb-4">
         <div class="col-md-12">
@@ -350,18 +419,18 @@ document.addEventListener('DOMContentLoaded', function() {
                     <h3 class="mb-0">Cumulative Visits by Mentor</h3>
                     <ul class="nav nav-tabs" id="cumulativeChartTabs" role="tablist">
                         <li class="nav-item" role="presentation">
-                            <button class="nav-link active" id="line-chart-tab" data-bs-toggle="tab" data-bs-target="#line-chart-pane" type="button" role="tab" aria-controls="line-chart-pane" aria-selected="true">Line Chart</button>
+                            <button class="nav-link" id="line-chart-tab" data-bs-toggle="tab" data-bs-target="#line-chart-pane" type="button" role="tab" aria-controls="line-chart-pane" aria-selected="false">Line Chart</button>
                         </li>
                         <li class="nav-item" role="presentation">
-                            <button class="nav-link" id="bar-chart-tab" data-bs-toggle="tab" data-bs-target="#bar-chart-pane" type="button" role="tab" aria-controls="bar-chart-pane" aria-selected="false">Bar Chart</button>
+                            <button class="nav-link active" id="bar-chart-tab" data-bs-toggle="tab" data-bs-target="#bar-chart-pane" type="button" role="tab" aria-controls="bar-chart-pane" aria-selected="true">Bar Chart</button>
                         </li>
                     </ul>
                 </div>
                 <div class="tab-content" id="cumulativeChartTabContent">
-                    <div class="tab-pane fade show active" id="line-chart-pane" role="tabpanel" aria-labelledby="line-chart-tab">
+                    <div class="tab-pane fade" id="line-chart-pane" role="tabpanel" aria-labelledby="line-chart-tab">
                         <canvas id="cumulativeChart"></canvas>
                     </div>
-                    <div class="tab-pane fade" id="bar-chart-pane" role="tabpanel" aria-labelledby="bar-chart-tab">
+                    <div class="tab-pane fade show active" id="bar-chart-pane" role="tabpanel" aria-labelledby="bar-chart-tab">
                         <canvas id="cumulativeBarChart"></canvas>
                     </div>
                 </div>
@@ -412,14 +481,7 @@ document.addEventListener('DOMContentLoaded', function() {
         </div>
     </div>
 
-    <!-- Quality Ratings Chart -->
-    <div class="row mb-4">
-        <div class="col-md-12">
-            <div class="chart-container">
-                <canvas id="qualityChart"></canvas>
-            </div>
-        </div>
-    </div>
+
 
     <!-- Schools Table -->
     <div class="schools-table">
