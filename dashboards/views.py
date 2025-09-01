@@ -257,14 +257,26 @@ def mentor_dashboard(request):
         
         # Get all visits (unfiltered by time) for schools last visited component
         all_mentor_visits = MentorVisit.objects.all()
+        all_yebo_visits = YeboVisit.objects.all()
+        all_thousand_stories_visits = ThousandStoriesVisit.objects.all()
+        all_numeracy_visits = NumeracyVisit.objects.all()
+        
         if school_filter:
             all_mentor_visits = all_mentor_visits.filter(school_id=school_filter)
+            all_yebo_visits = all_yebo_visits.filter(school_id=school_filter)
+            all_thousand_stories_visits = all_thousand_stories_visits.filter(school_id=school_filter)
+            all_numeracy_visits = all_numeracy_visits.filter(school_id=school_filter)
         if mentor_filter:
             all_mentor_visits = all_mentor_visits.filter(mentor_id=mentor_filter)
+            all_yebo_visits = all_yebo_visits.filter(mentor_id=mentor_filter)
+            all_thousand_stories_visits = all_thousand_stories_visits.filter(mentor_id=mentor_filter)
+            all_numeracy_visits = all_numeracy_visits.filter(mentor_id=mentor_filter)
         
-        # Generate schools last visited data (using literacy visits for now)
-        from .visualizations.mentor_charts import generate_schools_last_visited
-        schools_last_visited = generate_schools_last_visited(all_mentor_visits)
+        # Generate comprehensive schools last visited data (all visit types)
+        from .visualizations.mentor_charts import generate_schools_last_visited_comprehensive
+        schools_last_visited = generate_schools_last_visited_comprehensive(
+            all_mentor_visits, all_yebo_visits, all_thousand_stories_visits, all_numeracy_visits
+        )
         
         # Get recent submissions for each visit type
         recent_literacy_submissions = get_recent_literacy_submissions(mentor_visits, 50)

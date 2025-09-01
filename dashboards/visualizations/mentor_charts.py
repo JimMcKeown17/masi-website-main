@@ -714,16 +714,104 @@ def generate_schools_last_visited(visits):
             days_ago = (datetime.now().date() - last_visit.visit_date).days
             schools_data.append({
                 'school_name': school.name,
+                'school_type': school.type if school.type else 'Unknown',
+                'school_id': school.school_id if school.school_id else school.id,
                 'last_visit_date': last_visit.visit_date.strftime('%Y-%m-%d'),
                 'days_ago': days_ago,
-                'mentor_name': f"{last_visit.mentor.first_name} {last_visit.mentor.last_name}" if last_visit.mentor.first_name else last_visit.mentor.username
+                'last_mentor': f"{last_visit.mentor.first_name} {last_visit.mentor.last_name}" if last_visit.mentor.first_name else last_visit.mentor.username
             })
         else:
             schools_data.append({
                 'school_name': school.name,
+                'school_type': school.type if school.type else 'Unknown',
+                'school_id': school.school_id if school.school_id else school.id,
                 'last_visit_date': 'Never',
                 'days_ago': 999,
-                'mentor_name': 'N/A'
+                'last_mentor': 'N/A'
+            })
+    
+    # Sort by days since last visit (most urgent first)
+    schools_data.sort(key=lambda x: x['days_ago'], reverse=True)
+    
+    return schools_data
+
+def generate_schools_last_visited_comprehensive(mentor_visits, yebo_visits, thousand_stories_visits, numeracy_visits):
+    """
+    Generate comprehensive data for schools last visited component
+    Shows schools and when they were last visited across ALL visit types
+    This provides the true most recent visit regardless of program type
+    """
+    from datetime import datetime
+    from api.models import School
+    
+    schools_data = []
+    schools = School.objects.all()
+    
+    for school in schools:
+        # Find the most recent visit across all visit types
+        visits_info = []
+        
+        # Check MentorVisit (Literacy)
+        literacy_visit = mentor_visits.filter(school=school).order_by('-visit_date').first()
+        if literacy_visit:
+            visits_info.append({
+                'visit': literacy_visit,
+                'type': 'Literacy',
+                'date': literacy_visit.visit_date
+            })
+        
+        # Check YeboVisit
+        yebo_visit = yebo_visits.filter(school=school).order_by('-visit_date').first()
+        if yebo_visit:
+            visits_info.append({
+                'visit': yebo_visit,
+                'type': 'Yebo',
+                'date': yebo_visit.visit_date
+            })
+        
+        # Check ThousandStoriesVisit
+        stories_visit = thousand_stories_visits.filter(school=school).order_by('-visit_date').first()
+        if stories_visit:
+            visits_info.append({
+                'visit': stories_visit,
+                'type': '1000 Stories',
+                'date': stories_visit.visit_date
+            })
+        
+        # Check NumeracyVisit
+        numeracy_visit = numeracy_visits.filter(school=school).order_by('-visit_date').first()
+        if numeracy_visit:
+            visits_info.append({
+                'visit': numeracy_visit,
+                'type': 'Numeracy',
+                'date': numeracy_visit.visit_date
+            })
+        
+        # Find the most recent visit across all types
+        if visits_info:
+            most_recent = max(visits_info, key=lambda x: x['date'])
+            last_visit = most_recent['visit']
+            visit_type = most_recent['type']
+            days_ago = (datetime.now().date() - last_visit.visit_date).days
+            
+            schools_data.append({
+                'school_name': school.name,
+                'school_type': school.type if school.type else 'Unknown',
+                'school_id': school.school_id if school.school_id else school.id,
+                'last_visit_date': last_visit.visit_date.strftime('%Y-%m-%d'),
+                'days_ago': days_ago,
+                'last_mentor': f"{last_visit.mentor.first_name} {last_visit.mentor.last_name}" if last_visit.mentor.first_name else last_visit.mentor.username,
+                'visit_type': visit_type
+            })
+        else:
+            schools_data.append({
+                'school_name': school.name,
+                'school_type': school.type if school.type else 'Unknown',
+                'school_id': school.school_id if school.school_id else school.id,
+                'last_visit_date': 'Never',
+                'days_ago': 999,
+                'last_mentor': 'N/A',
+                'visit_type': 'N/A'
             })
     
     # Sort by days since last visit (most urgent first)

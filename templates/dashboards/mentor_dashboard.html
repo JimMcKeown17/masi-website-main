@@ -265,6 +265,7 @@
                   <th scope="col">School Name</th>
                   <th scope="col">Type</th>
                   <th scope="col">Last Visit</th>
+                  <th scope="col">Program</th>
                   <th scope="col">Mentor</th>
                   <th scope="col">Days Ago</th>
                   <th scope="col" class="text-center">Status</th>
@@ -277,6 +278,20 @@
                   <td>{{ school.school_name }}</td>
                   <td>{{ school.school_type }}</td>
                   <td>{{ school.last_visit_date }}</td>
+                  <td>
+                    {% if school.visit_type != 'N/A' %}
+                      <span class="badge 
+                        {% if school.visit_type == 'Literacy' %}bg-primary
+                        {% elif school.visit_type == 'Yebo' %}bg-danger
+                        {% elif school.visit_type == '1000 Stories' %}bg-info
+                        {% elif school.visit_type == 'Numeracy' %}bg-warning text-dark
+                        {% else %}bg-secondary{% endif %}">
+                        {{ school.visit_type }}
+                      </span>
+                    {% else %}
+                      <span class="text-muted">{{ school.visit_type }}</span>
+                    {% endif %}
+                  </td>
                   <td>{{ school.last_mentor }}</td>
                   <td>{{ school.days_ago }} days</td>
                   <td class="text-center">
@@ -298,7 +313,7 @@
                 </tr>
                 {% empty %}
                 <tr>
-                  <td colspan="7" class="text-center py-3">No school visit data available.</td>
+                  <td colspan="8" class="text-center py-3">No school visit data available.</td>
                 </tr>
                 {% endfor %}
               </tbody>
