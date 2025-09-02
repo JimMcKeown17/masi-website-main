@@ -369,6 +369,7 @@ document.addEventListener('DOMContentLoaded', function() {
     </div>
 
     <!-- Visit Activity Table -->
+    {% if weekday_headers and visit_activity %}
     <div class="row mb-4">
         <div class="col-md-12">
             <div class="chart-container">
@@ -410,6 +411,7 @@ document.addEventListener('DOMContentLoaded', function() {
             </div>
         </div>
     </div>
+    {% endif %}
 
     <!-- Charts Rows -->
     <div class="row mb-4">
