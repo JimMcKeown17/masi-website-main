@@ -148,6 +148,19 @@
   .visit-cell i {
     font-size: 16px;
   }
+  
+  .visit-count-badge {
+    display: inline-block;
+    background-color: #28a745;
+    color: white;
+    border-radius: 50%;
+    width: 22px;
+    height: 22px;
+    line-height: 22px;
+    font-size: 12px;
+    font-weight: bold;
+    text-align: center;
+  }
 </style>
 {% endblock %}
 
@@ -374,7 +387,7 @@ document.addEventListener('DOMContentLoaded', function() {
         <div class="col-md-12">
             <div class="chart-container">
                 <h3 class="mb-3">Daily Visit Activity - Past 2 Work Weeks</h3>
-                <p class="text-muted mb-3">Shows mentor visit activity over the last 10 weekdays</p>
+                <p class="text-muted mb-3">Shows all mentor visit types (Literacy, Yebo, 1000 Stories, Numeracy) over the last 10 weekdays. Numbers indicate multiple visit types on the same day.</p>
                 <div class="table-responsive">
                     <table class="table table-sm table-bordered mb-0">
                         <thead>
@@ -395,9 +408,16 @@ document.addEventListener('DOMContentLoaded', function() {
                             <tr>
                                 <td class="mentor-name">{{ mentor.mentor_name }}</td>
                                 {% for day in mentor.activity %}
-                                <td class="text-center visit-cell {% if day.has_visit %}visit-present{% else %}visit-absent{% endif %}">
+                                <td class="text-center visit-cell {% if day.has_visit %}visit-present{% else %}visit-absent{% endif %}" 
+                                    {% if day.has_visit and day.visit_types %}
+                                    title="{{ day.visit_types|join:', ' }} visit(s) on {{ day.date_str }}"
+                                    {% endif %}>
                                     {% if day.has_visit %}
-                                        <i class="fas fa-check text-success"></i>
+                                        {% if day.visit_count > 1 %}
+                                            <span class="visit-count-badge">{{ day.visit_count }}</span>
+                                        {% else %}
+                                            <i class="fas fa-check text-success"></i>
+                                        {% endif %}
                                     {% else %}
                                         <span class="text-muted">-</span>
                                     {% endif %}

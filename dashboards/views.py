@@ -708,13 +708,55 @@ def literacy_management_dashboard(request):
                 }
                 
                 for day in weekdays:
-                    has_visit = MentorVisit.objects.filter(
+                    # Check for visits across all visit types
+                    has_mentor_visit = MentorVisit.objects.filter(
                         mentor=mentor,
                         visit_date=day
                     ).exists()
+                    
+                    has_yebo_visit = YeboVisit.objects.filter(
+                        mentor=mentor,
+                        visit_date=day
+                    ).exists()
+                    
+                    has_thousand_stories_visit = ThousandStoriesVisit.objects.filter(
+                        mentor=mentor,
+                        visit_date=day
+                    ).exists()
+                    
+                    has_numeracy_visit = NumeracyVisit.objects.filter(
+                        mentor=mentor,
+                        visit_date=day
+                    ).exists()
+                    
+                    # Check if any visit type occurred on this day
+                    has_any_visit = (has_mentor_visit or has_yebo_visit or 
+                                   has_thousand_stories_visit or has_numeracy_visit)
+                    
+                    # Count how many different visit types occurred
+                    visit_count = sum([
+                        has_mentor_visit,
+                        has_yebo_visit, 
+                        has_thousand_stories_visit,
+                        has_numeracy_visit
+                    ])
+                    
+                    # Determine which visit types occurred for tooltip/display
+                    visit_types = []
+                    if has_mentor_visit:
+                        visit_types.append('Literacy')
+                    if has_yebo_visit:
+                        visit_types.append('Yebo')
+                    if has_thousand_stories_visit:
+                        visit_types.append('1000 Stories')
+                    if has_numeracy_visit:
+                        visit_types.append('Numeracy')
+                    
                     mentor_activity['activity'].append({
                         'date': day,
-                        'has_visit': has_visit,
+                        'has_visit': has_any_visit,
+                        'visit_count': visit_count,
+                        'visit_types': visit_types,
                         'date_str': day.strftime('%m/%d')
                     })
                 
