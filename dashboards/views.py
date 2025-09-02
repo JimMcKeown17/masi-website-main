@@ -697,14 +697,28 @@ def literacy_management_dashboard(request):
                     weekdays.append(current_date)
                 current_date -= timedelta(days=1)
             
-            weekdays.reverse()  # Show oldest to newest
+            # Keep most recent first (don't reverse)
             
-            # Create visit activity matrix
-            visit_activity = []
+            # Filter out specific mentors
+            excluded_mentors = [
+                'Zama Zulu', 'Zola Mbusi', 'Zolani Sibengile', 'Babalo Rozani'
+            ]
+            
+            # Create visit activity matrix with visit counts for sorting
+            mentor_activity_data = []
             for mentor in mentors:
+                # Skip excluded mentors and blank/empty names
+                full_name = f"{mentor.first_name} {mentor.last_name}".strip()
+                if (not full_name or 
+                    full_name in excluded_mentors or 
+                    full_name == ' ' or 
+                    not mentor.first_name.strip() or 
+                    not mentor.last_name.strip()):
+                    continue
                 mentor_activity = {
                     'mentor_name': f"{mentor.first_name} {mentor.last_name}",
-                    'activity': []
+                    'activity': [],
+                    'total_visits_in_period': 0  # Track total visits for sorting
                 }
                 
                 for day in weekdays:
@@ -759,8 +773,23 @@ def literacy_management_dashboard(request):
                         'visit_types': visit_types,
                         'date_str': day.strftime('%m/%d')
                     })
+                    
+                    # Add to total visit count for this mentor
+                    if has_any_visit:
+                        mentor_activity['total_visits_in_period'] += 1
                 
-                visit_activity.append(mentor_activity)
+                mentor_activity_data.append(mentor_activity)
+            
+            # Sort mentors by total visits in descending order (most visits first)
+            mentor_activity_data.sort(key=lambda x: x['total_visits_in_period'], reverse=True)
+            
+            # Create final visit_activity list without the sorting field
+            visit_activity = []
+            for mentor_data in mentor_activity_data:
+                visit_activity.append({
+                    'mentor_name': mentor_data['mentor_name'],
+                    'activity': mentor_data['activity']
+                })
             
             # Format weekday headers for display
             weekday_headers = []
