@@ -1,10 +1,10 @@
 from django.shortcuts import render
 from rest_framework import generics, permissions
 from rest_framework.response import Response
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, authentication_classes
 from .models import MentorVisit
 from .serializers import MentorVisitSerializer
-
+from .authentication import ClerkAuthentication
 
 # Create your views here.
 
@@ -42,4 +42,15 @@ def api_info(request):
             'mentor_visit_detail': '/api/mentor-visits/{id}/',
             'api_info': '/api/info/'
         }
+    })
+    
+@api_view(["GET"])
+@authentication_classes([ClerkAuthentication])
+def me(request):
+    user = request.user
+    return Response({
+        "email": user.email,
+        "role": getattr(user, "role", None),
+        "first_name": user.first_name,
+        "last_name": user.last_name
     })

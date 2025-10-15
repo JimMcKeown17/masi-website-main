@@ -15,12 +15,15 @@
 │   │   ├── 0009_school_school_id_yebovisit.py
 │   │   ├── 0010_school_school_id_thousandstoriesvisit.py
 │   │   ├── 0011_add_wela_assessments_only.py
-│   │   └── 0012_mark_school_id_exists.py
+│   │   ├── 0012_mark_school_id_exists.py
+│   │   └── 0013_numeracyvisit.py
 │   ├── __init__.py
 │   ├── admin.py
 │   ├── apps.py
 │   ├── models.py
+│   ├── serializers.py
 │   ├── tests.py
+│   ├── urls.py
 │   └── views.py
 ├── core
 │   ├── management
@@ -133,6 +136,7 @@
 │   │   ├── About_Us_Hero_Video.mp4
 │   │   ├── Alungile Magwajana (1).png
 │   │   ├── AR 23 Cover Page.png
+│   │   ├── AR 24 Cover Page.png
 │   │   ├── banner.jpg
 │   │   ├── black-background.jpg
 │   │   ├── book.svg
@@ -251,13 +255,15 @@
 │   │   ├── 2022 Q4 Childrens Report - All Donors.pdf
 │   │   ├── 2023 Masi Graduates Magazine.pdf
 │   │   ├── 2023 Masinyusane Annual Report (RSA).pdf
+│   │   ├── 2024 Masi Annual Report ($).pdf
 │   │   ├── 2024 Masi Graduates Magazine.pdf
 │   │   ├── 2024 Q2 Community Jobs & Childrens Education Report.pdf
 │   │   ├── Masi Top Learners - 2021 Final Report.pdf
 │   │   ├── Masinyusane Audited Financial Statements 2020.pdf
 │   │   ├── Masinyusane Audited Financial Statements 2021.pdf
 │   │   ├── Masinyusane Audited Financial Statements 2022.pdf
-│   │   └── Masinyusane Audited Financial Statements 2023.pdf
+│   │   ├── Masinyusane Audited Financial Statements 2023.pdf
+│   │   └── Masinyusane Audited Financial Statements 2024.pdf
 │   ├── scss
 │   │   ├── abstracts
 │   │   ├── components
@@ -283,6 +289,8 @@
 │   │   ├── main.css
 │   │   └── styles.css
 │   ├── data
+│   │   ├── 2024 Children's Database - Final Results.csv
+│   │   ├── consolidated_visits_2.csv
 │   │   └── schools_list_mar14.csv
 │   ├── images
 │   │   ├── 2024 Grad Magazine
@@ -294,6 +302,7 @@
 │   │   ├── About_Us_Hero_Video.mp4
 │   │   ├── Alungile Magwajana (1).png
 │   │   ├── AR 23 Cover Page.png
+│   │   ├── AR 24 Cover Page.png
 │   │   ├── banner.jpg
 │   │   ├── black-background.jpg
 │   │   ├── book.svg
@@ -309,6 +318,7 @@
 │   │   ├── Empowering Banner_raw (1).mp4
 │   │   ├── Female Staff.jpg
 │   │   ├── Girls Scholarship Fund banner_small_1.mp4
+│   │   ├── google-icon.png
 │   │   ├── graduate-chart.png
 │   │   ├── Graph.png
 │   │   ├── Guidestar Platinum Seal.png
@@ -411,13 +421,15 @@
 │   │   ├── 2022 Q4 Childrens Report - All Donors.pdf
 │   │   ├── 2023 Masi Graduates Magazine.pdf
 │   │   ├── 2023 Masinyusane Annual Report (RSA).pdf
+│   │   ├── 2024 Masi Annual Report ($).pdf
 │   │   ├── 2024 Masi Graduates Magazine.pdf
 │   │   ├── 2024 Q2 Community Jobs & Childrens Education Report.pdf
 │   │   ├── Masi Top Learners - 2021 Final Report.pdf
 │   │   ├── Masinyusane Audited Financial Statements 2020.pdf
 │   │   ├── Masinyusane Audited Financial Statements 2021.pdf
 │   │   ├── Masinyusane Audited Financial Statements 2022.pdf
-│   │   └── Masinyusane Audited Financial Statements 2023.pdf
+│   │   ├── Masinyusane Audited Financial Statements 2023.pdf
+│   │   └── Masinyusane Audited Financial Statements 2024.pdf
 │   ├── scss
 │   │   ├── abstracts
 │   │   ├── components
@@ -483,4 +495,4 @@
 ├── transfer_schools.py
 └── tree-output.txt
 
-69 directories, 415 files
+69 directories, 427 files
