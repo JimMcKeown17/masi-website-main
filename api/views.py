@@ -56,12 +56,13 @@ def api_info(request):
 def me(request):
     user = request.user
     # Get role from UserProfile if it exists, otherwise default
-    role = getattr(user.profile, 'job_title', 'viewer') if hasattr(user, 'profile') else 'viewer'
+    role = getattr(user.profile, 'role', 'VIEWER') if hasattr(user, 'profile') else 'VIEWER'
     
     return Response({
         "email": user.email,
         "role": role,
         "first_name": user.first_name,
         "last_name": user.last_name,
-        "username": user.username
+        "username": user.username,
+        "role": role,
     })
