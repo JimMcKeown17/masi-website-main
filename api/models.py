@@ -503,3 +503,31 @@ class WELA_assessments(models.Model):
         if self.jan_total and self.nov_total and self.jan_total > 0:
             return round(((self.nov_total - self.jan_total) / self.jan_total) * 100, 2)
         return None
+    
+    
+from django.db import models
+
+class LiteracySession(models.Model):
+    session_id = models.IntegerField(unique=True)
+    lc_full_name = models.CharField(max_length=255, blank=True)
+    child_full_name = models.CharField(max_length=255, blank=True)
+    school = models.CharField(max_length=255, blank=True)
+    grade = models.CharField(max_length=50, blank=True)
+    sessions_capture_date = models.DateField(null=True, blank=True)
+    total_weekly_sessions_received = models.IntegerField(default=0)
+    reading_level = models.CharField(max_length=100, blank=True)
+    letters_done = models.JSONField(default=list, blank=True)
+    mentor = models.CharField(max_length=255, blank=True)
+    site_type = models.CharField(max_length=100, blank=True)
+    on_the_programme = models.CharField(max_length=50, blank=True)
+    month = models.CharField(max_length=50, blank=True)
+    week = models.CharField(max_length=50, blank=True)
+    month_and_year = models.CharField(max_length=50, blank=True)
+    created = models.DateTimeField(null=True, blank=True)
+    sessions_met_minimum = models.CharField(max_length=10, blank=True)
+    duplicate_flag = models.CharField(max_length=255, blank=True)
+    employee_id = models.CharField(max_length=50, blank=True)
+    mcode = models.CharField(max_length=50, blank=True)
+
+    def __str__(self):
+        return f"{self.child_full_name} ({self.school}) - {self.sessions_capture_date}"
