@@ -531,3 +531,38 @@ class LiteracySession(models.Model):
 
     def __str__(self):
         return f"{self.child_full_name} ({self.school}) - {self.sessions_capture_date}"
+
+
+class NumeracySessionChild(models.Model):
+    session_id = models.CharField(max_length=255, blank=True, null=True)
+    nc_full_name = models.CharField(max_length=255, blank=True, null=True)
+    numeracy_site = models.CharField(max_length=255, blank=True, null=True)
+    child_name = models.CharField(max_length=255, blank=True, null=True)
+    sessions_capture_date = models.DateField(blank=True, null=True)
+    children_in_group = models.IntegerField(blank=True, null=True)
+    created = models.CharField(max_length=50, blank=True, null=True)
+    current_count_level = models.CharField(max_length=50, blank=True, null=True)
+    baseline_count_level = models.JSONField(default=list, blank=True, null=True)
+    number_recognition = models.CharField(max_length=50, blank=True, null=True)
+    month = models.CharField(max_length=50, blank=True, null=True)
+    week = models.CharField(max_length=50, blank=True, null=True)
+    month_and_year = models.CharField(max_length=50, blank=True, null=True)
+    all_sites = models.JSONField(default=list, blank=True, null=True)
+    site_placement = models.CharField(max_length=255, blank=True, null=True)
+    employee_id = models.CharField(max_length=255, blank=True, null=True)
+    mentor = models.CharField(max_length=255, blank=True, null=True)
+    employment_status = models.CharField(max_length=255, blank=True, null=True)
+    duplicate_flag = models.CharField(max_length=255, blank=True, null=True)
+
+    class Meta:
+        verbose_name = "Numeracy Session (Child Level)"
+        verbose_name_plural = "Numeracy Sessions (Child Level)"
+        indexes = [
+            models.Index(fields=["session_id"]),
+            models.Index(fields=["nc_full_name"]),
+            models.Index(fields=["numeracy_site"]),
+            models.Index(fields=["child_name"]),
+        ]
+
+    def __str__(self):
+        return f"{self.child_name or 'Unknown Child'} - {self.session_id or 'No ID'}"
