@@ -56,6 +56,10 @@ class Command(BaseCommand):
                     val = fields.get(name, default)
                     if isinstance(val, list):
                         return val[0] if val else default
+                    if isinstance(val, dict):
+                        # If it's a dict, try to get a reasonable string representation
+                        # Common Airtable patterns: {'name': 'value'} or {'id': 'xxx', 'name': 'value'}
+                        return val.get('name', val.get('id', str(val)))
                     return val
 
                 def safe_array(name):
