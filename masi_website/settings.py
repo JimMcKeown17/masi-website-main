@@ -156,7 +156,7 @@ WSGI_APPLICATION = 'masi_website.wsgi.application'
 
 DATABASES = {
     'default': dj_database_url.config(
-        default=os.environ.get('INTERNAL_DATABASE_URL') or os.environ.get('DATABASE_URL'),
+        default=os.environ.get('DATABASE_URL'),
         conn_max_age=600
     )
 }
