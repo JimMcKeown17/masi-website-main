@@ -3,9 +3,9 @@ from .models import UserProfile
 
 @admin.register(UserProfile)
 class UserProfileAdmin(admin.ModelAdmin):
-    list_display = ('get_full_name', 'job_title', 'project')
-    search_fields = ('user__username', 'user__email', 'user__first_name', 'user__last_name', 'job_title', 'project')
-    list_filter = ('project',)
+    list_display = ('get_full_name', 'job_title', 'project', 'role')
+    search_fields = ('user__username', 'user__email', 'user__first_name', 'user__last_name', 'job_title', 'project', 'role')
+    list_filter = ('project', 'role')
     raw_id_fields = ('user',)
 
     def get_full_name(self, obj):

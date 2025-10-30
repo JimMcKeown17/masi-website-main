@@ -7,10 +7,11 @@ from django.dispatch import receiver
 ROLE_CHOICES = [
     ('ADMIN', 'Administrator'),
     ('STAFF', 'Staff Member'),
+    ('PROJECT MANAGER', 'Project Manager'),
     ('MENTOR', 'Mentor'),
     ('VIEWER', 'Viewer'),
-    ('Funder', 'Funder'),
-    ('Youth', 'Youth'),
+    ('FUNDER', 'Funder'),
+    ('YOUTH', 'Youth'),
 ]
 # Create your models here.
 
