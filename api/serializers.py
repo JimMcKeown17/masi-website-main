@@ -132,15 +132,3 @@ class NumeracyVisitSerializer(serializers.ModelSerializer):
             'created_at',
             'updated_at'
         ]
-        
-class MentorSerializer(serializers.ModelSerializer):
-    """Serializer for User model (for mentor field)"""
-    class Meta:
-        model = User
-        fields = ['id', 'username', 'first_name', 'last_name', 'email']
-        
-class SchoolSerializer(serializers.ModelSerializer):
-    """Serializer for School model"""
-    class Meta:
-        model = School
-        fields = ['id', 'name', 'type', 'city', 'address', 'contact_phone', 'contact_email']

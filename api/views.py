@@ -2,7 +2,7 @@ from rest_framework import generics, permissions
 from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes, authentication_classes
 from .models import MentorVisit, YeboVisit, ThousandStoriesVisit, NumeracyVisit, School
-from .serializers import MentorVisitSerializer, YeboVisitSerializer, ThousandStoriesVisitSerializer, NumeracyVisitSerializer, MentorSerializer, SchoolSerializer
+from .serializers import MentorVisitSerializer, YeboVisitSerializer, ThousandStoriesVisitSerializer, NumeracyVisitSerializer, MentorSerializer, SchoolSerializer, UserSerializer
 from .authentication import ClerkAuthentication
 from rest_framework.authentication import SessionAuthentication
 from django.utils import timezone
@@ -256,7 +256,7 @@ class SchoolListAPIView(generics.ListAPIView):
     """
     Get list of all active schools.
     """
-    queryset = School.objects.filter().order_by('name')
+    queryset = School.objects.all().order_by('name')
     serializer_class = SchoolSerializer
     authentication_classes = [SessionAuthentication, ClerkAuthentication]
     permission_classes = [permissions.IsAuthenticated]
