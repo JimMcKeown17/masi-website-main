@@ -22,5 +22,9 @@ urlpatterns = [
     path('numeracy-visits/', views.NumeracyVisitListCreateAPIView.as_view(), name='numeracy_visits'),
     path('numeracy-visits/<int:pk>/', views.NumeracyVisitDetailAPIView.as_view(), name='numeracy_visit_detail'),
     
+    # Helper endpoints
+    path('mentors/', views.MentorListAPIView.as_view(), name='mentors_list'),
+    path('schools/', views.SchoolListAPIView.as_view(), name='schools_list'),
+    
     path("me/", views.me, name="me"),
 ]

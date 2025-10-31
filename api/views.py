@@ -1,22 +1,61 @@
 from rest_framework import generics, permissions
 from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes, authentication_classes
-from .models import MentorVisit, YeboVisit, ThousandStoriesVisit, NumeracyVisit
-from .serializers import MentorVisitSerializer, YeboVisitSerializer, ThousandStoriesVisitSerializer, NumeracyVisitSerializer
+from .models import MentorVisit, YeboVisit, ThousandStoriesVisit, NumeracyVisit, School
+from .serializers import MentorVisitSerializer, YeboVisitSerializer, ThousandStoriesVisitSerializer, NumeracyVisitSerializer, MentorSerializer, SchoolSerializer
 from .authentication import ClerkAuthentication
 from rest_framework.authentication import SessionAuthentication
+from django.utils import timezone
+from datetime import timedelta
+from django.contrib.auth.models import User
 
 # MASI Literacy Visits
 class MentorVisitListCreateAPIView(generics.ListCreateAPIView):
     """
     GET: List all mentor visits
     POST: Create new mentor visit
+    
+    Query Parameters:
+    - time_filter: 7days, 30days, 90days, thisyear, all (default: all)
+    - school: school ID
+    - mentor: mentor user ID
     """
     queryset = MentorVisit.objects.all()
     serializer_class = MentorVisitSerializer
     authentication_classes = [SessionAuthentication, ClerkAuthentication]
     permission_classes = [permissions.IsAuthenticated]
     
+    def get_queryset(self):
+        """Apply filters based on query parameters"""
+        queryset = MentorVisit.objects.all()
+        
+        # Time filter
+        time_filter = self.request.query_params.get('time_filter', 'all')
+        if time_filter == '7days':
+            date_threshold = timezone.now().date() - timedelta(days=7)
+            queryset = queryset.filter(visit_date__gte=date_threshold)
+        elif time_filter == '30days':
+            date_threshold = timezone.now().date() - timedelta(days=30)
+            queryset = queryset.filter(visit_date__gte=date_threshold)
+        elif time_filter == '90days':
+            date_threshold = timezone.now().date() - timedelta(days=90)
+            queryset = queryset.filter(visit_date__gte=date_threshold)
+        elif time_filter == 'thisyear':
+            year_start = timezone.now().date().replace(month=1, day=1)
+            queryset = queryset.filter(visit_date__gte=year_start)
+        
+        # School filter
+        school_id = self.request.query_params.get('school')
+        if school_id:
+            queryset = queryset.filter(school_id=school_id)
+        
+        # Mentor filter
+        mentor_id = self.request.query_params.get('mentor')
+        if mentor_id:
+            queryset = queryset.filter(mentor_id=mentor_id)
+        
+        return queryset.order_by('-visit_date')
+
     def perform_create(self, serializer):
         # Automatically set the mentor to the authenticated user
         serializer.save(mentor=self.request.user)
@@ -36,10 +75,52 @@ class MentorVisitDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
 
 # Yebo Visits
 class YeboVisitListCreateAPIView(generics.ListCreateAPIView):
+    
+    """
+    GET: List all Yebo mentor visits
+    POST: Create new Yebo mentor visit
+    
+    Query Parameters:
+    - time_filter: 7days, 30days, 90days, thisyear, all (default: all)
+    - school: school ID
+    - mentor: mentor user ID
+    """
+    
     queryset = YeboVisit.objects.all()
     serializer_class = YeboVisitSerializer
     authentication_classes = [SessionAuthentication, ClerkAuthentication]
     permission_classes = [permissions.IsAuthenticated]
+    
+    def get_queryset(self):
+        """Apply filters based on query parameters"""
+        queryset = YeboVisit.objects.all()
+        
+        # Time filter
+        time_filter = self.request.query_params.get('time_filter', 'all')
+        if time_filter == '7days':
+            date_threshold = timezone.now().date() - timedelta(days=7)
+            queryset = queryset.filter(visit_date__gte=date_threshold)
+        elif time_filter == '30days':
+            date_threshold = timezone.now().date() - timedelta(days=30)
+            queryset = queryset.filter(visit_date__gte=date_threshold)
+        elif time_filter == '90days':
+            date_threshold = timezone.now().date() - timedelta(days=90)
+            queryset = queryset.filter(visit_date__gte=date_threshold)
+        elif time_filter == 'thisyear':
+            year_start = timezone.now().date().replace(month=1, day=1)
+            queryset = queryset.filter(visit_date__gte=year_start)
+        
+        # School filter
+        school_id = self.request.query_params.get('school')
+        if school_id:
+            queryset = queryset.filter(school_id=school_id)
+        
+        # Mentor filter
+        mentor_id = self.request.query_params.get('mentor')
+        if mentor_id:
+            queryset = queryset.filter(mentor_id=mentor_id)
+        
+        return queryset.order_by('-visit_date')
     
     def perform_create(self, serializer):
         serializer.save(mentor=self.request.user)
@@ -54,10 +135,52 @@ class YeboVisitDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
 
 # 1000 Stories Visits
 class ThousandStoriesVisitListCreateAPIView(generics.ListCreateAPIView):
+    
+    """
+    GET: List all Thousand Stories mentor visits
+    POST: Create new Thousand Stories mentor visit
+    
+    Query Parameters:
+    - time_filter: 7days, 30days, 90days, thisyear, all (default: all)
+    - school: school ID
+    - mentor: mentor user ID
+    """
+    
     queryset = ThousandStoriesVisit.objects.all()
     serializer_class = ThousandStoriesVisitSerializer
     authentication_classes = [SessionAuthentication, ClerkAuthentication]
     permission_classes = [permissions.IsAuthenticated]
+    
+    def get_queryset(self):
+        """Apply filters based on query parameters"""
+        queryset = ThousandStoriesVisit.objects.all()
+        
+        # Time filter
+        time_filter = self.request.query_params.get('time_filter', 'all')
+        if time_filter == '7days':
+            date_threshold = timezone.now().date() - timedelta(days=7)
+            queryset = queryset.filter(visit_date__gte=date_threshold)
+        elif time_filter == '30days':
+            date_threshold = timezone.now().date() - timedelta(days=30)
+            queryset = queryset.filter(visit_date__gte=date_threshold)
+        elif time_filter == '90days':
+            date_threshold = timezone.now().date() - timedelta(days=90)
+            queryset = queryset.filter(visit_date__gte=date_threshold)
+        elif time_filter == 'thisyear':
+            year_start = timezone.now().date().replace(month=1, day=1)
+            queryset = queryset.filter(visit_date__gte=year_start)
+        
+        # School filter
+        school_id = self.request.query_params.get('school')
+        if school_id:
+            queryset = queryset.filter(school_id=school_id)
+        
+        # Mentor filter
+        mentor_id = self.request.query_params.get('mentor')
+        if mentor_id:
+            queryset = queryset.filter(mentor_id=mentor_id)
+        
+        return queryset.order_by('-visit_date')
     
     def perform_create(self, serializer):
         serializer.save(mentor=self.request.user)
@@ -72,10 +195,52 @@ class ThousandStoriesVisitDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
 
 # Numeracy Visits
 class NumeracyVisitListCreateAPIView(generics.ListCreateAPIView):
+    
+    """
+    GET: List all Numeracy mentor visits
+    POST: Create new Numeracy mentor visit
+    
+    Query Parameters:
+    - time_filter: 7days, 30days, 90days, thisyear, all (default: all)
+    - school: school ID
+    - mentor: mentor user ID
+    """
+    
     queryset = NumeracyVisit.objects.all()
     serializer_class = NumeracyVisitSerializer
     authentication_classes = [SessionAuthentication, ClerkAuthentication]
     permission_classes = [permissions.IsAuthenticated]
+    
+    def get_queryset(self):
+        """Apply filters based on query parameters"""
+        queryset = NumeracyVisit.objects.all()
+        
+        # Time filter
+        time_filter = self.request.query_params.get('time_filter', 'all')
+        if time_filter == '7days':
+            date_threshold = timezone.now().date() - timedelta(days=7)
+            queryset = queryset.filter(visit_date__gte=date_threshold)
+        elif time_filter == '30days':
+            date_threshold = timezone.now().date() - timedelta(days=30)
+            queryset = queryset.filter(visit_date__gte=date_threshold)
+        elif time_filter == '90days':
+            date_threshold = timezone.now().date() - timedelta(days=90)
+            queryset = queryset.filter(visit_date__gte=date_threshold)
+        elif time_filter == 'thisyear':
+            year_start = timezone.now().date().replace(month=1, day=1)
+            queryset = queryset.filter(visit_date__gte=year_start)
+        
+        # School filter
+        school_id = self.request.query_params.get('school')
+        if school_id:
+            queryset = queryset.filter(school_id=school_id)
+        
+        # Mentor filter
+        mentor_id = self.request.query_params.get('mentor')
+        if mentor_id:
+            queryset = queryset.filter(mentor_id=mentor_id)
+        
+        return queryset.order_by('-visit_date')
     
     def perform_create(self, serializer):
         serializer.save(mentor=self.request.user)
@@ -86,6 +251,36 @@ class NumeracyVisitDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = NumeracyVisitSerializer
     authentication_classes = [SessionAuthentication, ClerkAuthentication]
     permission_classes = [permissions.IsAuthenticated]
+
+class SchoolListAPIView(generics.ListAPIView):
+    """
+    Get list of all active schools.
+    """
+    queryset = School.objects.filter().order_by('name')
+    serializer_class = SchoolSerializer
+    authentication_classes = [SessionAuthentication, ClerkAuthentication]
+    permission_classes = [permissions.IsAuthenticated]
+    
+class MentorListAPIView(generics.ListAPIView):
+    """
+    Get list of all mentors who have submitted visits.
+    Returns users who have submitted any type of visit (Literacy, Yebo, 1000 Stories, or Numeracy).
+    """
+    serializer_class = UserSerializer
+    authentication_classes = [SessionAuthentication, ClerkAuthentication]
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_queryset(self):
+        """Get all users who have submitted at least one visit"""
+        # Collect all mentor IDs from all visit types
+        mentor_ids = set()
+        mentor_ids.update(MentorVisit.objects.values_list('mentor_id', flat=True))
+        mentor_ids.update(YeboVisit.objects.values_list('mentor_id', flat=True))
+        mentor_ids.update(ThousandStoriesVisit.objects.values_list('mentor_id', flat=True))
+        mentor_ids.update(NumeracyVisit.objects.values_list('mentor_id', flat=True))
+        
+        # Return users ordered by name
+        return User.objects.filter(id__in=mentor_ids).distinct().order_by('first_name', 'last_name')
 
 
 @api_view(['GET'])
@@ -122,3 +317,4 @@ def me(request):
         "last_name": user.last_name,
         "username": user.username,
     })
+    
