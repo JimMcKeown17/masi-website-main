@@ -5,7 +5,22 @@ app_name = 'api'
 
 urlpatterns = [
     path('info/', views.api_info, name='api_info'),
-    path('mentor-visits/', views.MentorVisitListAPIView.as_view(), name='mentor_visits_list'),
+    
+    # MASI Literacy
+    path('mentor-visits/', views.MentorVisitListCreateAPIView.as_view(), name='mentor_visits'),
     path('mentor-visits/<int:pk>/', views.MentorVisitDetailAPIView.as_view(), name='mentor_visit_detail'),
+    
+    # Yebo
+    path('yebo-visits/', views.YeboVisitListCreateAPIView.as_view(), name='yebo_visits'),
+    path('yebo-visits/<int:pk>/', views.YeboVisitDetailAPIView.as_view(), name='yebo_visit_detail'),
+    
+    # 1000 Stories
+    path('thousand-stories-visits/', views.ThousandStoriesVisitListCreateAPIView.as_view(), name='thousand_stories_visits'),
+    path('thousand-stories-visits/<int:pk>/', views.ThousandStoriesVisitDetailAPIView.as_view(), name='thousand_stories_visit_detail'),
+    
+    # Numeracy
+    path('numeracy-visits/', views.NumeracyVisitListCreateAPIView.as_view(), name='numeracy_visits'),
+    path('numeracy-visits/<int:pk>/', views.NumeracyVisitDetailAPIView.as_view(), name='numeracy_visit_detail'),
+    
     path("me/", views.me, name="me"),
-] 
+]

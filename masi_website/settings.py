@@ -44,6 +44,7 @@ INSTALLED_APPS = [
     'django.contrib.sites',
     'rest_framework',
     'rest_framework.authtoken',
+    'drf_spectacular',
     'storages',
     'core',
     'pages',
@@ -256,6 +257,21 @@ REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticatedOrReadOnly",
     ],
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",  # Add this line
+}
+
+# Add these settings below REST_FRAMEWORK
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'MASI API',
+    'DESCRIPTION': 'API for MASI mentor visits, schools, and assessment data',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
+    # Optional: Customize the UI
+    'SWAGGER_UI_SETTINGS': {
+        'deepLinking': True,
+        'persistAuthorization': True,  # Keeps your auth token between page refreshes
+        'displayOperationId': True,
+    },
 }
 
 CORS_ALLOWED_ORIGINS = [
