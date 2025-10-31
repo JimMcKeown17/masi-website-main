@@ -120,6 +120,10 @@ class ClerkAuthentication(authentication.BaseAuthentication):
                 print("🔍 No email found for user")
                 raise exceptions.AuthenticationFailed("No email found for user")
             
+            # Normalize email to lowercase for consistent lookups
+            primary_email = primary_email.lower()
+            print(f"🔍 Normalized email: {primary_email}")
+            
             first_name = user_data.get('first_name', '')
             last_name = user_data.get('last_name', '')
             print(f"🔍 User info - Name: {first_name} {last_name}, Email: {primary_email}")
@@ -133,31 +137,42 @@ class ClerkAuthentication(authentication.BaseAuthentication):
             logger.error(f"Unexpected error in Clerk API call: {e}")
             raise exceptions.AuthenticationFailed("Failed to fetch user information")
 
-        # Create or get user
+        # Create or get user using case-insensitive email lookup
         print(f"🔍 Creating/getting Django user for email: {primary_email}")
         try:
-            user, created = User.objects.get_or_create(
-                email=primary_email,
-                defaults={
-                    "username": primary_email.split("@")[0], 
-                    "first_name": first_name,
-                    "last_name": last_name
-                }
-            )
-            print(f"🔍 User {'created' if created else 'found'}: {user.email}")
+            # Use __iexact for case-insensitive lookup
+            user = User.objects.filter(email__iexact=primary_email).first()
             
-            # Update user info if it changed
-            if not created:
+            if user:
+                # User exists - update if needed
+                print(f"🔍 User found: {user.email}")
                 updated = False
+                
+                # Update email to lowercase if it's not already
+                if user.email != primary_email:
+                    user.email = primary_email
+                    updated = True
+                
                 if user.first_name != first_name:
                     user.first_name = first_name
                     updated = True
+                    
                 if user.last_name != last_name:
                     user.last_name = last_name
                     updated = True
+                    
                 if updated:
                     user.save()
                     print("🔍 User info updated")
+            else:
+                # User doesn't exist - create new one
+                user = User.objects.create(
+                    email=primary_email,
+                    username=primary_email.split("@")[0],
+                    first_name=first_name,
+                    last_name=last_name
+                )
+                print(f"🔍 User created: {user.email}")
             
             print(f"🔍 Authentication successful for user: {user.email}")
             return (user, None)
