@@ -25,6 +25,7 @@ urlpatterns = [
     # Helper endpoints
     path('mentors/', views.MentorListAPIView.as_view(), name='mentors_list'),
     path('schools/', views.SchoolListAPIView.as_view(), name='schools_list'),
+    path('dashboard-summary/', views.dashboard_summary, name='dashboard_summary'),
     
     path("me/", views.me, name="me"),
 ]
