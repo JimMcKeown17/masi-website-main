@@ -180,3 +180,5 @@ This is stored as a boolean in Airtable but as varchar(5) in Django. The script 
 
 The script is now ready to sync with your actual Airtable "Schools" table!
 
+# This is the command to run the schools update/sync with airtable
+python manage.py sync_airtable_schools
