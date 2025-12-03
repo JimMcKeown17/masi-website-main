@@ -566,3 +566,433 @@ class NumeracySessionChild(models.Model):
 
     def __str__(self):
         return f"{self.child_name or 'Unknown Child'} - {self.session_id or 'No ID'}"
+
+
+# 2025 Assessment choices
+GENDER_CHOICES_2025 = [
+    ('Male', 'Male'),
+    ('Female', 'Female'),
+]
+
+RACE_CHOICES_2025 = [
+    ('Black', 'Black'),
+    ('Coloured', 'Coloured'),
+]
+
+LANGUAGE_CHOICES_2025 = [
+    ('IsiXhosa', 'IsiXhosa'),
+    ('English', 'English'),
+]
+
+GRADE_CHOICES_2025 = [
+    ('PreR', 'PreR'),
+    ('Grade R', 'Grade R'),
+    ('Grade 1', 'Grade 1'),
+    ('Grade 2', 'Grade 2'),
+    ('Grade 3', 'Grade 3'),
+]
+
+CENTRE_TYPE_CHOICES_2025 = [
+    ('Primary', 'Primary'),
+    ('ECD', 'ECD'),
+    ('Both', 'Both'),
+    ('Wcd', 'Wcd'),
+]
+
+ON_PROGRAMME_CHOICES_2025 = [
+    ('Yes', 'Yes'),
+    ('No', 'No'),
+    ('Awaiting', 'Awaiting'),
+    ('Left', 'Left'),
+    ('Absent', 'Absent'),
+]
+
+BASELINE_STATUS_CHOICES = [
+    ('Present Baseline', 'Present Baseline'),
+    ('Missing Baseline', 'Missing Baseline'),
+]
+
+MIDLINE_STATUS_CHOICES = [
+    ('Midline Present', 'Midline Present'),
+    ('Midline Missing', 'Midline Missing'),
+    ('N/A', 'N/A'),
+]
+
+ENDLINE_STATUS_CHOICES = [
+    ('Present Endline', 'Present Endline'),
+    ('Missing Endline', 'Missing Endline'),
+]
+
+
+class Assessment2025(models.Model):
+    """
+    Model for 2025 Children's Database assessments.
+    Maps directly to the Airtable '2025 Children's Database - Main' table.
+    """
+    
+    # Airtable sync identifier
+    airtable_id = models.CharField(
+        max_length=100, 
+        unique=True, 
+        help_text="Airtable record ID for syncing"
+    )
+    
+    # Core identification
+    mcode = models.CharField(
+        max_length=100, 
+        db_index=True, 
+        blank=True, 
+        null=True,
+        help_text="Unique student identifier"
+    )
+    surname = models.CharField(max_length=255, blank=True, null=True)
+    name = models.CharField(max_length=255, blank=True, null=True)
+    full_name = models.CharField(max_length=255, blank=True, null=True)
+    
+    # Demographics
+    gender = models.CharField(
+        max_length=10, 
+        choices=GENDER_CHOICES_2025, 
+        blank=True, 
+        null=True
+    )
+    race = models.CharField(
+        max_length=20, 
+        choices=RACE_CHOICES_2025, 
+        blank=True, 
+        null=True
+    )
+    language = models.CharField(
+        max_length=20, 
+        choices=LANGUAGE_CHOICES_2025, 
+        blank=True, 
+        null=True
+    )
+    
+    # School/Class info
+    school = models.CharField(max_length=200, blank=True, null=True)
+    city = models.CharField(max_length=100, blank=True, null=True)
+    grade = models.CharField(
+        max_length=20, 
+        choices=GRADE_CHOICES_2025, 
+        blank=True, 
+        null=True
+    )
+    class_name = models.CharField(
+        max_length=20, 
+        blank=True, 
+        null=True,
+        help_text="Class identifier (e.g., RA, RB, 1A)"
+    )
+    teacher = models.CharField(max_length=100, blank=True, null=True)
+    centre_type = models.CharField(
+        max_length=20, 
+        choices=CENTRE_TYPE_CHOICES_2025, 
+        blank=True, 
+        null=True
+    )
+    mentor = models.CharField(max_length=100, blank=True, null=True)
+    
+    # Program participation
+    on_programme = models.CharField(
+        max_length=20, 
+        choices=ON_PROGRAMME_CHOICES_2025, 
+        blank=True, 
+        null=True
+    )
+    capturer = models.CharField(
+        max_length=100, 
+        blank=True, 
+        null=True,
+        help_text="Person who captured the data"
+    )
+    
+    # Status fields
+    baseline_status = models.CharField(
+        max_length=20, 
+        choices=BASELINE_STATUS_CHOICES, 
+        blank=True, 
+        null=True
+    )
+    midline_status = models.CharField(
+        max_length=20, 
+        choices=MIDLINE_STATUS_CHOICES, 
+        blank=True, 
+        null=True
+    )
+    endline_status = models.CharField(
+        max_length=20, 
+        choices=ENDLINE_STATUS_CHOICES, 
+        blank=True, 
+        null=True
+    )
+    
+    # Exclusion fields
+    exclude = models.BooleanField(
+        blank=True, 
+        null=True,
+        help_text="Mark True to exclude this record from analysis"
+    )
+    exclude_reason = models.TextField(
+        blank=True, 
+        null=True,
+        help_text="Reason for excluding this record"
+    )
+    
+    # ========================================
+    # January Assessment Scores (Baseline)
+    # ========================================
+    jan_letter_sounds = models.IntegerField(
+        blank=True, null=True,
+        validators=[MinValueValidator(0)]
+    )
+    jan_story_comprehension = models.IntegerField(
+        blank=True, null=True,
+        validators=[MinValueValidator(0)]
+    )
+    jan_listen_first_sound = models.IntegerField(
+        blank=True, null=True,
+        validators=[MinValueValidator(0)]
+    )
+    jan_listen_words = models.IntegerField(
+        blank=True, null=True,
+        validators=[MinValueValidator(0)]
+    )
+    jan_writing_letters = models.IntegerField(
+        blank=True, null=True,
+        validators=[MinValueValidator(0)]
+    )
+    jan_read_words = models.IntegerField(
+        blank=True, null=True,
+        validators=[MinValueValidator(0)]
+    )
+    jan_read_sentences = models.IntegerField(
+        blank=True, null=True,
+        validators=[MinValueValidator(0)]
+    )
+    jan_read_story = models.IntegerField(
+        blank=True, null=True,
+        validators=[MinValueValidator(0)]
+    )
+    jan_write_cvcs = models.IntegerField(
+        blank=True, null=True,
+        validators=[MinValueValidator(0)]
+    )
+    jan_write_sentences = models.IntegerField(
+        blank=True, null=True,
+        validators=[MinValueValidator(0)]
+    )
+    jan_write_story = models.IntegerField(
+        blank=True, null=True,
+        validators=[MinValueValidator(0)]
+    )
+    jan_total = models.IntegerField(
+        blank=True, null=True,
+        validators=[MinValueValidator(0)],
+        help_text="Computed total of all January scores"
+    )
+    
+    # ========================================
+    # June Assessment Scores (Midline)
+    # ========================================
+    june_letter_sounds = models.IntegerField(
+        blank=True, null=True,
+        validators=[MinValueValidator(0)]
+    )
+    june_story_comprehension = models.IntegerField(
+        blank=True, null=True,
+        validators=[MinValueValidator(0)]
+    )
+    june_listen_first_sound = models.IntegerField(
+        blank=True, null=True,
+        validators=[MinValueValidator(0)]
+    )
+    june_listen_words = models.IntegerField(
+        blank=True, null=True,
+        validators=[MinValueValidator(0)]
+    )
+    june_writing_letters = models.IntegerField(
+        blank=True, null=True,
+        validators=[MinValueValidator(0)]
+    )
+    june_read_words = models.IntegerField(
+        blank=True, null=True,
+        validators=[MinValueValidator(0)]
+    )
+    june_read_sentences = models.IntegerField(
+        blank=True, null=True,
+        validators=[MinValueValidator(0)]
+    )
+    june_read_story = models.IntegerField(
+        blank=True, null=True,
+        validators=[MinValueValidator(0)]
+    )
+    june_write_cvcs = models.IntegerField(
+        blank=True, null=True,
+        validators=[MinValueValidator(0)]
+    )
+    june_write_sentences = models.IntegerField(
+        blank=True, null=True,
+        validators=[MinValueValidator(0)]
+    )
+    june_write_story = models.IntegerField(
+        blank=True, null=True,
+        validators=[MinValueValidator(0)]
+    )
+    june_total = models.IntegerField(
+        blank=True, null=True,
+        validators=[MinValueValidator(0)],
+        help_text="Computed total of all June scores"
+    )
+    
+    # ========================================
+    # November Assessment Scores (Endline)
+    # ========================================
+    nov_letter_sounds = models.IntegerField(
+        blank=True, null=True,
+        validators=[MinValueValidator(0)]
+    )
+    nov_story_comprehension = models.IntegerField(
+        blank=True, null=True,
+        validators=[MinValueValidator(0)]
+    )
+    nov_listen_first_sound = models.IntegerField(
+        blank=True, null=True,
+        validators=[MinValueValidator(0)]
+    )
+    nov_listen_words = models.IntegerField(
+        blank=True, null=True,
+        validators=[MinValueValidator(0)]
+    )
+    nov_writing_letters = models.IntegerField(
+        blank=True, null=True,
+        validators=[MinValueValidator(0)]
+    )
+    nov_read_words = models.IntegerField(
+        blank=True, null=True,
+        validators=[MinValueValidator(0)]
+    )
+    nov_read_sentences = models.IntegerField(
+        blank=True, null=True,
+        validators=[MinValueValidator(0)]
+    )
+    nov_read_story = models.IntegerField(
+        blank=True, null=True,
+        validators=[MinValueValidator(0)]
+    )
+    nov_write_cvcs = models.IntegerField(
+        blank=True, null=True,
+        validators=[MinValueValidator(0)]
+    )
+    nov_write_sentences = models.IntegerField(
+        blank=True, null=True,
+        validators=[MinValueValidator(0)]
+    )
+    nov_write_story = models.IntegerField(
+        blank=True, null=True,
+        validators=[MinValueValidator(0)]
+    )
+    nov_total = models.IntegerField(
+        blank=True, null=True,
+        validators=[MinValueValidator(0)],
+        help_text="Computed total of all November scores"
+    )
+    
+    # Metadata
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'assessment_2025'
+        verbose_name = "2025 Assessment"
+        verbose_name_plural = "2025 Assessments"
+        indexes = [
+            models.Index(fields=['mcode']),
+            models.Index(fields=['school']),
+            models.Index(fields=['grade']),
+            models.Index(fields=['mentor']),
+            models.Index(fields=['on_programme']),
+        ]
+    
+    def __str__(self):
+        return f"{self.full_name or 'Unknown'} ({self.mcode or 'No Mcode'}) - {self.school or 'No School'}"
+    
+    def save(self, *args, **kwargs):
+        # Auto-generate full_name if not provided
+        if not self.full_name and (self.surname or self.name):
+            parts = [self.surname or '', self.name or '']
+            self.full_name = ' '.join(filter(None, parts))
+        super().save(*args, **kwargs)
+    
+    # ========================================
+    # Computed Properties
+    # ========================================
+    
+    @property
+    def computed_jan_total(self):
+        """Calculate January total from individual scores"""
+        scores = [
+            self.jan_letter_sounds, self.jan_story_comprehension,
+            self.jan_listen_first_sound, self.jan_listen_words,
+            self.jan_writing_letters, self.jan_read_words,
+            self.jan_read_sentences, self.jan_read_story,
+            self.jan_write_cvcs, self.jan_write_sentences,
+            self.jan_write_story
+        ]
+        valid_scores = [s for s in scores if s is not None]
+        return sum(valid_scores) if valid_scores else None
+    
+    @property
+    def computed_june_total(self):
+        """Calculate June total from individual scores"""
+        scores = [
+            self.june_letter_sounds, self.june_story_comprehension,
+            self.june_listen_first_sound, self.june_listen_words,
+            self.june_writing_letters, self.june_read_words,
+            self.june_read_sentences, self.june_read_story,
+            self.june_write_cvcs, self.june_write_sentences,
+            self.june_write_story
+        ]
+        valid_scores = [s for s in scores if s is not None]
+        return sum(valid_scores) if valid_scores else None
+    
+    @property
+    def computed_nov_total(self):
+        """Calculate November total from individual scores"""
+        scores = [
+            self.nov_letter_sounds, self.nov_story_comprehension,
+            self.nov_listen_first_sound, self.nov_listen_words,
+            self.nov_writing_letters, self.nov_read_words,
+            self.nov_read_sentences, self.nov_read_story,
+            self.nov_write_cvcs, self.nov_write_sentences,
+            self.nov_write_story
+        ]
+        valid_scores = [s for s in scores if s is not None]
+        return sum(valid_scores) if valid_scores else None
+    
+    @property
+    def baseline_to_midline_improvement(self):
+        """Calculate improvement from January to June"""
+        jan = self.jan_total or self.computed_jan_total
+        june = self.june_total or self.computed_june_total
+        if jan is not None and june is not None:
+            return june - jan
+        return None
+    
+    @property
+    def baseline_to_endline_improvement(self):
+        """Calculate improvement from January to November"""
+        jan = self.jan_total or self.computed_jan_total
+        nov = self.nov_total or self.computed_nov_total
+        if jan is not None and nov is not None:
+            return nov - jan
+        return None
+    
+    @property
+    def improvement_percentage(self):
+        """Calculate percentage improvement from January to November"""
+        jan = self.jan_total or self.computed_jan_total
+        nov = self.nov_total or self.computed_nov_total
+        if jan and nov and jan > 0:
+            return round(((nov - jan) / jan) * 100, 2)
+        return None
