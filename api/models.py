@@ -201,12 +201,12 @@ class MentorVisit(models.Model):
     reading_trackers_correct = models.BooleanField(default=False, verbose_name="Are LC's using their Reading Trackers correctly?")
     sessions_correct = models.BooleanField(default=False, verbose_name="Are TA's using their Session Trackers correctly?")
     admin_correct = models.BooleanField(default=False, verbose_name="Are TA's completing their admin correctly?")
-    
+
     # Quality rating
     RATING_CHOICES = [(i, str(i)) for i in range(1, 11)]
-    quality_rating = models.IntegerField(choices=RATING_CHOICES, default=5, 
+    quality_rating = models.IntegerField(choices=RATING_CHOICES, null=True, blank=True,
                                         verbose_name="Quality of Sessions Observed")
-    
+
     # Text fields
     supplies_needed = models.TextField(blank=True, null=True, verbose_name="Any Supplies Needed")
     commentary = models.TextField(blank=True, null=True)
@@ -236,7 +236,7 @@ class YeboVisit(models.Model):
     
     # Afternoon session quality rating
     RATING_CHOICES = [(i, str(i)) for i in range(1, 11)]
-    afternoon_session_quality = models.IntegerField(choices=RATING_CHOICES, default=5, 
+    afternoon_session_quality = models.IntegerField(choices=RATING_CHOICES, null=True, blank=True,
                                                    verbose_name="Afternoon session quality")
     
     # Commentary
@@ -269,7 +269,7 @@ class ThousandStoriesVisit(models.Model):
     
     # Quality rating for story time session
     RATING_CHOICES = [(i, str(i)) for i in range(1, 11)]
-    story_time_quality = models.IntegerField(choices=RATING_CHOICES, default=5, 
+    story_time_quality = models.IntegerField(choices=RATING_CHOICES, null=True, blank=True,
                                            verbose_name="Quality of Story time session")
     
     # Other comments
@@ -303,9 +303,9 @@ class NumeracyVisit(models.Model):
     
     # Quality rating
     RATING_CHOICES = [(i, str(i)) for i in range(1, 11)]
-    quality_rating = models.IntegerField(choices=RATING_CHOICES, default=5, 
+    quality_rating = models.IntegerField(choices=RATING_CHOICES, null=True, blank=True,
                                         verbose_name="Quality of Sessions Observed")
-    
+
     # Text fields
     supplies_needed = models.TextField(blank=True, null=True, verbose_name="Any Supplies Needed")
     commentary = models.TextField(blank=True, null=True, verbose_name="Commentary")
