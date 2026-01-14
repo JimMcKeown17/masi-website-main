@@ -212,6 +212,7 @@ CSRF_TRUSTED_ORIGINS = [
     'https://www.masinyusane.org',
     'https://masi-website-main.onrender.com',
     'https://www.masi-website-main.onrender.com',
+    'https://masi-web-nextjs.vercel.app',  # Vercel deployment
 ]
 
 if not DEBUG:
@@ -281,6 +282,7 @@ CORS_ALLOWED_ORIGINS = [
     "https://masi-website-main.onrender.com",
     "https://www.masi-website-main.onrender.com",
     "http://localhost:3001",
+    "https://masi-web-nextjs.vercel.app",  # Vercel deployment
 ]
 
 CORS_ALLOW_CREDENTIALS = True
