@@ -26,7 +26,15 @@ class MentorVisitSerializer(serializers.ModelSerializer):
         source='school',
         write_only=True
     )
-    
+    # Explicitly allow null for optional fields
+    letter_trackers_correct = serializers.BooleanField(required=False, allow_null=True)
+    reading_trackers_correct = serializers.BooleanField(required=False, allow_null=True)
+    sessions_correct = serializers.BooleanField(required=False, allow_null=True)
+    admin_correct = serializers.BooleanField(required=False, allow_null=True)
+    quality_rating = serializers.IntegerField(required=False, allow_null=True)
+    supplies_needed = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    commentary = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+
     class Meta:
         model = MentorVisit
         fields = [
@@ -35,6 +43,7 @@ class MentorVisitSerializer(serializers.ModelSerializer):
             'school',
             'school_id',  # For writing
             'visit_date',
+            'visit_type',
             'letter_trackers_correct',
             'reading_trackers_correct',
             'sessions_correct',
@@ -45,6 +54,9 @@ class MentorVisitSerializer(serializers.ModelSerializer):
             'created_at',
             'updated_at'
         ]
+        extra_kwargs = {
+            'visit_type': {'required': False},
+        }
 
 
 class YeboVisitSerializer(serializers.ModelSerializer):
@@ -56,7 +68,11 @@ class YeboVisitSerializer(serializers.ModelSerializer):
         source='school',
         write_only=True
     )
-    
+    afternoon_session_quality = serializers.IntegerField(required=False, allow_null=True)
+    after_school_observation = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    paired_reading_observation = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    commentary = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+
     class Meta:
         model = YeboVisit
         fields = [
@@ -68,10 +84,18 @@ class YeboVisitSerializer(serializers.ModelSerializer):
             'paired_reading_took_place',
             'paired_reading_tracking_updated',
             'afternoon_session_quality',
+            'after_school_observation',
+            'paired_reading_observation',
             'commentary',
             'created_at',
             'updated_at'
         ]
+        extra_kwargs = {
+            'afternoon_session_quality': {'required': False, 'allow_null': True},
+            'after_school_observation': {'required': False, 'allow_blank': True},
+            'paired_reading_observation': {'required': False, 'allow_blank': True},
+            'commentary': {'required': False, 'allow_blank': True},
+        }
 
 
 class ThousandStoriesVisitSerializer(serializers.ModelSerializer):
@@ -83,7 +107,9 @@ class ThousandStoriesVisitSerializer(serializers.ModelSerializer):
         source='school',
         write_only=True
     )
-    
+    story_time_quality = serializers.IntegerField(required=False, allow_null=True)
+    other_comments = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+
     class Meta:
         model = ThousandStoriesVisit
         fields = [
@@ -101,6 +127,10 @@ class ThousandStoriesVisitSerializer(serializers.ModelSerializer):
             'created_at',
             'updated_at'
         ]
+        extra_kwargs = {
+            'story_time_quality': {'required': False, 'allow_null': True},
+            'other_comments': {'required': False, 'allow_blank': True},
+        }
 
 
 class NumeracyVisitSerializer(serializers.ModelSerializer):
@@ -112,7 +142,10 @@ class NumeracyVisitSerializer(serializers.ModelSerializer):
         source='school',
         write_only=True
     )
-    
+    quality_rating = serializers.IntegerField(required=False, allow_null=True)
+    supplies_needed = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    commentary = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+
     class Meta:
         model = NumeracyVisit
         fields = [
@@ -132,3 +165,8 @@ class NumeracyVisitSerializer(serializers.ModelSerializer):
             'created_at',
             'updated_at'
         ]
+        extra_kwargs = {
+            'quality_rating': {'required': False, 'allow_null': True},
+            'supplies_needed': {'required': False, 'allow_blank': True},
+            'commentary': {'required': False, 'allow_blank': True},
+        }

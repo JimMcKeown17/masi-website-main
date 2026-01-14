@@ -195,12 +195,26 @@ class MentorVisit(models.Model):
     mentor = models.ForeignKey(User, on_delete=models.CASCADE, related_name='visits')
     school = models.ForeignKey(School, on_delete=models.CASCADE, related_name='visits')
     visit_date = models.DateField(default=timezone.now)
-    
-    # Checkbox observations
-    letter_trackers_correct = models.BooleanField(default=False, verbose_name="Are LC's using their Letter Trackers correctly?")
-    reading_trackers_correct = models.BooleanField(default=False, verbose_name="Are LC's using their Reading Trackers correctly?")
-    sessions_correct = models.BooleanField(default=False, verbose_name="Are TA's using their Session Trackers correctly?")
-    admin_correct = models.BooleanField(default=False, verbose_name="Are TA's completing their admin correctly?")
+
+    # Visit type
+    VISIT_TYPE_CHOICES = [
+        ('observation', 'Observation'),
+        ('meeting', 'Meeting'),
+        ('delivery', 'Delivery'),
+        ('other', 'Other'),
+    ]
+    visit_type = models.CharField(
+        max_length=20,
+        choices=VISIT_TYPE_CHOICES,
+        default='observation',
+        verbose_name="Type of Visit"
+    )
+
+    # Checkbox observations (null for non-observation visits)
+    letter_trackers_correct = models.BooleanField(null=True, blank=True, verbose_name="Are LC's using their Letter Trackers correctly?")
+    reading_trackers_correct = models.BooleanField(null=True, blank=True, verbose_name="Are LC's using their Reading Trackers correctly?")
+    sessions_correct = models.BooleanField(null=True, blank=True, verbose_name="Are TA's using their Session Trackers correctly?")
+    admin_correct = models.BooleanField(null=True, blank=True, verbose_name="Are TA's completing their admin correctly?")
 
     # Quality rating
     RATING_CHOICES = [(i, str(i)) for i in range(1, 11)]
@@ -238,7 +252,11 @@ class YeboVisit(models.Model):
     RATING_CHOICES = [(i, str(i)) for i in range(1, 11)]
     afternoon_session_quality = models.IntegerField(choices=RATING_CHOICES, null=True, blank=True,
                                                    verbose_name="Afternoon session quality")
-    
+
+    # Observation text fields
+    after_school_observation = models.TextField(blank=True, null=True, verbose_name="After-School Observation")
+    paired_reading_observation = models.TextField(blank=True, null=True, verbose_name="Paired Reading Observation")
+
     # Commentary
     commentary = models.TextField(blank=True, null=True, verbose_name="Commentary")
     
