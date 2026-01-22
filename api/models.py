@@ -243,10 +243,24 @@ class YeboVisit(models.Model):
     mentor = models.ForeignKey(User, on_delete=models.CASCADE, related_name='yebo_visits')
     school = models.ForeignKey(School, on_delete=models.CASCADE, related_name='yebo_visits')
     visit_date = models.DateField(default=timezone.now)
-    
-    # Yebo-specific observations
-    paired_reading_took_place = models.BooleanField(default=False, verbose_name="Did paired reading take place?")
-    paired_reading_tracking_updated = models.BooleanField(default=False, verbose_name="Paired reading tracking up to date")
+
+    # Visit type
+    VISIT_TYPE_CHOICES = [
+        ('observation', 'Observation'),
+        ('meeting', 'Meeting'),
+        ('delivery', 'Delivery'),
+        ('other', 'Other'),
+    ]
+    visit_type = models.CharField(
+        max_length=20,
+        choices=VISIT_TYPE_CHOICES,
+        default='observation',
+        verbose_name="Type of Visit"
+    )
+
+    # Yebo-specific observations (null for non-observation visits)
+    paired_reading_took_place = models.BooleanField(null=True, blank=True, verbose_name="Did paired reading take place?")
+    paired_reading_tracking_updated = models.BooleanField(null=True, blank=True, verbose_name="Paired reading tracking up to date")
     
     # Afternoon session quality rating
     RATING_CHOICES = [(i, str(i)) for i in range(1, 11)]
@@ -278,12 +292,26 @@ class ThousandStoriesVisit(models.Model):
     mentor = models.ForeignKey(User, on_delete=models.CASCADE, related_name='thousand_stories_visits')
     school = models.ForeignKey(School, on_delete=models.CASCADE, related_name='thousand_stories_visits')
     visit_date = models.DateField(default=timezone.now)
-    
-    # 1000 Stories-specific observations
-    library_neat_and_tidy = models.BooleanField(default=False, verbose_name="Is the library neat and tidy?")
-    tracking_sheets_up_to_date = models.BooleanField(default=False, verbose_name="Are all tracking sheets up to date?")
-    book_boxes_and_borrowing = models.BooleanField(default=False, verbose_name="Is book boxes and book borrowing taking place?")
-    daily_target_met = models.BooleanField(default=False, verbose_name="Daily target of stories read is met?")
+
+    # Visit type
+    VISIT_TYPE_CHOICES = [
+        ('observation', 'Observation'),
+        ('meeting', 'Meeting'),
+        ('delivery', 'Delivery'),
+        ('other', 'Other'),
+    ]
+    visit_type = models.CharField(
+        max_length=20,
+        choices=VISIT_TYPE_CHOICES,
+        default='observation',
+        verbose_name="Type of Visit"
+    )
+
+    # 1000 Stories-specific observations (null for non-observation visits)
+    library_neat_and_tidy = models.BooleanField(null=True, blank=True, verbose_name="Is the library neat and tidy?")
+    tracking_sheets_up_to_date = models.BooleanField(null=True, blank=True, verbose_name="Are all tracking sheets up to date?")
+    book_boxes_and_borrowing = models.BooleanField(null=True, blank=True, verbose_name="Is book boxes and book borrowing taking place?")
+    daily_target_met = models.BooleanField(null=True, blank=True, verbose_name="Daily target of stories read is met?")
     
     # Quality rating for story time session
     RATING_CHOICES = [(i, str(i)) for i in range(1, 11)]
@@ -311,13 +339,27 @@ class NumeracyVisit(models.Model):
     mentor = models.ForeignKey(User, on_delete=models.CASCADE, related_name='numeracy_visits')
     school = models.ForeignKey(School, on_delete=models.CASCADE, related_name='numeracy_visits')
     visit_date = models.DateField(default=timezone.now)
-    
-    # Numeracy-specific observations
-    numeracy_tracker_correct = models.BooleanField(default=False, verbose_name="Using Numeracy Tracker Correctly")
-    teaching_counting = models.BooleanField(default=False, verbose_name="Teaching Counting")
-    teaching_number_concepts = models.BooleanField(default=False, verbose_name="Teaching Number Concepts")
-    teaching_patterns = models.BooleanField(default=False, verbose_name="Teaching Patterns")
-    teaching_addition_subtraction = models.BooleanField(default=False, verbose_name="Teaching Addition/Subtraction")
+
+    # Visit type
+    VISIT_TYPE_CHOICES = [
+        ('observation', 'Observation'),
+        ('meeting', 'Meeting'),
+        ('delivery', 'Delivery'),
+        ('other', 'Other'),
+    ]
+    visit_type = models.CharField(
+        max_length=20,
+        choices=VISIT_TYPE_CHOICES,
+        default='observation',
+        verbose_name="Type of Visit"
+    )
+
+    # Numeracy-specific observations (null for non-observation visits)
+    numeracy_tracker_correct = models.BooleanField(null=True, blank=True, verbose_name="Using Numeracy Tracker Correctly")
+    teaching_counting = models.BooleanField(null=True, blank=True, verbose_name="Teaching Counting")
+    teaching_number_concepts = models.BooleanField(null=True, blank=True, verbose_name="Teaching Number Concepts")
+    teaching_patterns = models.BooleanField(null=True, blank=True, verbose_name="Teaching Patterns")
+    teaching_addition_subtraction = models.BooleanField(null=True, blank=True, verbose_name="Teaching Addition/Subtraction")
     
     # Quality rating
     RATING_CHOICES = [(i, str(i)) for i in range(1, 11)]
