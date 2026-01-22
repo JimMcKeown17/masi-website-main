@@ -5,6 +5,7 @@ from .numeracy_visits import NumeracyVisitListCreateAPIView, NumeracyVisitDetail
 from .lookups import SchoolListAPIView, MentorListAPIView
 from .info import api_info, me
 from .dashboard import dashboard_summary
+from .recent_visits import recent_visits
 
 __all__ = [
     'MentorVisitListCreateAPIView',
@@ -20,5 +21,6 @@ __all__ = [
     'api_info',
     'me',
     'dashboard_summary',
+    'recent_visits',
 ]
 
