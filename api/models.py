@@ -594,6 +594,7 @@ class LiteracySession(models.Model):
 
 
 class NumeracySessionChild(models.Model):
+    source_airtable_id = models.CharField(max_length=100, blank=True, null=True, db_index=True, help_text="Airtable record ID — used as upsert key so we never delete the whole table")
     session_id = models.CharField(max_length=255, blank=True, null=True)
     nc_full_name = models.CharField(max_length=255, blank=True, null=True)
     numeracy_site = models.CharField(max_length=255, blank=True, null=True)
