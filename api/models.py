@@ -567,6 +567,125 @@ class WELA_assessments(models.Model):
     
 from django.db import models
 
+
+class LiteracySession2026(models.Model):
+    """
+    Literacy session records from the 2026 Airtable sessions table.
+
+    Structure changed significantly from 2025 — now uses UIDs for cross-table
+    references (Youth UID, School UID, Child UID) instead of text names.
+    These UIDs will eventually link to canonical Youth, School, and Child tables.
+
+    Grain: one row per session. Each session involves exactly 2 children.
+    Upsert key: source_airtable_id (unique Airtable record ID).
+    """
+    source_airtable_id = models.CharField(max_length=100, unique=True, db_index=True)
+    session_record = models.IntegerField(null=True, blank=True, help_text="Airtable auto-number")
+    session_uid = models.CharField(max_length=200, blank=True, null=True, db_index=True,
+                                   help_text="Composite business key: SES-date-YTH-SCH-CH")
+    session_date = models.DateField(null=True, blank=True)
+
+    # UIDs — will eventually FK to canonical tables
+    youth_uid = models.CharField(max_length=50, blank=True, null=True, db_index=True,
+                                 help_text="e.g. YTH-1905")
+    school_uid = models.CharField(max_length=50, blank=True, null=True, db_index=True,
+                                  help_text="e.g. SCH-00283")
+    child_uid_1 = models.CharField(max_length=50, blank=True, null=True, help_text="e.g. CH-16023")
+    child_uid_2 = models.CharField(max_length=50, blank=True, null=True, help_text="e.g. CH-16566")
+    child_names = models.CharField(max_length=500, blank=True, null=True,
+                                   help_text="Semicolon-separated child names from Airtable")
+
+    # Session content
+    sounds_covered = models.CharField(max_length=500, blank=True, null=True,
+                                      help_text="Raw sounds covered text entered by LC")
+    sounds_covered_clean = models.CharField(max_length=500, blank=True, null=True,
+                                            help_text="Normalised sounds (lowercased, punctuation removed)")
+    blending_level = models.CharField(max_length=100, blank=True, null=True)
+
+    # Quality / observability fields — useful for dashboard and data quality reporting
+    duplicate_status = models.CharField(max_length=50, blank=True, null=True,
+                                        help_text="e.g. Unique or Duplicate")
+    overall_session_status = models.CharField(max_length=50, blank=True, null=True,
+                                              help_text="Clean or Needs fix")
+    capture_delay = models.IntegerField(null=True, blank=True,
+                                        help_text="Days between session date and when it was captured")
+    capture_delay_flag = models.CharField(max_length=100, blank=True, null=True)
+    duplicate_fingerprint = models.CharField(max_length=500, blank=True, null=True,
+                                             help_text="Composite string used for duplicate detection")
+
+    # Timestamps
+    created_in_airtable = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'literacy_sessions_2026'
+        indexes = [
+            models.Index(fields=['session_date']),
+            models.Index(fields=['youth_uid']),
+            models.Index(fields=['school_uid']),
+        ]
+
+    def __str__(self):
+        return f"{self.session_uid or self.source_airtable_id} ({self.session_date})"
+
+
+class NumeracySession2026(models.Model):
+    """
+    Numeracy session records from the 2026 Airtable sessions table.
+
+    Key difference from literacy 2026: numeracy sessions have 3-10 children per
+    session (a group), not exactly 2. Child UIDs are stored as a JSON array.
+    Data is group-level (count level, number recognition) not per-child.
+
+    Upsert key: source_airtable_id (unique Airtable record ID).
+    """
+    source_airtable_id = models.CharField(max_length=100, unique=True, db_index=True)
+    session_record = models.IntegerField(null=True, blank=True, help_text="Airtable auto-number")
+    session_uid = models.CharField(max_length=500, blank=True, null=True, db_index=True,
+                                   help_text="Composite business key: SES-date-YTH-SCH-CH...")
+    session_date = models.DateField(null=True, blank=True)
+
+    # UIDs — will eventually FK to canonical tables
+    youth_uid = models.CharField(max_length=50, blank=True, null=True, db_index=True)
+    school_uid = models.CharField(max_length=50, blank=True, null=True, db_index=True)
+    child_uids = models.JSONField(default=list, blank=True,
+                                  help_text="Array of CH-XXXXX UIDs for all children in this session")
+    children_count = models.IntegerField(null=True, blank=True)
+
+    # Session content — group-level, not per-child
+    group_count_level = models.CharField(max_length=50, blank=True, null=True,
+                                         help_text="e.g. 31-40 (emoji stripped from Airtable value)")
+    group_number_recognition = models.CharField(max_length=100, blank=True, null=True,
+                                                help_text="e.g. Recognises 1-5")
+
+    # Quality / observability fields
+    duplicate_status = models.CharField(max_length=50, blank=True, null=True)
+    overall_session_status = models.CharField(max_length=50, blank=True, null=True)
+    capture_delay = models.IntegerField(null=True, blank=True,
+                                        help_text="Days between session date and capture")
+    capture_delay_flag = models.CharField(max_length=100, blank=True, null=True)
+    duplicate_fingerprint = models.CharField(max_length=500, blank=True, null=True)
+
+    # Timestamps (Created is a date not datetime in this Airtable table)
+    created_in_airtable = models.DateField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'numeracy_sessions_2026'
+        indexes = [
+            models.Index(fields=['session_date']),
+            models.Index(fields=['youth_uid']),
+            models.Index(fields=['school_uid']),
+        ]
+
+    def __str__(self):
+        return f"{self.session_uid or self.source_airtable_id} ({self.session_date})"
+
+
+from django.db import models
+
 class LiteracySession(models.Model):
     session_id = models.IntegerField(unique=True)
     lc_full_name = models.CharField(max_length=255, blank=True)
