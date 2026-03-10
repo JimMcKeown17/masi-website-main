@@ -45,10 +45,13 @@ ID_TYPE_CHOICES = [
 
 class School(models.Model):
     """Model representing a school where youth work and children learn"""
-    school_id = models.IntegerField(null=True, blank=True, help_text="School ID from CSV import")    
+    school_id = models.IntegerField(null=True, blank=True, help_text="School ID from CSV import")
     airtable_id = models.CharField(max_length=100, blank=True, null=True, unique=True, help_text="Airtable record ID")
+    school_uid = models.CharField(max_length=50, blank=True, null=True, unique=True, db_index=True, help_text="SCH-XXXXX format UID — join key for 2026 session tables")
+    school_number = models.IntegerField(null=True, blank=True, help_text="Auto-increment number from Airtable")
     name = models.CharField(max_length=200)
     type = models.CharField(max_length=200, choices=SCHOOL_TYPE_CHOICES, blank=True, null=True)
+    suburb = models.CharField(max_length=100, blank=True, null=True)
     site_type = models.CharField(max_length=100, blank=True, null=True, help_text="Site type from Airtable")
     latitude = models.DecimalField(max_digits=10, decimal_places=8, blank=True, null=True)
     longitude = models.DecimalField(max_digits=10, decimal_places=8, blank=True, null=True)
