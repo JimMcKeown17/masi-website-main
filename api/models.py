@@ -171,6 +171,44 @@ class Child(models.Model):
         ordering = ['full_name']
 
 
+class CanonicalChild(models.Model):
+    """
+    Canonical child record synced from the master Airtable children table.
+
+    This is the stable cross-year identity record for every child on the programme.
+    One row per child. mcode and child_uid are stable across years and Airtable tables.
+
+    The existing Child model (below) is legacy — it has a required school FK and is
+    only used by the old Session model. This model is the clean canonical replacement.
+
+    Upsert key: source_airtable_id.
+    Business key: mcode (unique integer, e.g. 6191).
+    Cross-table join key: child_uid (e.g. 'CH-6191') — referenced in 2026 session tables.
+    """
+    source_airtable_id = models.CharField(max_length=100, unique=True, db_index=True)
+    child_uid = models.CharField(max_length=50, unique=True, db_index=True, help_text="CH-XXXXX format UID")
+    mcode = models.IntegerField(unique=True, db_index=True, help_text="Stable integer child identifier")
+    first_name = models.CharField(max_length=200, blank=True, null=True)
+    surname = models.CharField(max_length=200, blank=True, null=True)
+    full_name = models.CharField(max_length=400, blank=True, null=True)
+    gender = models.CharField(max_length=10, blank=True, null=True)
+    identity_confidence = models.CharField(max_length=100, blank=True, null=True, help_text="e.g. Multi-Year Record")
+    years_active = models.JSONField(default=list, blank=True, help_text="List of years the child was active")
+    programme = models.JSONField(default=list, blank=True, help_text="e.g. ['Literacy Child']")
+    school_2025 = models.CharField(max_length=200, blank=True, null=True)
+    grade_2025 = models.CharField(max_length=50, blank=True, null=True)
+    created_in_airtable = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.full_name or self.child_uid} (mcode={self.mcode})"
+
+    class Meta:
+        db_table = 'canonical_children'
+        ordering = ['mcode']
+
+
 class Mentor(models.Model):
     """Model representing a mentor who manages youth"""
     user = models.OneToOneField(User, on_delete=models.CASCADE, blank=True, null=True)
