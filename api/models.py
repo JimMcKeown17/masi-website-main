@@ -80,6 +80,7 @@ class Youth(models.Model):
     # Identification
     airtable_id = models.CharField(max_length=100, blank=True, null=True, unique=True, help_text="Airtable record ID")
     employee_id = models.IntegerField(unique=True)
+    youth_uid = models.CharField(max_length=50, blank=True, null=True, unique=True, db_index=True, help_text="YTH-XXXX format UID — join key for 2026 session tables")
     first_names = models.CharField(max_length=255)
     last_name = models.CharField(max_length=255)
     full_name = models.CharField(max_length=255, blank=True)
@@ -213,22 +214,72 @@ class CanonicalChild(models.Model):
 
 
 class Mentor(models.Model):
-    """Model representing a mentor who manages youth"""
+    """Mentor who supervises youth coaches. Has dashboard login via User FK."""
     user = models.OneToOneField(User, on_delete=models.CASCADE, blank=True, null=True)
     name = models.CharField(max_length=255)
     is_active = models.BooleanField(default=True)
-    
+
     # System fields
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    
+
     def __str__(self):
         return self.name
-    
+
     class Meta:
         ordering = ['name']
-        verbose_name = "Mentor Visit"
-        verbose_name_plural = "Mentor Visits"
+        verbose_name = "Mentor"
+        verbose_name_plural = "Mentors"
+
+
+class Staff(models.Model):
+    """
+    Staff HR record synced from the Airtable HR staff database.
+
+    Covers all staff (mentors, admin, finance, etc.) — current and former.
+    Canonical key: employee_number (unique integer).
+    Upsert key: source_airtable_id.
+    """
+    source_airtable_id = models.CharField(max_length=100, blank=True, null=True, unique=True, db_index=True)
+    employee_number = models.IntegerField(blank=True, null=True, unique=True, db_index=True)
+
+    # Identity
+    name = models.CharField(max_length=255)
+    first_names = models.CharField(max_length=255, blank=True, null=True)
+    last_name = models.CharField(max_length=255, blank=True, null=True)
+    gender = models.CharField(max_length=20, blank=True, null=True)
+    race = models.CharField(max_length=100, blank=True, null=True)
+    date_of_birth = models.DateField(blank=True, null=True)
+    id_number = models.CharField(max_length=50, blank=True, null=True)
+    identification_type = models.CharField(max_length=50, blank=True, null=True)
+    drivers_license_code = models.CharField(max_length=50, blank=True, null=True)
+
+    # Contact
+    cell_number = models.CharField(max_length=50, blank=True, null=True)
+    email = models.EmailField(blank=True, null=True)
+    emergency_cell_number = models.CharField(max_length=50, blank=True, null=True)
+
+    # Address
+    unit_number = models.CharField(max_length=50, blank=True, null=True)
+    complex_name = models.CharField(max_length=100, blank=True, null=True)
+    street_number = models.CharField(max_length=50, blank=True, null=True)
+    street = models.CharField(max_length=255, blank=True, null=True)
+    suburb = models.CharField(max_length=100, blank=True, null=True)
+    city = models.CharField(max_length=100, blank=True, null=True)
+    postal_code = models.CharField(max_length=20, blank=True, null=True)
+
+    # System fields
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.name} (#{self.employee_number})"
+
+    class Meta:
+        db_table = 'staff'
+        ordering = ['name']
+        verbose_name = "Staff"
+        verbose_name_plural = "Staff"
 
 
 class MentorVisit(models.Model):
