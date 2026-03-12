@@ -14,7 +14,7 @@ Django REST Framework backend for Masinyusane (MASI). Serves the Next.js fronten
 ## Development
 
 ```bash
-source venv/bin/activate
+source venv/bin/activate (remember to do this before running commands yourself)
 python manage.py runserver        # http://localhost:8000
 python manage.py makemigrations
 python manage.py migrate
@@ -71,50 +71,6 @@ The `ClerkAuthentication` class validates tokens via Clerk JWKS, then creates/up
 
 Public endpoints use `AllowAny`. Protected endpoints use `IsAuthenticated`.
 
-## Key Models
-
-| Model | Description |
-|---|---|
-| `School` | Sites where programs operate (lat/lon, type, active status) |
-| `Youth` | Literacy coaches / youth employees |
-| `Children` | Child learners at schools |
-| `MentorVisit` | Mentor visits to youth at schools |
-| `YeboVisit` | Yebo program visits |
-| `NumeracyVisit` | Numeracy program visits |
-| `ThousandStoriesVisit` | 1000 Stories program visits |
-| `Session` | Program sessions |
-
-## Adding a New Endpoint
-
-1. Add view in `api/views/<relevant_file>.py`
-2. Register URL in `api/urls.py`
-3. Add test in `api/tests.py` (or `api/tests/`)
-
-**Pattern — aggregated endpoint (preferred over raw list):**
-```python
-# api/views/dashboard.py
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
-from django.db.models import Count
-
-class VisitFrequencyView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request):
-        data = (
-            MentorVisit.objects
-            .values('visit_date__month')
-            .annotate(count=Count('id'))
-            .order_by('visit_date__month')
-        )
-        return Response(list(data))
-```
-
-```python
-# api/urls.py
-path('visit-frequency/', VisitFrequencyView.as_view()),
-```
 
 ## Testing
 
@@ -127,21 +83,6 @@ python manage.py test api.tests.TestVisitStats  # specific test
 
 Keep tests focused and minimal — test the endpoint contract, not Django internals.
 
-```python
-from django.test import TestCase
-from django.contrib.auth.models import User
-from rest_framework.test import APIClient
-
-class VisitFrequencyTests(TestCase):
-    def setUp(self):
-        self.client = APIClient()
-        self.user = User.objects.create_user('test', password='test')
-        self.client.force_authenticate(user=self.user)
-
-    def test_returns_aggregated_data(self):
-        response = self.client.get('/api/visit-frequency/')
-        self.assertEqual(response.status_code, 200)
-```
 
 ## Backend-First Rule
 
@@ -151,16 +92,4 @@ class VisitFrequencyTests(TestCase):
 ```
 ❌ Frontend fetches 1000 visit records and counts them
 ✅ Backend returns { "total_visits": 1000, "this_month": 87 }
-```
-
-## Environment Variables
-
-```
-SECRET_KEY=
-DEBUG=
-DATABASE_URL=           # PostgreSQL connection string (prod)
-CLERK_SECRET_KEY=
-ALLOWED_HOSTS=
-CORS_ALLOWED_ORIGINS=   # Next.js frontend origin
-GCS_BUCKET_NAME=        # Google Cloud Storage
 ```
