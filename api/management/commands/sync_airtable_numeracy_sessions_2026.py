@@ -4,7 +4,7 @@ from django.core.management.base import BaseCommand
 from django.utils.dateparse import parse_date
 from django.db import transaction
 from dotenv import load_dotenv
-from api.models import NumeracySession2026, AirtableSyncLog
+from api.models import NumeracySession2026, AirtableSyncLog, Youth, School
 
 
 class Command(BaseCommand):
@@ -49,6 +49,11 @@ class Command(BaseCommand):
 
         if is_dry_run:
             self.stdout.write(self.style.WARNING("=== DRY RUN MODE — no changes will be saved ===\n"))
+
+        # Build FK lookup dicts for resolving UIDs to canonical records
+        self.youth_by_uid = {y.youth_uid: y for y in Youth.objects.filter(youth_uid__isnull=False)}
+        self.school_by_uid = {s.school_uid: s for s in School.objects.filter(school_uid__isnull=False)}
+        self.stdout.write(f"FK lookups: youth={len(self.youth_by_uid)}, school={len(self.school_by_uid)}")
 
         sync_log = None
         if not is_dry_run:
@@ -131,6 +136,7 @@ class Command(BaseCommand):
         update_fields = [
             'session_record', 'session_uid', 'session_date',
             'youth_uid', 'school_uid', 'child_uids', 'children_count',
+            'youth_id', 'school_id',
             'group_count_level', 'group_number_recognition',
             'duplicate_status', 'overall_session_status',
             'capture_delay', 'capture_delay_flag', 'duplicate_fingerprint',
@@ -160,12 +166,17 @@ class Command(BaseCommand):
                 return val
             return val.encode('ascii', 'ignore').decode().strip(' -')
 
+        youth_uid_val = safe_first('Youth UID')
+        school_uid_val = safe_first('School UID')
+
         return dict(
             session_record=fields.get('Session Record'),
             session_uid=fields.get('Session UID'),
             session_date=parse_date(fields.get('Session Date', '') or ''),
-            youth_uid=safe_first('Youth UID'),
-            school_uid=safe_first('School UID'),
+            youth_uid=youth_uid_val,
+            school_uid=school_uid_val,
+            youth=self.youth_by_uid.get(youth_uid_val),
+            school=self.school_by_uid.get(school_uid_val),
             child_uids=fields.get('Child UID', []),
             children_count=fields.get('Children Count'),
             group_count_level=strip_emoji(fields.get('Group Current Count Level')),

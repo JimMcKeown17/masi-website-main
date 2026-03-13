@@ -6,6 +6,7 @@ from .lookups import SchoolListAPIView, MentorListAPIView
 from .info import api_info, me
 from .dashboard import dashboard_summary
 from .recent_visits import recent_visits
+from .etl_preview import etl_status, etl_preview
 
 __all__ = [
     'MentorVisitListCreateAPIView',
@@ -22,5 +23,7 @@ __all__ = [
     'me',
     'dashboard_summary',
     'recent_visits',
+    'etl_status',
+    'etl_preview',
 ]
 

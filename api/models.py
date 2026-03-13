@@ -684,6 +684,17 @@ class LiteracySession2026(models.Model):
                                   help_text="e.g. SCH-00283")
     child_uid_1 = models.CharField(max_length=50, blank=True, null=True, help_text="e.g. CH-16023")
     child_uid_2 = models.CharField(max_length=50, blank=True, null=True, help_text="e.g. CH-16566")
+
+    # Resolved FKs (populated during sync by UID lookup)
+    youth = models.ForeignKey('Youth', on_delete=models.SET_NULL, null=True, blank=True,
+                              related_name='literacy_sessions_2026')
+    school = models.ForeignKey('School', on_delete=models.SET_NULL, null=True, blank=True,
+                               related_name='literacy_sessions_2026')
+    child_1 = models.ForeignKey('CanonicalChild', on_delete=models.SET_NULL, null=True, blank=True,
+                                related_name='literacy_sessions_as_child1')
+    child_2 = models.ForeignKey('CanonicalChild', on_delete=models.SET_NULL, null=True, blank=True,
+                                related_name='literacy_sessions_as_child2')
+
     child_names = models.CharField(max_length=500, blank=True, null=True,
                                    help_text="Semicolon-separated child names from Airtable")
 
@@ -744,6 +755,12 @@ class NumeracySession2026(models.Model):
     child_uids = models.JSONField(default=list, blank=True,
                                   help_text="Array of CH-XXXXX UIDs for all children in this session")
     children_count = models.IntegerField(null=True, blank=True)
+
+    # Resolved FKs (populated during sync by UID lookup)
+    youth = models.ForeignKey('Youth', on_delete=models.SET_NULL, null=True, blank=True,
+                              related_name='numeracy_sessions_2026')
+    school = models.ForeignKey('School', on_delete=models.SET_NULL, null=True, blank=True,
+                               related_name='numeracy_sessions_2026')
 
     # Session content — group-level, not per-child
     group_count_level = models.CharField(max_length=50, blank=True, null=True,

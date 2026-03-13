@@ -29,4 +29,8 @@ urlpatterns = [
     path('recent-visits/', views.recent_visits, name='recent_visits'),
 
     path("me/", views.me, name="me"),
+
+    # ETL preview
+    path('etl-status/', views.etl_status, name='etl_status'),
+    path('etl-preview/<str:table_name>/', views.etl_preview, name='etl_preview'),
 ]

@@ -5,7 +5,7 @@ from django.core.management.base import BaseCommand
 from django.utils.dateparse import parse_date
 from django.db import transaction
 from dotenv import load_dotenv
-from api.models import LiteracySession2026, AirtableSyncLog
+from api.models import LiteracySession2026, AirtableSyncLog, Youth, School, CanonicalChild
 
 
 class Command(BaseCommand):
@@ -50,6 +50,12 @@ class Command(BaseCommand):
 
         if is_dry_run:
             self.stdout.write(self.style.WARNING("=== DRY RUN MODE — no changes will be saved ===\n"))
+
+        # Build FK lookup dicts for resolving UIDs to canonical records
+        self.youth_by_uid = {y.youth_uid: y for y in Youth.objects.filter(youth_uid__isnull=False)}
+        self.school_by_uid = {s.school_uid: s for s in School.objects.filter(school_uid__isnull=False)}
+        self.child_by_uid = {c.child_uid: c for c in CanonicalChild.objects.all()}
+        self.stdout.write(f"FK lookups: youth={len(self.youth_by_uid)}, school={len(self.school_by_uid)}, child={len(self.child_by_uid)}")
 
         sync_log = None
         if not is_dry_run:
@@ -132,6 +138,7 @@ class Command(BaseCommand):
         update_fields = [
             'session_record', 'session_uid', 'session_date',
             'youth_uid', 'school_uid', 'child_uid_1', 'child_uid_2', 'child_names',
+            'youth_id', 'school_id', 'child_1_id', 'child_2_id',
             'sounds_covered', 'sounds_covered_clean', 'blending_level',
             'duplicate_status', 'overall_session_status',
             'capture_delay', 'capture_delay_flag', 'duplicate_fingerprint',
@@ -176,14 +183,21 @@ class Command(BaseCommand):
             except (ValueError, AttributeError):
                 pass
 
+        youth_uid_val = safe_first('Youth UID')
+        school_uid_val = safe_first('School UID')
+
         return dict(
             session_record=fields.get('Session Record'),
             session_uid=fields.get('Session UID'),
             session_date=parse_date(fields.get('Session Date', '') or ''),
-            youth_uid=safe_first('Youth UID'),
-            school_uid=safe_first('School UID'),
+            youth_uid=youth_uid_val,
+            school_uid=school_uid_val,
             child_uid_1=child_uid_1,
             child_uid_2=child_uid_2,
+            youth=self.youth_by_uid.get(youth_uid_val),
+            school=self.school_by_uid.get(school_uid_val),
+            child_1=self.child_by_uid.get(child_uid_1),
+            child_2=self.child_by_uid.get(child_uid_2),
             child_names=fields.get('Unique Child Selected List'),
             sounds_covered=fields.get('Sounds Covered'),
             sounds_covered_clean=fields.get('Sounds Covered (Clean)'),
