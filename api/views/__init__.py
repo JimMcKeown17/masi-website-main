@@ -7,6 +7,15 @@ from .info import api_info, me
 from .dashboard import dashboard_summary
 from .recent_visits import recent_visits
 from .etl_preview import etl_status, etl_preview
+from .youth_sessions import (
+    youth_sessions_summary,
+    youth_sessions_daily_activity,
+    youth_sessions_heatmap,
+    youth_sessions_inactive,
+    youth_sessions_school_coverage,
+    youth_sessions_detail,
+    youth_sessions_lookups,
+)
 
 __all__ = [
     'MentorVisitListCreateAPIView',
@@ -25,5 +34,12 @@ __all__ = [
     'recent_visits',
     'etl_status',
     'etl_preview',
+    'youth_sessions_summary',
+    'youth_sessions_daily_activity',
+    'youth_sessions_heatmap',
+    'youth_sessions_inactive',
+    'youth_sessions_school_coverage',
+    'youth_sessions_detail',
+    'youth_sessions_lookups',
 ]
 

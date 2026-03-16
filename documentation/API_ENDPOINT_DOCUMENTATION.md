@@ -18,6 +18,9 @@ All endpoints require authentication using **ClerkAuthentication** or **SessionA
 5. [Numeracy Visit Endpoints](#numeracy-visit-endpoints)
 6. [Lookup/Helper Endpoints](#lookuphelper-endpoints)
 7. [Dashboard Endpoints](#dashboard-endpoints)
+8. [Canonical Data Model](#canonical-data-model)
+9. [ETL Status & Preview Endpoints](#etl-status--preview-endpoints)
+10. [2026 Session Tables](#2026-session-tables)
 
 ---
 
@@ -518,6 +521,362 @@ All endpoints require authentication using **ClerkAuthentication** or **SessionA
 
 ---
 
+## Canonical Data Model
+
+The backend maintains a set of **canonical tables** synced from Airtable. These are the source-of-truth dimension tables for the organisation. All are read-only from the frontend's perspective -- data flows in via management commands (`python manage.py sync_airtable_*`).
+
+### Entity Relationship
+
+```
+School (326 records)
+  ├── school_uid: "SCH-00283" (unique join key)
+  ├── name, suburb, type, city, ...
+  │
+Youth (1634 records) ──FK──> School
+  ├── youth_uid: "YTH-1905" (unique join key)
+  ├── employee_id, full_name, employment_status, job_title, ...
+  │
+CanonicalChild (10704 records)
+  ├── child_uid: "CH-16023" (unique join key)
+  ├── mcode: 16023 (stable integer ID)
+  ├── full_name, gender, school_2025, grade_2025, ...
+  │
+Staff (HR records -- mentors, admin, finance, etc.)
+  ├── employee_number (unique)
+  ├── name, gender, email, ...
+```
+
+### Fact Tables (2026 Sessions)
+
+Session tables store one row per session and link to canonical tables via **resolved FKs**. Each session row has both the raw UID string (`youth_uid`, `school_uid`) and a resolved FK (`youth_id`, `school_id`) pointing to the canonical record.
+
+```
+LiteracySession2026 (fact table)
+  ├── youth_uid: "YTH-1905"   + youth_id ──FK──> Youth
+  ├── school_uid: "SCH-00283" + school_id ──FK──> School
+  ├── child_uid_1: "CH-16023" + child_1_id ──FK──> CanonicalChild
+  ├── child_uid_2: "CH-16566" + child_2_id ──FK──> CanonicalChild
+  ├── session_date, sounds_covered_clean, blending_level, ...
+  │
+NumeracySession2026 (fact table)
+  ├── youth_uid + youth_id ──FK──> Youth
+  ├── school_uid + school_id ──FK──> School
+  ├── child_uids: ["CH-16023", "CH-16024", ...] (JSON array, 3-10 children per session)
+  ├── session_date, group_count_level, group_number_recognition, ...
+```
+
+**Key design decisions:**
+- UID string fields are kept alongside FKs for debugging and Airtable traceability
+- FKs are nullable (`SET_NULL`) -- if a canonical record is missing, the session still exists
+- Numeracy child UIDs remain a JSON array (no M2M) since numeracy analysis is group-level
+- FKs are resolved during Airtable sync and can be backfilled with `python manage.py resolve_session_fks`
+
+---
+
+## ETL Status & Preview Endpoints
+
+These endpoints provide visibility into sync health and data quality. They are internal tooling endpoints -- use them to build admin dashboards, data quality monitors, and preview pages.
+
+### 14. ETL Sync Status
+**Endpoint:** `GET /api/etl-status/`
+**Authentication:** Required (SessionAuthentication or ClerkAuthentication)
+
+**Purpose:** Returns sync health summary for all canonical and session tables.
+
+**Response:**
+```json
+{
+  "tables": [
+    {
+      "name": "schools",
+      "record_count": 326,
+      "last_sync": "2026-03-10T08:00:00+00:00",
+      "last_sync_records": 326
+    },
+    {
+      "name": "youth",
+      "record_count": 1634,
+      "last_sync": "2026-03-10T08:05:00+00:00",
+      "last_sync_records": 1634
+    },
+    {
+      "name": "children",
+      "record_count": 10704,
+      "last_sync": "2026-03-10T08:10:00+00:00",
+      "last_sync_records": 10704
+    },
+    {
+      "name": "staff",
+      "record_count": 45,
+      "last_sync": "2026-03-10T08:15:00+00:00",
+      "last_sync_records": 45
+    },
+    {
+      "name": "literacy-2026",
+      "record_count": 4416,
+      "last_sync": "2026-03-15T12:00:00+00:00",
+      "last_sync_records": 4416
+    },
+    {
+      "name": "numeracy-2026",
+      "record_count": 341,
+      "last_sync": "2026-03-15T12:05:00+00:00",
+      "last_sync_records": 341
+    }
+  ]
+}
+```
+
+**Field descriptions:**
+- `name`: Table identifier (use as `table_name` param for the preview endpoint)
+- `record_count`: Current row count in the database
+- `last_sync`: ISO timestamp of the most recent successful sync (null if never synced)
+- `last_sync_records`: Number of records processed in that sync
+
+**Use Cases:**
+- **Status Dashboard Cards:** Show record count + last sync time per table
+- **Staleness Alerts:** Flag tables where `last_sync` is older than expected
+- **Sync Monitoring:** Verify syncs are running and processing expected record counts
+
+---
+
+### 15. ETL Table Preview
+**Endpoint:** `GET /api/etl-preview/<table_name>/`
+**Authentication:** Required (SessionAuthentication or ClerkAuthentication)
+
+**Path Parameter:**
+- `table_name`: One of `schools`, `youth`, `children`, `staff`, `literacy-2026`, `numeracy-2026`
+
+**Purpose:** Returns sample rows and FK resolution stats for one table. Useful for verifying data quality and building preview UIs.
+
+**Response (session tables -- literacy-2026, numeracy-2026):**
+```json
+{
+  "table_name": "literacy-2026",
+  "record_count": 4416,
+  "orphan_stats": {
+    "youth_resolved": 4416,
+    "youth_orphaned": 0,
+    "school_resolved": 4416,
+    "school_orphaned": 0,
+    "child1_resolved": 4416,
+    "child1_orphaned": 0,
+    "child2_resolved": 3323,
+    "child2_orphaned": 1093
+  },
+  "sample_rows": [
+    {
+      "id": 1,
+      "session_uid": "SES-2026-03-10-YTH-1905-SCH-00283-CH-16023",
+      "session_date": "2026-03-10",
+      "youth_uid": "YTH-1905",
+      "youth_name": "John Smith",
+      "school_uid": "SCH-00283",
+      "school_name": "Sunshine Primary",
+      "child_uid_1": "CH-16023",
+      "child_1_name": "Thando Mkhize",
+      "child_uid_2": "CH-16566",
+      "child_2_name": "Sipho Ndlovu",
+      "sounds_covered_clean": "s a t p",
+      "blending_level": "CVC",
+      "duplicate_status": "Unique",
+      "overall_session_status": "Clean"
+    }
+  ]
+}
+```
+
+**Response (canonical tables -- schools, youth, children, staff):**
+```json
+{
+  "table_name": "youth",
+  "record_count": 1634,
+  "sample_rows": [
+    {
+      "id": 42,
+      "full_name": "John Smith",
+      "youth_uid": "YTH-1905",
+      "employee_id": 1905,
+      "employment_status": "Active",
+      "job_title": "Literacy Coach"
+    }
+  ]
+}
+```
+
+**Sample row fields per table:**
+
+| Table | Fields |
+|-------|--------|
+| `schools` | `id`, `name`, `school_uid`, `suburb`, `school_number` |
+| `youth` | `id`, `full_name`, `youth_uid`, `employee_id`, `employment_status`, `job_title` |
+| `children` | `id`, `full_name`, `child_uid`, `mcode`, `gender`, `school_2025`, `grade_2025` |
+| `staff` | `id`, `name`, `employee_number`, `gender`, `email` |
+| `literacy-2026` | `id`, `session_uid`, `session_date`, `youth_uid`, `youth_name`, `school_uid`, `school_name`, `child_uid_1`, `child_1_name`, `child_uid_2`, `child_2_name`, `sounds_covered_clean`, `blending_level`, `duplicate_status`, `overall_session_status` |
+| `numeracy-2026` | `id`, `session_uid`, `session_date`, `youth_uid`, `youth_name`, `school_uid`, `school_name`, `child_uids`, `children_count`, `group_count_level`, `group_number_recognition`, `duplicate_status` |
+
+**Orphan stats** (session tables only): Shows how many session rows have resolved FKs vs. orphaned UIDs (no matching canonical record). `child2_orphaned` will be higher than other orphan counts because some literacy sessions only have one child.
+
+**Use Cases:**
+- **Data Quality Dashboard:** Show orphan stats as progress bars (resolved vs. orphaned per FK)
+- **Preview Tables:** Display sample rows to verify sync data looks correct
+- **Debugging:** Identify broken FK links after syncs
+
+---
+
+## 2026 Session Tables
+
+### Data Model Reference
+
+These are the full field lists for the 2026 session models. Frontend engineers building dashboards should reference these when deciding which fields to request from future API endpoints.
+
+#### LiteracySession2026
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `source_airtable_id` | string | Unique Airtable record ID (upsert key) |
+| `session_record` | int | Airtable auto-number |
+| `session_uid` | string | Composite business key (e.g. `SES-2026-03-10-YTH-1905-SCH-00283-CH-16023`) |
+| `session_date` | date | When the session took place |
+| `youth_uid` | string | Youth UID string (e.g. `YTH-1905`) |
+| `school_uid` | string | School UID string (e.g. `SCH-00283`) |
+| `child_uid_1` | string | First child UID (e.g. `CH-16023`) |
+| `child_uid_2` | string | Second child UID (nullable -- some sessions have 1 child) |
+| `youth` | FK -> Youth | Resolved FK (nullable) |
+| `school` | FK -> School | Resolved FK (nullable) |
+| `child_1` | FK -> CanonicalChild | Resolved FK (nullable) |
+| `child_2` | FK -> CanonicalChild | Resolved FK (nullable) |
+| `child_names` | string | Semicolon-separated child names from Airtable |
+| `sounds_covered` | string | Raw sounds text entered by LC |
+| `sounds_covered_clean` | string | Normalised sounds (lowercased, punctuation removed) |
+| `blending_level` | string | e.g. `CVC`, `CVCC` |
+| `duplicate_status` | string | `Unique` or `Duplicate` |
+| `overall_session_status` | string | `Clean` or `Needs fix` |
+| `capture_delay` | int | Days between session date and capture |
+| `capture_delay_flag` | string | e.g. `On Time`, `Late` |
+| `duplicate_fingerprint` | string | Composite string for duplicate detection |
+| `created_in_airtable` | datetime | When the record was created in Airtable |
+
+#### NumeracySession2026
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `source_airtable_id` | string | Unique Airtable record ID (upsert key) |
+| `session_record` | int | Airtable auto-number |
+| `session_uid` | string | Composite business key |
+| `session_date` | date | When the session took place |
+| `youth_uid` | string | Youth UID string |
+| `school_uid` | string | School UID string |
+| `child_uids` | JSON array | Array of `CH-XXXXX` UIDs (3-10 children per group session) |
+| `children_count` | int | Number of children in the group |
+| `youth` | FK -> Youth | Resolved FK (nullable) |
+| `school` | FK -> School | Resolved FK (nullable) |
+| `group_count_level` | string | e.g. `31-40` (group's current counting level) |
+| `group_number_recognition` | string | e.g. `Recognises 1-5` |
+| `duplicate_status` | string | `Unique` or `Duplicate` |
+| `overall_session_status` | string | `Clean` or `Needs fix` |
+| `capture_delay` | int | Days between session date and capture |
+| `capture_delay_flag` | string | e.g. `On Time`, `Late` |
+| `duplicate_fingerprint` | string | Composite string for duplicate detection |
+| `created_in_airtable` | date | When the record was created in Airtable |
+
+#### CanonicalChild
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `source_airtable_id` | string | Airtable record ID (upsert key) |
+| `child_uid` | string | `CH-XXXXX` format UID (cross-table join key) |
+| `mcode` | int | Stable integer child identifier |
+| `first_name` | string | |
+| `surname` | string | |
+| `full_name` | string | |
+| `gender` | string | |
+| `identity_confidence` | string | e.g. `Multi-Year Record` |
+| `years_active` | JSON array | e.g. `[2024, 2025, 2026]` |
+| `programme` | JSON array | e.g. `["Literacy Child"]` |
+| `school_2025` | string | School name in 2025 |
+| `grade_2025` | string | Grade in 2025 |
+
+#### Youth
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `airtable_id` | string | Airtable record ID |
+| `employee_id` | int | Unique employee number |
+| `youth_uid` | string | `YTH-XXXX` format UID (cross-table join key) |
+| `full_name` | string | Auto-generated from first_names + last_name |
+| `first_names` | string | |
+| `last_name` | string | |
+| `employment_status` | string | `Active` or `Inactive` |
+| `job_title` | string | |
+| `school` | FK -> School | Current school placement |
+| `mentor` | FK -> Mentor | Supervising mentor |
+| `dob`, `age`, `gender`, `race` | various | Demographics |
+| `cell_phone_number`, `email` | various | Contact info |
+
+#### School
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `airtable_id` | string | Airtable record ID |
+| `school_uid` | string | `SCH-XXXXX` format UID (cross-table join key) |
+| `school_number` | int | Auto-increment number from Airtable |
+| `name` | string | School name |
+| `type` | string | `ECDC`, `Primary School`, `Secondary School`, `Other` |
+| `suburb` | string | |
+| `city` | string | |
+| `site_type` | string | Site type from Airtable |
+| `latitude`, `longitude` | decimal | Coordinates |
+| `actively_working_in` | string | Whether MASI is currently active at this school |
+
+#### Staff
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `source_airtable_id` | string | Airtable record ID (upsert key) |
+| `employee_number` | int | Unique employee number |
+| `name` | string | Full name |
+| `first_names` | string | |
+| `last_name` | string | |
+| `gender` | string | |
+| `race` | string | |
+| `email` | string | |
+| `cell_number` | string | |
+| `date_of_birth` | date | |
+
+---
+
+### Frontend Integration: ETL Endpoints
+
+```typescript
+const API_URL = process.env.NEXT_PUBLIC_API_URL;
+
+// Fetch sync status for all tables
+async function getEtlStatus(token: string) {
+  const res = await fetch(`${API_URL}/etl-status/`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return res.json();
+}
+
+// Fetch preview data for a specific table
+async function getEtlPreview(token: string, tableName: string) {
+  const res = await fetch(`${API_URL}/etl-preview/${tableName}/`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return res.json();
+}
+```
+
+### Existing Frontend Implementation
+
+The preview page is already built at `/operations/preview` in the Next.js frontend:
+- **API functions:** `src/lib/api/preview/index.ts`
+- **Page component:** `src/app/operations/preview/page.tsx`
+- Uses SWR for data fetching, Clerk for auth, shadcn for UI (Card, Tabs, Table, Badge)
+
+---
+
 ## Common Patterns & Best Practices
 
 ### Filtering
@@ -615,11 +974,19 @@ You can test all endpoints using:
 
 ## Summary
 
-This API provides comprehensive endpoints for managing four educational programs:
-1. **MASI Literacy** - Core literacy coaching program
-2. **Yebo** - Paired reading program
-3. **1000 Stories** - Library and story time program
-4. **Numeracy** - Math skills development program
+This API serves two layers:
 
-All endpoints follow RESTful conventions and support standard CRUD operations where applicable. The API is designed to support both data collection (visit submissions) and analytics (dashboard summaries and filtered queries).
+**1. Mentor Visit CRUD (manual data entry)**
+- MASI Literacy, Yebo, 1000 Stories, Numeracy visit endpoints
+- Created by mentors via frontend forms
+- Supports filtering by time, school, mentor
+
+**2. Canonical Data + 2026 Sessions (Airtable-synced, read-only)**
+- Dimension tables: `School`, `Youth`, `CanonicalChild`, `Staff`
+- Fact tables: `LiteracySession2026`, `NumeracySession2026`
+- FK relationships resolved during sync (UIDs -> canonical records)
+- ETL status and preview endpoints for monitoring and data quality
+- Data flows: Airtable -> management commands -> PostgreSQL -> API -> frontend
+
+All endpoints require Clerk or Session authentication. Visit endpoints support CRUD; canonical/session endpoints are read-only from the frontend.
 

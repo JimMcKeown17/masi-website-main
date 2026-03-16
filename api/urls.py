@@ -33,4 +33,13 @@ urlpatterns = [
     # ETL preview
     path('etl-status/', views.etl_status, name='etl_status'),
     path('etl-preview/<str:table_name>/', views.etl_preview, name='etl_preview'),
+
+    # Youth sessions dashboard
+    path('youth-sessions/summary/', views.youth_sessions_summary, name='youth_sessions_summary'),
+    path('youth-sessions/daily-activity/', views.youth_sessions_daily_activity, name='youth_sessions_daily_activity'),
+    path('youth-sessions/youth-heatmap/', views.youth_sessions_heatmap, name='youth_sessions_heatmap'),
+    path('youth-sessions/inactive-youth/', views.youth_sessions_inactive, name='youth_sessions_inactive'),
+    path('youth-sessions/school-coverage/', views.youth_sessions_school_coverage, name='youth_sessions_school_coverage'),
+    path('youth-sessions/youth-detail/<str:youth_uid>/', views.youth_sessions_detail, name='youth_sessions_detail'),
+    path('youth-sessions/lookups/', views.youth_sessions_lookups, name='youth_sessions_lookups'),
 ]
