@@ -82,6 +82,16 @@ class Command(BaseCommand):
             # Build lookup maps for FK resolution
             school_map = {s.name.lower().strip(): s.id for s in School.objects.all()}
             mentor_map = {m.name.lower().strip(): m.id for m in Mentor.objects.all()}
+
+            # Airtable typo aliases — map misspelled names to canonical mentor
+            MENTOR_ALIASES = {
+                'kariena tsaone': 'kariena tsaoane',
+                'simamnkele sali': 'simamkele sali',
+            }
+            for alias, canonical in MENTOR_ALIASES.items():
+                if canonical in mentor_map and alias not in mentor_map:
+                    mentor_map[alias] = mentor_map[canonical]
+
             self.stdout.write(f"Loaded {len(school_map)} schools and {len(mentor_map)} mentors for FK resolution")
 
             stats = self.bulk_upsert(all_records, school_map, mentor_map)
