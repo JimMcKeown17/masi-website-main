@@ -123,6 +123,14 @@ class Command(BaseCommand):
             raise
 
     def bulk_upsert(self, all_records, school_map, mentor_map):
+        # Delete orphans — DB records whose airtable_id no longer exists in Airtable
+        incoming_airtable_ids = {r.get('id') for r in all_records if r.get('id')}
+        orphans = Youth.objects.exclude(airtable_id__isnull=True).exclude(airtable_id__in=incoming_airtable_ids)
+        orphan_count = orphans.count()
+        if orphan_count:
+            self.stdout.write(self.style.WARNING(f"Deleting {orphan_count} orphan records not found in Airtable"))
+            orphans.delete()
+
         # Build lookup by airtable_id AND employee_id so we match existing
         # records regardless of which key was used to create them
         existing_by_airtable = {
@@ -174,7 +182,7 @@ class Command(BaseCommand):
                 new_objs.append(Youth(airtable_id=airtable_id, **row_data))
 
         update_fields = [
-            'airtable_id', 'employee_id', 'youth_uid', 'first_names', 'last_name', 'full_name',
+            'airtable_id', 'first_names', 'last_name', 'full_name',
             'dob', 'age', 'gender', 'race',
             'id_type', 'rsa_id_number',
             'cell_phone_number', 'email', 'emergency_number',
