@@ -552,8 +552,14 @@ def youth_sessions_lookups(request):
         if s['school_uid']
     ]
 
+    # Only return mentors actually assigned to active youth with included job titles
+    active_mentor_ids = Youth.objects.filter(
+        employment_status='Active',
+        job_title__in=INCLUDED_JOB_TITLES,
+        mentor__isnull=False,
+    ).values_list('mentor_id', flat=True).distinct()
     mentor_list = list(
-        Mentor.objects.filter(is_active=True).order_by('name').values('id', 'name')
+        Mentor.objects.filter(id__in=active_mentor_ids).order_by('name').values('id', 'name')
     )
 
     return Response({
