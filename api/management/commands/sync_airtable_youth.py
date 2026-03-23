@@ -123,10 +123,16 @@ class Command(BaseCommand):
             raise
 
     def bulk_upsert(self, all_records, school_map, mentor_map):
-        existing = {
+        # Build lookup by airtable_id AND employee_id so we match existing
+        # records regardless of which key was used to create them
+        existing_by_airtable = {
             row['airtable_id']: row['id']
             for row in Youth.objects.exclude(airtable_id__isnull=True)
                 .values('id', 'airtable_id')
+        }
+        existing_by_employee = {
+            row['employee_id']: row['id']
+            for row in Youth.objects.values('id', 'employee_id')
         }
 
         new_objs = []
@@ -134,6 +140,7 @@ class Command(BaseCommand):
         skipped = 0
         school_unmatched = 0
         mentor_unmatched = 0
+        seen_employee_ids = set()
 
         for record in all_records:
             airtable_id = record.get('id')
@@ -146,19 +153,28 @@ class Command(BaseCommand):
                 skipped += 1
                 continue
 
+            # Deduplicate by employee_id — keep the first Airtable record seen
+            emp_id = row_data.get('employee_id')
+            if emp_id in seen_employee_ids:
+                skipped += 1
+                continue
+            seen_employee_ids.add(emp_id)
+
             if row_data.pop('_school_unmatched', False):
                 school_unmatched += 1
             if row_data.pop('_mentor_unmatched', False):
                 mentor_unmatched += 1
 
-            if airtable_id in existing:
-                obj = Youth(id=existing[airtable_id], airtable_id=airtable_id, **row_data)
+            # Match by airtable_id first, then by employee_id
+            existing_pk = existing_by_airtable.get(airtable_id) or existing_by_employee.get(emp_id)
+            if existing_pk:
+                obj = Youth(id=existing_pk, airtable_id=airtable_id, **row_data)
                 update_objs.append(obj)
             else:
                 new_objs.append(Youth(airtable_id=airtable_id, **row_data))
 
         update_fields = [
-            'employee_id', 'youth_uid', 'first_names', 'last_name', 'full_name',
+            'airtable_id', 'employee_id', 'youth_uid', 'first_names', 'last_name', 'full_name',
             'dob', 'age', 'gender', 'race',
             'id_type', 'rsa_id_number',
             'cell_phone_number', 'email', 'emergency_number',
