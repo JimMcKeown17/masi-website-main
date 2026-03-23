@@ -13,13 +13,36 @@ Django REST Framework backend for Masinyusane (MASI). Serves the Next.js fronten
 
 ## Development
 
+**Always activate the venv before running any `python` or `manage.py` command:**
 ```bash
-source venv/bin/activate (remember to do this before running commands yourself)
+source venv/bin/activate
+```
+
+**Start/stop the server:**
+```bash
+./scripts/start.sh               # activates venv + runs server
+./scripts/stop.sh                # kills the running server
+```
+
+**Common commands (venv must be active):**
+```bash
 python manage.py runserver        # http://localhost:8000
 python manage.py makemigrations
 python manage.py migrate
 python manage.py test api         # run tests
 ```
+
+## Database: Local vs Production
+
+`.env` points `DATABASE_URL` to local Postgres (`localhost:5432/masi_db`) by default. All `manage.py` commands hit the **local** database.
+
+**To run against production (rare, be careful):**
+```bash
+./scripts/prod_manage.sh migrate              # prompts for confirmation
+./scripts/prod_manage.sh sync_airtable_children
+```
+
+**Rule:** develop and test locally. Only use `prod_manage.sh` for deploying migrations or running syncs that must target prod.
 
 ## Tech Stack
 
@@ -49,15 +72,19 @@ api/
 │   ├── yebo_visits.py
 │   ├── numeracy_visits.py
 │   ├── thousand_stories_visits.py
+│   ├── youth_sessions.py
 │   ├── recent_visits.py
+│   ├── etl_preview.py
 │   ├── info.py
 │   └── lookups.py
+├── management/commands/  # Airtable sync & data import commands
 ├── urls.py          # API routing
 ├── authentication.py # Clerk JWT auth
 └── tests.py         # Tests live here (or tests/ folder)
 core/                # Core utilities
 dashboards/          # Dashboard logic
 pages/               # Public pages
+scripts/             # Shell scripts (start.sh, stop.sh) & utilities
 ```
 
 ## Authentication
@@ -83,6 +110,25 @@ python manage.py test api.tests.TestVisitStats  # specific test
 
 Keep tests focused and minimal — test the endpoint contract, not Django internals.
 
+
+## Airtable Sync (Management Commands)
+
+Data flows from Airtable into the local database via management commands in `api/management/commands/`.
+
+**Twice daily:**
+```bash
+python manage.py sync_airtable_literacy_sessions_2026
+python manage.py sync_airtable_numeracy_sessions_2026
+```
+
+**Once daily (Render cron job):**
+```bash
+python manage.py sync_airtable_children
+python manage.py sync_airtable_schools
+python manage.py sync_airtable_youth
+```
+
+**Sync pattern:** All sync commands use `airtable_id` as the upsert key. Records deleted from Airtable become orphans in the DB — sync commands must auto-delete orphans before upserting, or orphans with unique-constrained fields (e.g. `employee_id`) will block new records. Identity fields (`employee_id`, `youth_uid`) should not be in `bulk_update`'s `update_fields` — they are set on creation only.
 
 ## Backend-First Rule
 
