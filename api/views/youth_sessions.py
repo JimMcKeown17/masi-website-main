@@ -3,7 +3,7 @@ from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes, authentication_classes
 from rest_framework.authentication import SessionAuthentication
 from django.utils import timezone
-from django.db.models import Count, Max
+from django.db.models import Count, Max, Q
 from datetime import timedelta, date
 from collections import defaultdict
 from itertools import chain
@@ -34,14 +34,28 @@ def _get_job_titles_for_programme(programme):
     return INCLUDED_JOB_TITLES
 
 
-def _active_youth_qs(params):
-    """Base queryset for active youth, filtered by programme job titles."""
+def _active_youth_qs(params, *, reference_date=None):
+    """Base queryset for active youth, filtered by programme job titles.
+
+    Honors mentor_id, school_uid, and youth_uid params. Excludes youth whose
+    start_date is after reference_date; youth with no recorded start_date are
+    kept. reference_date defaults to today.
+    """
     programme = params.get('programme', 'all')
     titles = _get_job_titles_for_programme(programme)
     qs = Youth.objects.filter(employment_status='Active', job_title__in=titles)
     mentor_id = params.get('mentor_id')
     if mentor_id:
         qs = qs.filter(mentor_id=mentor_id)
+    school_uid = params.get('school_uid')
+    if school_uid:
+        qs = qs.filter(school__school_uid=school_uid)
+    youth_uid = params.get('youth_uid')
+    if youth_uid:
+        qs = qs.filter(youth_uid=youth_uid)
+    if reference_date is None:
+        reference_date = timezone.now().date()
+    qs = qs.filter(Q(start_date__isnull=True) | Q(start_date__lte=reference_date))
     return qs
 
 
@@ -143,7 +157,7 @@ def youth_sessions_summary(request):
         num_qs.filter(session_date__gte=week_start).values_list('youth_uid', flat=True)
     )
 
-    active_youth = _active_youth_qs(params)
+    active_youth = _active_youth_qs(params, reference_date=today)
     total_active_youth = active_youth.count()
 
     # Inactive: active youth with no sessions in last 2 working days
@@ -215,17 +229,25 @@ def youth_sessions_daily_activity(request):
             key = 'other'
         pivot[d][key] += row['count']
 
+    range_from = date.fromisoformat(params['date_from']) if params.get('date_from') else today - timedelta(days=30)
+    range_to = date.fromisoformat(params['date_to']) if params.get('date_to') else today
+
     data = []
-    for d in sorted(pivot.keys()):
-        entry = pivot[d]
-        total = entry.get('primary_school', 0) + entry.get('ecd', 0) + entry.get('other', 0)
+    d = range_from
+    while d <= range_to:
+        iso = str(d)
+        entry = pivot.get(iso, {})
+        primary = entry.get('primary_school', 0)
+        ecd = entry.get('ecd', 0)
+        other = entry.get('other', 0)
         data.append({
-            'date': d,
-            'primary_school': entry.get('primary_school', 0),
-            'ecd': entry.get('ecd', 0),
-            'other': entry.get('other', 0),
-            'total': total,
+            'date': iso,
+            'primary_school': primary,
+            'ecd': ecd,
+            'other': other,
+            'total': primary + ecd + other,
         })
+        d += timedelta(days=1)
 
     return Response({'data': data})
 
@@ -260,7 +282,8 @@ def youth_sessions_heatmap(request):
         if uid:
             youth_data[uid][str(row['session_date'])] += row['count']
 
-    active_youth = _active_youth_qs(params).select_related('mentor')
+    max_date = working_days[-1] if working_days else None
+    active_youth = _active_youth_qs(params, reference_date=max_date).select_related('mentor')
 
     youth_info = {
         y.youth_uid: {
@@ -271,8 +294,9 @@ def youth_sessions_heatmap(request):
         for y in active_youth if y.youth_uid
     }
 
-    # Exclude active youth who haven't started yet (start_date after the window)
-    max_date = working_days[-1] if working_days else None
+    # Exclude active youth who haven't started yet (start_date after the window).
+    # _active_youth_qs already filters this at the DB level when reference_date is set;
+    # this remains as a safety net for any uids that came in via youth_data only.
     not_yet_started = {
         uid for uid, info in youth_info.items()
         if max_date and info['start_date'] and info['start_date'] > max_date
@@ -280,23 +304,32 @@ def youth_sessions_heatmap(request):
     for uid in not_yet_started:
         youth_info.pop(uid, None)
 
-    all_uids = (set(youth_data.keys()) | set(youth_info.keys())) - not_yet_started
+    # Only include currently-active L/N coaches. Sessions from youth no longer
+    # in _active_youth_qs (resigned, Inactive, or sync mismatch) used to leak in
+    # via youth_data.keys() and render as "YTH-XXXX / Unknown" rows.
+    all_uids = set(youth_info.keys()) - not_yet_started
     date_strs = [str(d) for d in working_days]
 
     result = []
     for uid in all_uids:
-        info = youth_info.get(uid, {'full_name': uid, 'mentor_name': 'Unknown', 'start_date': None})
+        info = youth_info[uid]
         daily_counts = [youth_data[uid].get(d, 0) for d in date_strs]
         total_active_days = sum(1 for c in daily_counts if c > 0)
         total_sessions = sum(daily_counts)
+        start_date = info.get('start_date')
+        if start_date:
+            eligible_days = sum(1 for d in working_days if d >= start_date)
+        else:
+            eligible_days = len(working_days)
         result.append({
             'youth_uid': uid,
             'full_name': info['full_name'],
             'mentor_name': info['mentor_name'],
-            'start_date': info['start_date'].isoformat() if info.get('start_date') else None,
+            'start_date': start_date.isoformat() if start_date else None,
             'daily_counts': daily_counts,
             'total_active_days': total_active_days,
             'total_sessions': total_sessions,
+            'eligible_days': eligible_days,
         })
 
     result.sort(key=lambda x: (x['total_active_days'], x['total_sessions']))
@@ -326,7 +359,7 @@ def youth_sessions_inactive(request):
         num_qs.filter(session_date__in=working_days).values_list('youth_uid', flat=True)
     )
 
-    active_youth = _active_youth_qs(params).select_related('mentor', 'school')
+    active_youth = _active_youth_qs(params, reference_date=today).select_related('mentor', 'school')
 
     inactive_youth = [y for y in active_youth if y.youth_uid and y.youth_uid not in recent_uids]
     inactive_uids = [y.youth_uid for y in inactive_youth]
@@ -360,7 +393,13 @@ def youth_sessions_inactive(request):
         lit_last = last_lit.get(uid)
         num_last = last_num.get(uid)
         last_session = max(filter(None, [lit_last, num_last]), default=None)
-        days_inactive = (today - last_session).days if last_session else None
+        if last_session:
+            calendar_days_inactive = (today - last_session).days
+            # Working days strictly after last_session through today (inclusive).
+            working_days_inactive = len(_get_working_days(last_session + timedelta(days=1), today))
+        else:
+            calendar_days_inactive = None
+            working_days_inactive = None
 
         result.append({
             'youth_uid': uid,
@@ -368,11 +407,12 @@ def youth_sessions_inactive(request):
             'mentor_name': y.mentor.name if y.mentor else 'Unassigned',
             'school_name': y.school.name if y.school else 'Unassigned',
             'last_session_date': str(last_session) if last_session else None,
-            'days_inactive': days_inactive,
+            'calendar_days_inactive': calendar_days_inactive,
+            'working_days_inactive': working_days_inactive,
             'total_sessions_this_month': month_lit.get(uid, 0) + month_num.get(uid, 0),
         })
 
-    result.sort(key=lambda x: -(x['days_inactive'] or 0))
+    result.sort(key=lambda x: -(x['working_days_inactive'] or 0))
 
     return Response({'inactive_youth': result})
 
@@ -471,14 +511,12 @@ def youth_sessions_detail(request, youth_uid):
     date_from = params.get('date_from')
     date_to = params.get('date_to')
 
-    lit_filtered = lit_qs
-    num_filtered = num_qs
-    if date_from:
-        lit_filtered = lit_filtered.filter(session_date__gte=date_from)
-        num_filtered = num_filtered.filter(session_date__gte=date_from)
-    if date_to:
-        lit_filtered = lit_filtered.filter(session_date__lte=date_to)
-        num_filtered = num_filtered.filter(session_date__lte=date_to)
+    default_from = today - timedelta(days=30)
+    daily_from = date.fromisoformat(date_from) if date_from else default_from
+    daily_to = date.fromisoformat(date_to) if date_to else today
+
+    lit_filtered = lit_qs.filter(session_date__gte=daily_from, session_date__lte=daily_to)
+    num_filtered = num_qs.filter(session_date__gte=daily_from, session_date__lte=daily_to)
 
     total_sessions = lit_filtered.count() + num_filtered.count()
     total_month = (
@@ -486,19 +524,11 @@ def youth_sessions_detail(request, youth_uid):
         + num_qs.filter(session_date__gte=month_start).count()
     )
 
-    default_from = today - timedelta(days=30)
-    daily_from = date.fromisoformat(date_from) if date_from else default_from
-    daily_to = date.fromisoformat(date_to) if date_to else today
-
     lit_daily = dict(
-        lit_qs.filter(
-            session_date__gte=daily_from, session_date__lte=daily_to
-        ).values('session_date').annotate(c=Count('id')).values_list('session_date', 'c')
+        lit_filtered.values('session_date').annotate(c=Count('id')).values_list('session_date', 'c')
     )
     num_daily = dict(
-        num_qs.filter(
-            session_date__gte=daily_from, session_date__lte=daily_to
-        ).values('session_date').annotate(c=Count('id')).values_list('session_date', 'c')
+        num_filtered.values('session_date').annotate(c=Count('id')).values_list('session_date', 'c')
     )
 
     working_days = _get_working_days(daily_from, daily_to)
@@ -514,14 +544,14 @@ def youth_sessions_detail(request, youth_uid):
     total_working_days = len(working_days)
     avg_per_day = round(total_sessions / days_with_sessions, 1) if days_with_sessions else 0
 
-    # Children worked with
+    # Children worked with — bounded to the same daily_from/daily_to window
     child_uids = set()
-    for s in lit_qs.filter(session_date__gte=daily_from):
+    for s in lit_filtered:
         if s.child_uid_1:
             child_uids.add(s.child_uid_1)
         if s.child_uid_2:
             child_uids.add(s.child_uid_2)
-    for s in num_qs.filter(session_date__gte=daily_from):
+    for s in num_filtered:
         if s.child_uids:
             child_uids.update(s.child_uids)
 
