@@ -266,16 +266,26 @@ def youth_sessions_heatmap(request):
         y.youth_uid: {
             'full_name': y.full_name or f"{y.first_names} {y.last_name}",
             'mentor_name': y.mentor.name if y.mentor else 'Unassigned',
+            'start_date': y.start_date,
         }
         for y in active_youth if y.youth_uid
     }
 
-    all_uids = set(youth_data.keys()) | set(youth_info.keys())
+    # Exclude active youth who haven't started yet (start_date after the window)
+    max_date = working_days[-1] if working_days else None
+    not_yet_started = {
+        uid for uid, info in youth_info.items()
+        if max_date and info['start_date'] and info['start_date'] > max_date
+    }
+    for uid in not_yet_started:
+        youth_info.pop(uid, None)
+
+    all_uids = (set(youth_data.keys()) | set(youth_info.keys())) - not_yet_started
     date_strs = [str(d) for d in working_days]
 
     result = []
     for uid in all_uids:
-        info = youth_info.get(uid, {'full_name': uid, 'mentor_name': 'Unknown'})
+        info = youth_info.get(uid, {'full_name': uid, 'mentor_name': 'Unknown', 'start_date': None})
         daily_counts = [youth_data[uid].get(d, 0) for d in date_strs]
         total_active_days = sum(1 for c in daily_counts if c > 0)
         total_sessions = sum(daily_counts)
@@ -283,6 +293,7 @@ def youth_sessions_heatmap(request):
             'youth_uid': uid,
             'full_name': info['full_name'],
             'mentor_name': info['mentor_name'],
+            'start_date': info['start_date'].isoformat() if info.get('start_date') else None,
             'daily_counts': daily_counts,
             'total_active_days': total_active_days,
             'total_sessions': total_sessions,
@@ -519,6 +530,7 @@ def youth_sessions_detail(request, youth_uid):
         'full_name': youth.full_name or f"{youth.first_names} {youth.last_name}",
         'mentor_name': youth.mentor.name if youth.mentor else 'Unassigned',
         'school_name': youth.school.name if youth.school else 'Unassigned',
+        'start_date': youth.start_date.isoformat() if youth.start_date else None,
         'total_sessions': total_sessions,
         'total_sessions_this_month': total_month,
         'avg_sessions_per_day': avg_per_day,
