@@ -16,7 +16,7 @@ from .youth_sessions import (
     youth_sessions_detail,
     youth_sessions_lookups,
 )
-from .wig import wig_lead_measures, wig_data_quality, wig_zazi
+from .wig import wig_lead_measures, wig_data_quality, wig_zazi, wig_detail
 
 __all__ = [
     'MentorVisitListCreateAPIView',
@@ -45,5 +45,6 @@ __all__ = [
     'wig_lead_measures',
     'wig_data_quality',
     'wig_zazi',
+    'wig_detail',
 ]
 

@@ -12,6 +12,7 @@ from api.models import (
 )
 from api.permissions import IsAdminOrProjectManager
 from api.zazi_client import build_zazi_measures, refresh_zazi_snapshot
+from api.wig_detail import build_wig_detail
 from core.models import UserProfile
 from api.wig_metrics import (
     classify_literacy_site,
@@ -487,4 +488,95 @@ class ZaziEndpointTests(TestCase):
 
     def test_mentor_forbidden(self):
         r = self._client_as('zm', 'MENTOR').get('/api/wig/zazi/')
+        self.assertEqual(r.status_code, 403)
+
+
+# Saturday 2026-05-30 -> last completed week is Mon 2026-05-18..Sun 2026-05-24.
+DETAIL_REF = datetime(2026, 5, 30, 12, 0, tzinfo=dt_timezone.utc)
+
+
+class WigDetailBuilderTests(TestCase):
+    """The drill-down builders return per-metric supporting data, scoped by the
+    same site-type-first cohorts as the headline measures."""
+
+    def setUp(self):
+        self.primary = School.objects.create(name='Primary A', type='Primary School', school_uid='SCH-PA')
+        self.primary2 = School.objects.create(name='Primary B', type='Primary School', school_uid='SCH-PB')
+        self.coach = Youth.objects.create(
+            employee_id=1, first_names='Ada', last_name='Lovelace', youth_uid='YTH-1',
+            job_title='Literacy Coach', school=self.primary, start_date=date(2026, 1, 1),
+        )
+
+    def _lit(self, n, day, **extra):
+        extra.setdefault('youth', self.coach)
+        extra.setdefault('school', self.primary)
+        return LiteracySession2026.objects.create(source_airtable_id=f's{n}', session_date=day, **extra)
+
+    def test_session_heatmap_buckets_by_week(self):
+        for i in range(3):
+            self._lit(f'a{i}', date(2026, 5, 20))   # last completed week (Wed)
+        for i in range(2):
+            self._lit(f'b{i}', date(2026, 5, 13))   # week before
+        d = build_wig_detail('core_literacy', 'core_literacy.sessions_per_day', DETAIL_REF)
+        self.assertEqual(d['kind'], 'session_heatmap')
+        self.assertEqual(len(d['weeks']), 8)
+        row = next(r for r in d['rows'] if r['youth_uid'] == 'YTH-1')
+        self.assertEqual(row['weekly_counts'][-1], 3)   # most recent week
+        self.assertEqual(row['weekly_counts'][-2], 2)
+        self.assertEqual(row['total'], 5)
+
+    def test_coverage_splits_covered_and_uncovered(self):
+        Youth.objects.create(employee_id=2, first_names='B', last_name='B', youth_uid='YTH-2',
+                             job_title='Literacy Coach', school=self.primary2, start_date=date(2026, 1, 1))
+        self._lit('c1', date(2026, 5, 20))  # reaches primary A only
+        d = build_wig_detail('core_literacy', 'core_literacy.school_coverage', DETAIL_REF)
+        self.assertEqual(d['kind'], 'coverage')
+        self.assertIn('SCH-PA', {s['school_uid'] for s in d['covered']})
+        self.assertIn('SCH-PB', {s['school_uid'] for s in d['uncovered']})
+
+    def test_visit_table_lists_observation_visits_with_flags(self):
+        u = User.objects.create(username='mentor1', first_name='M', last_name='One')
+        MentorVisit.objects.create(
+            mentor=u, school=self.primary, visit_date=date(2026, 5, 20), visit_type='observation',
+            letter_trackers_correct=True, reading_trackers_correct=True,
+            sessions_correct=True, admin_correct=True,
+        )
+        d = build_wig_detail('core_literacy', 'core_literacy.tracker_compliance', DETAIL_REF)
+        self.assertEqual(d['kind'], 'visit_table')
+        self.assertEqual(len(d['visits']), 1)
+        self.assertTrue(d['visits'][0]['compliant'])
+
+    def test_dq_duplicate_records_lists_flagged_sessions(self):
+        self._lit('d1', date(2026, 5, 20), duplicate_status='Duplicate')
+        self._lit('d2', date(2026, 5, 20))  # clean
+        d = build_wig_detail('data_team', 'dq.duplicate_rate', DETAIL_REF)
+        self.assertEqual(d['kind'], 'dq_records')
+        self.assertEqual(d['total_flagged'], 1)
+        self.assertEqual(len(d['rows']), 1)
+
+    def test_unknown_measure_is_kind_none(self):
+        d = build_wig_detail('core_literacy', 'core_literacy.nonsense', DETAIL_REF)
+        self.assertEqual(d['kind'], 'none')
+
+
+class WigDetailEndpointTests(TestCase):
+    """/api/wig/detail/ is role-gated and dispatches by measure key."""
+
+    def _client_as(self, name, role):
+        u = User.objects.create(username=name)
+        u.profile.role = role
+        u.profile.save()
+        c = APIClient()
+        c.force_authenticate(u)
+        return c
+
+    def test_admin_gets_dispatched_kind(self):
+        r = self._client_as('da', 'ADMIN').get(
+            '/api/wig/detail/?programme=core_literacy&measure=core_literacy.school_coverage')
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.json()['kind'], 'coverage')
+
+    def test_mentor_forbidden(self):
+        r = self._client_as('dm', 'MENTOR').get(
+            '/api/wig/detail/?programme=core_literacy&measure=core_literacy.school_coverage')
         self.assertEqual(r.status_code, 403)

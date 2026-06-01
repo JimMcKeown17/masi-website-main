@@ -57,3 +57,20 @@ def wig_zazi(request):
         payload['fetched_at'] = snap.fetched_at.isoformat() if snap.fetched_at else None
         return Response(payload)
     return Response({'available': False, 'measures': {}})
+
+
+@api_view(['GET'])
+@authentication_classes(AUTH_CLASSES)
+@permission_classes(PERM_CLASSES)
+def wig_detail(request):
+    """Drill-down data behind a single measure: GET ?programme=&measure=.
+
+    Dispatches by measure key to the right builder (session heatmap, school
+    coverage, visit table, or a data-quality record table) and returns a
+    discriminated {'kind': ...} payload. Unknown measures return {'kind': 'none'}.
+    """
+    from ..wig_detail import build_wig_detail
+
+    programme = request.query_params.get('programme', '')
+    measure = request.query_params.get('measure', '')
+    return Response(build_wig_detail(programme, measure, timezone.now()))
