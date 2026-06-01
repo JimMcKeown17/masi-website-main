@@ -12,6 +12,7 @@ from django.utils import timezone
 from ..authentication import ClerkAuthentication
 from ..permissions import IsAdminOrProjectManager
 from ..wig_metrics import build_lead_measures, build_data_quality
+from .. import zazi_client
 
 AUTH_CLASSES = [SessionAuthentication, ClerkAuthentication]
 PERM_CLASSES = [IsAdminOrProjectManager]
@@ -31,3 +32,21 @@ def wig_lead_measures(request):
 def wig_data_quality(request):
     """Data-team accuracy sub-gauges over the full dataset."""
     return Response(build_data_quality())
+
+
+@api_view(['GET'])
+@authentication_classes(AUTH_CLASSES)
+@permission_classes(PERM_CLASSES)
+def wig_zazi(request):
+    """Zazi iZandi tile: proxies the Zazi backend's programme overview.
+
+    Degrades to {available: False} if the Zazi API is unreachable, so the tile
+    renders 'data unavailable' rather than failing the whole board.
+    """
+    try:
+        overview = zazi_client.fetch_zazi_programme_overview()
+    except Exception:
+        return Response({'available': False, 'measures': {}})
+    payload = zazi_client.build_zazi_measures(overview)
+    payload['available'] = True
+    return Response(payload)

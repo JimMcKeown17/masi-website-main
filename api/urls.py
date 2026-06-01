@@ -46,4 +46,5 @@ urlpatterns = [
     # WIG dashboard (ADMIN / PROJECT MANAGER only)
     path('wig/lead-measures/', views.wig_lead_measures, name='wig_lead_measures'),
     path('wig/data-quality/', views.wig_data_quality, name='wig_data_quality'),
+    path('wig/zazi/', views.wig_zazi, name='wig_zazi'),
 ]

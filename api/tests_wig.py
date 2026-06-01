@@ -1,5 +1,6 @@
 """Tests for the WIG dashboard metric service (api/wig_metrics.py)."""
 from datetime import datetime, date, timezone as dt_timezone
+from unittest.mock import patch
 
 from django.contrib.auth.models import User, AnonymousUser
 from django.test import SimpleTestCase, TestCase
@@ -9,6 +10,7 @@ from api.models import (
     School, Youth, LiteracySession2026, NumeracySession2026, MentorVisit, CanonicalChild,
 )
 from api.permissions import IsAdminOrProjectManager
+from api.zazi_client import build_zazi_measures
 from core.models import UserProfile
 from api.wig_metrics import (
     classify_literacy_site,
@@ -406,3 +408,54 @@ class WigEndpointTests(TestCase):
     def test_anonymous_unauthorized(self):
         r = APIClient().get('/api/wig/lead-measures/')
         self.assertIn(r.status_code, (401, 403))
+
+
+# Sample of the Zazi backend's /api/programme-overview/ response (trimmed).
+ZAZI_OVERVIEW = {
+    'generated_at': '2026-06-01T00:36:48Z',
+    'targets': {'dosage': 2.5, 'on_track_pct': 80.0},
+    'kpis': {'pct_eas_on_track': 76.3, 'avg_sessions_per_day_worked': 3.2, 'weighted_dosage': 1.69},
+}
+
+
+class ZaziNormalizeTests(SimpleTestCase):
+    """The Zazi backend already computes the metrics; we map its overview into
+    the WIG measure shape (value + Zazi's own target)."""
+
+    def test_maps_kpis_and_targets(self):
+        ms = build_zazi_measures(ZAZI_OVERVIEW)['measures']
+        self.assertEqual(ms['zazi.pct_eas_on_track']['value'], 76.3)
+        self.assertEqual(ms['zazi.pct_eas_on_track']['target'], 80.0)
+        self.assertEqual(ms['zazi.sessions_per_day']['value'], 3.2)
+        self.assertEqual(ms['zazi.sessions_per_day']['target'], 2.5)
+
+
+class ZaziEndpointTests(TestCase):
+    """The Zazi tile endpoint: role-gated, and degrades to 'unavailable' if the
+    Zazi backend can't be reached (never a hard error)."""
+
+    def _client_as(self, name, role):
+        u = User.objects.create(username=name)
+        u.profile.role = role
+        u.profile.save()
+        c = APIClient()
+        c.force_authenticate(u)
+        return c
+
+    @patch('api.zazi_client.fetch_zazi_programme_overview', return_value=ZAZI_OVERVIEW)
+    def test_admin_gets_zazi_measures(self, _mock):
+        r = self._client_as('za', 'ADMIN').get('/api/wig/zazi/')
+        self.assertEqual(r.status_code, 200)
+        body = r.json()
+        self.assertTrue(body['available'])
+        self.assertIn('zazi.pct_eas_on_track', body['measures'])
+
+    @patch('api.zazi_client.fetch_zazi_programme_overview', side_effect=Exception('down'))
+    def test_zazi_unavailable_is_graceful(self, _mock):
+        r = self._client_as('zb', 'ADMIN').get('/api/wig/zazi/')
+        self.assertEqual(r.status_code, 200)
+        self.assertFalse(r.json()['available'])
+
+    def test_mentor_forbidden(self):
+        r = self._client_as('zm', 'MENTOR').get('/api/wig/zazi/')
+        self.assertEqual(r.status_code, 403)
