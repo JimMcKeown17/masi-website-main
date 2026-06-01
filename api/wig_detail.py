@@ -92,18 +92,25 @@ def coverage_detail(programme, reference_dt):
         eligible_coaches(programme, end).exclude(school__isnull=True)
         .values('school__school_uid', 'school__name', 'school__type').distinct()
     )
-    uncovered = []
-    for a in assigned:
-        uid = a['school__school_uid']
-        if not uid or uid in covered_uids:
-            continue
-        last = model.objects.filter(school__school_uid=uid).aggregate(m=Max('session_date'))['m']
-        uncovered.append({
-            'school_uid': uid,
-            'name': a['school__name'],
-            'type': a['school__type'] or 'Unknown',
-            'last_session_date': last.isoformat() if last else None,
-        })
+    uncovered_specs = [
+        a for a in assigned
+        if a['school__school_uid'] and a['school__school_uid'] not in covered_uids
+    ]
+    # Last session date per uncovered school, in one query (not per-school).
+    last_map = dict(
+        model.objects
+        .filter(school__school_uid__in=[a['school__school_uid'] for a in uncovered_specs])
+        .values_list('school__school_uid')
+        .annotate(last=Max('session_date'))
+        .values_list('school__school_uid', 'last')
+    )
+    uncovered = [{
+        'school_uid': a['school__school_uid'],
+        'name': a['school__name'],
+        'type': a['school__type'] or 'Unknown',
+        'last_session_date': last_map[a['school__school_uid']].isoformat()
+        if last_map.get(a['school__school_uid']) else None,
+    } for a in uncovered_specs]
     uncovered.sort(key=lambda s: s['name'])
     return {'kind': 'coverage', 'covered': covered, 'uncovered': uncovered}
 
