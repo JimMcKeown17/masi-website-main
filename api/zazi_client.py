@@ -11,8 +11,13 @@ import os
 import requests
 
 
-def fetch_zazi_programme_overview(timeout=10):
-    """GET the Zazi backend's pre-computed programme overview (KPIs + targets)."""
+def fetch_zazi_programme_overview(timeout=30):
+    """GET the Zazi backend's pre-computed programme overview (KPIs + targets).
+
+    The Zazi view takes ~10s to compute, so this runs out-of-band (via the
+    refresh_zazi_overview cron) rather than on a user's board load. The timeout
+    is generous because nothing user-facing waits on it.
+    """
     base = os.environ.get('ZAZI_API_BASE_URL', '').rstrip('/')
     secret = os.environ.get('ZAZI_INTERNAL_API_SECRET', '')
     resp = requests.get(
@@ -22,6 +27,32 @@ def fetch_zazi_programme_overview(timeout=10):
     )
     resp.raise_for_status()
     return resp.json()
+
+
+def refresh_zazi_snapshot(timeout=30):
+    """Fetch the Zazi overview and store it as the single cached snapshot row.
+
+    On failure the previous payload is preserved (so a transient Zazi outage
+    doesn't blank the tile) and `ok` is set False. Returns the snapshot row.
+    """
+    from django.utils import timezone
+    from .models import ZaziOverviewSnapshot
+
+    snap = ZaziOverviewSnapshot.objects.first() or ZaziOverviewSnapshot()
+    try:
+        overview = fetch_zazi_programme_overview(timeout=timeout)
+    except Exception as exc:  # keep last-good payload, record the error
+        snap.ok = False
+        snap.error_message = str(exc)
+        snap.save()
+        return snap
+
+    snap.payload = overview
+    snap.fetched_at = timezone.now()
+    snap.ok = True
+    snap.error_message = ''
+    snap.save()
+    return snap
 
 
 def build_zazi_measures(overview):

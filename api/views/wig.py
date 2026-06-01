@@ -38,15 +38,22 @@ def wig_data_quality(request):
 @authentication_classes(AUTH_CLASSES)
 @permission_classes(PERM_CLASSES)
 def wig_zazi(request):
-    """Zazi iZandi tile: proxies the Zazi backend's programme overview.
+    """Zazi iZandi tile: served from the cached snapshot.
 
-    Degrades to {available: False} if the Zazi API is unreachable, so the tile
-    renders 'data unavailable' rather than failing the whole board.
+    The Zazi overview endpoint takes ~10s to compute, so we never call it live on
+    a board load. A cron (refresh_zazi_overview) keeps the snapshot fresh; if it
+    has never run (e.g. right after deploy) we populate it once, lazily. Degrades
+    to {available: False} when there is no usable snapshot.
     """
-    try:
-        overview = zazi_client.fetch_zazi_programme_overview()
-    except Exception:
-        return Response({'available': False, 'measures': {}})
-    payload = zazi_client.build_zazi_measures(overview)
-    payload['available'] = True
-    return Response(payload)
+    from ..models import ZaziOverviewSnapshot
+
+    snap = ZaziOverviewSnapshot.objects.first()
+    if snap is None:
+        snap = zazi_client.refresh_zazi_snapshot()
+
+    if snap and snap.ok and snap.payload:
+        payload = zazi_client.build_zazi_measures(snap.payload)
+        payload['available'] = True
+        payload['fetched_at'] = snap.fetched_at.isoformat() if snap.fetched_at else None
+        return Response(payload)
+    return Response({'available': False, 'measures': {}})

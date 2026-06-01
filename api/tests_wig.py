@@ -8,9 +8,10 @@ from rest_framework.test import APIRequestFactory, APIClient
 
 from api.models import (
     School, Youth, LiteracySession2026, NumeracySession2026, MentorVisit, CanonicalChild,
+    ZaziOverviewSnapshot,
 )
 from api.permissions import IsAdminOrProjectManager
-from api.zazi_client import build_zazi_measures
+from api.zazi_client import build_zazi_measures, refresh_zazi_snapshot
 from core.models import UserProfile
 from api.wig_metrics import (
     classify_literacy_site,
@@ -430,9 +431,34 @@ class ZaziNormalizeTests(SimpleTestCase):
         self.assertEqual(ms['zazi.sessions_per_day']['target'], 2.5)
 
 
+class RefreshZaziSnapshotTests(TestCase):
+    """The Zazi overview is slow (~10s/call), so a cron refreshes a single
+    cached snapshot row out-of-band. refresh_zazi_snapshot() does that fetch."""
+
+    @patch('api.zazi_client.fetch_zazi_programme_overview', return_value=ZAZI_OVERVIEW)
+    def test_refresh_stores_payload(self, _mock):
+        snap = refresh_zazi_snapshot()
+        self.assertEqual(ZaziOverviewSnapshot.objects.count(), 1)
+        self.assertTrue(snap.ok)
+        self.assertEqual(snap.payload, ZAZI_OVERVIEW)
+        self.assertIsNotNone(snap.fetched_at)
+
+    @patch('api.zazi_client.fetch_zazi_programme_overview')
+    def test_refresh_keeps_last_good_on_error(self, mock_fetch):
+        mock_fetch.return_value = ZAZI_OVERVIEW
+        refresh_zazi_snapshot()  # seed a good snapshot
+        mock_fetch.side_effect = Exception('zazi down')
+        snap = refresh_zazi_snapshot()  # now fails
+        # Still one row; last-good payload preserved, but flagged not-ok.
+        self.assertEqual(ZaziOverviewSnapshot.objects.count(), 1)
+        self.assertFalse(snap.ok)
+        self.assertEqual(snap.payload, ZAZI_OVERVIEW)
+        self.assertIn('zazi down', snap.error_message)
+
+
 class ZaziEndpointTests(TestCase):
-    """The Zazi tile endpoint: role-gated, and degrades to 'unavailable' if the
-    Zazi backend can't be reached (never a hard error)."""
+    """The Zazi tile endpoint serves the cached snapshot (never a live call on a
+    board load), is role-gated, and degrades to 'unavailable' with no snapshot."""
 
     def _client_as(self, name, role):
         u = User.objects.create(username=name)
@@ -442,16 +468,19 @@ class ZaziEndpointTests(TestCase):
         c.force_authenticate(u)
         return c
 
-    @patch('api.zazi_client.fetch_zazi_programme_overview', return_value=ZAZI_OVERVIEW)
-    def test_admin_gets_zazi_measures(self, _mock):
+    @patch('api.zazi_client.fetch_zazi_programme_overview', side_effect=Exception('must not be called'))
+    def test_admin_gets_cached_measures_without_live_fetch(self, mock_fetch):
+        ZaziOverviewSnapshot.objects.create(payload=ZAZI_OVERVIEW, ok=True)
         r = self._client_as('za', 'ADMIN').get('/api/wig/zazi/')
         self.assertEqual(r.status_code, 200)
         body = r.json()
         self.assertTrue(body['available'])
         self.assertIn('zazi.pct_eas_on_track', body['measures'])
+        mock_fetch.assert_not_called()  # served from cache, no slow live call
 
     @patch('api.zazi_client.fetch_zazi_programme_overview', side_effect=Exception('down'))
     def test_zazi_unavailable_is_graceful(self, _mock):
+        # No snapshot row and the lazy populate fails -> graceful unavailable.
         r = self._client_as('zb', 'ADMIN').get('/api/wig/zazi/')
         self.assertEqual(r.status_code, 200)
         self.assertFalse(r.json()['available'])

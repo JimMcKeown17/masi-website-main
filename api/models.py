@@ -537,8 +537,31 @@ class AirtableSyncLog(models.Model):
         verbose_name = "Airtable Sync Log"
         verbose_name_plural = "Airtable Sync Logs"
         ordering = ['-started_at']
-        
-        
+
+
+class ZaziOverviewSnapshot(models.Model):
+    """Cached copy of the Zazi backend's /api/programme-overview/ response.
+
+    That endpoint takes ~10s to compute on every call, so the WIG Zazi tile must
+    not fetch it live on each board load. A cron (refresh_zazi_overview) refreshes
+    this single-row snapshot out-of-band; /api/wig/zazi/ serves it instantly. On a
+    refresh failure the last-good payload is kept and `ok` is set False.
+    """
+    payload = models.JSONField(default=dict, blank=True)
+    fetched_at = models.DateTimeField(null=True, blank=True, help_text="When the payload was last fetched successfully")
+    ok = models.BooleanField(default=False)
+    error_message = models.TextField(blank=True, null=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Zazi Overview Snapshot"
+        verbose_name_plural = "Zazi Overview Snapshots"
+
+    def __str__(self):
+        state = "ok" if self.ok else "stale/error"
+        return f"Zazi snapshot ({state}) fetched {self.fetched_at}"
+
+
 # api/models.py (add to your existing models)
 
 from django.db import models
