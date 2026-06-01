@@ -5,7 +5,9 @@ from django.contrib.auth.models import User, AnonymousUser
 from django.test import SimpleTestCase, TestCase
 from rest_framework.test import APIRequestFactory, APIClient
 
-from api.models import School, Youth, LiteracySession2026, NumeracySession2026
+from api.models import (
+    School, Youth, LiteracySession2026, NumeracySession2026, MentorVisit, CanonicalChild,
+)
 from api.permissions import IsAdminOrProjectManager
 from core.models import UserProfile
 from api.wig_metrics import (
@@ -20,6 +22,9 @@ from api.wig_metrics import (
     site_job_mismatch,
     build_lead_measures,
     build_data_quality,
+    visit_compliance,
+    school_visits,
+    child_fk_resolution,
 )
 
 
@@ -232,6 +237,82 @@ class DataQualityTests(TestCase):
         m = site_job_mismatch()
         self.assertEqual(m['numerator'], 1)
 
+    def test_child_fk_resolution_counts_both_slots(self):
+        c1 = CanonicalChild.objects.create(source_airtable_id='c1', child_uid='CH-1', mcode=1)
+        c2 = CanonicalChild.objects.create(source_airtable_id='c2', child_uid='CH-2', mcode=2)
+        LiteracySession2026.objects.create(source_airtable_id='s1', child_1=c1, child_2=c2)
+        LiteracySession2026.objects.create(source_airtable_id='s2', child_1=c1, child_2=None)
+        m = child_fk_resolution()
+        self.assertEqual(m['numerator'], 3)    # 3 resolved child slots
+        self.assertEqual(m['denominator'], 4)  # 2 sessions x 2 slots
+        self.assertEqual(m['value'], 0.75)
+
+
+class VisitComplianceTests(TestCase):
+    """% of observation visits where all tracker booleans are true. Attributed
+    to a programme by the visited school's site type; nulls = non-compliant."""
+
+    START = date(2026, 5, 18)
+    END = date(2026, 5, 24)
+    FULL = dict(letter_trackers_correct=True, reading_trackers_correct=True,
+                sessions_correct=True, admin_correct=True)
+
+    def setUp(self):
+        self.primary = School.objects.create(name='P', type='Primary School', school_uid='SCH-P')
+        self.ecdc = School.objects.create(name='E', type='ECDC', school_uid='SCH-E')
+        self.m = User.objects.create(username='mentor')
+
+    def _visit(self, school, day, vtype='observation', **bools):
+        return MentorVisit.objects.create(mentor=self.m, school=school, visit_date=day,
+                                          visit_type=vtype, **bools)
+
+    def test_compliance_is_all_true_over_observations(self):
+        self._visit(self.primary, date(2026, 5, 20), **self.FULL)
+        self._visit(self.primary, date(2026, 5, 21), **self.FULL)
+        self._visit(self.primary, date(2026, 5, 22), **{**self.FULL, 'admin_correct': False})
+        m = visit_compliance('core_literacy', self.START, self.END)
+        self.assertEqual(m['numerator'], 2)
+        self.assertEqual(m['denominator'], 3)
+
+    def test_excludes_non_observation_and_other_site_types(self):
+        self._visit(self.primary, date(2026, 5, 20), vtype='meeting', **self.FULL)
+        self._visit(self.ecdc, date(2026, 5, 20), **self.FULL)
+        self.assertEqual(visit_compliance('core_literacy', self.START, self.END)['denominator'], 0)
+
+    def test_null_boolean_is_incomplete_and_noncompliant(self):
+        self._visit(self.primary, date(2026, 5, 20), letter_trackers_correct=True,
+                    reading_trackers_correct=True, sessions_correct=True)  # admin_correct null
+        m = visit_compliance('core_literacy', self.START, self.END)
+        self.assertEqual(m['numerator'], 0)
+        self.assertEqual(m['denominator'], 1)
+        self.assertEqual(m['incomplete_count'], 1)
+
+
+class SchoolVisitsTests(TestCase):
+    """Average observation visits per mentor this window (per-mentor target)."""
+
+    START = date(2026, 5, 18)
+    END = date(2026, 5, 24)
+
+    def setUp(self):
+        self.primary = School.objects.create(name='P', type='Primary School', school_uid='SCH-P')
+        self.m1 = User.objects.create(username='m1')
+        self.m2 = User.objects.create(username='m2')
+
+    def _visit(self, mentor, day):
+        MentorVisit.objects.create(mentor=mentor, school=self.primary, visit_date=day,
+                                   visit_type='observation')
+
+    def test_avg_visits_per_mentor(self):
+        for d in (20, 21, 22, 23):
+            self._visit(self.m1, date(2026, 5, d))
+        for d in (20, 21):
+            self._visit(self.m2, date(2026, 5, d))
+        m = school_visits('core_literacy', self.START, self.END)
+        self.assertEqual(m['numerator'], 6)     # 4 + 2 visits
+        self.assertEqual(m['denominator'], 2)   # 2 mentors
+        self.assertEqual(m['value'], 3.0)
+
 
 class AssemblyTests(TestCase):
     """The endpoint payloads: a window envelope + measures keyed by source."""
@@ -243,13 +324,16 @@ class AssemblyTests(TestCase):
         self.assertEqual(payload['window']['date_to'], '2026-05-24')
         self.assertEqual(payload['window']['working_days'], 5)
         for key in ('core_literacy.sessions_per_day', 'ecd_literacy.sessions_per_day',
-                    'numeracy.sessions_per_week', 'core_literacy.school_coverage'):
+                    'numeracy.sessions_per_week', 'core_literacy.school_coverage',
+                    'core_literacy.tracker_compliance', 'core_literacy.school_visits',
+                    'numeracy.admin_compliance'):
             self.assertIn(key, payload['measures'])
 
     def test_data_quality_has_sub_gauges(self):
         dq = build_data_quality()
         self.assertEqual(dq['scope'], 'full_dataset')
-        for key in ('dq.capture_on_time', 'dq.duplicate_rate', 'dq.site_job_mismatch'):
+        for key in ('dq.capture_on_time', 'dq.duplicate_rate', 'dq.site_job_mismatch',
+                    'dq.child_fk_resolution'):
             self.assertIn(key, dq['measures'])
 
 

@@ -9,7 +9,9 @@ from zoneinfo import ZoneInfo
 
 from django.db.models import Q
 
-from .models import Youth, LiteracySession2026, NumeracySession2026
+from .models import (
+    Youth, LiteracySession2026, NumeracySession2026, MentorVisit, NumeracyVisit,
+)
 
 # Programme dates are South African; the server runs UTC, so resolve the
 # business day in SAST before deriving week boundaries.
@@ -204,6 +206,16 @@ def site_job_mismatch():
                             f'{flagged} active youth with an ECD title at a primary site')
 
 
+def child_fk_resolution():
+    """Share of literacy child *slots* resolved to a CanonicalChild. Each session
+    has two child slots; counts both (a null child_2 is an unresolved slot)."""
+    total = LiteracySession2026.objects.count()
+    slots = total * 2
+    resolved = (LiteracySession2026.objects.filter(child_1__isnull=False).count()
+                + LiteracySession2026.objects.filter(child_2__isnull=False).count())
+    return _quality_measure(resolved, slots, f'{resolved} of {slots} child slots resolved')
+
+
 def sessions_per_week(programme, start, end):
     """Total sessions per eligible coach across the window (no per-day divisor).
 
@@ -221,6 +233,71 @@ def sessions_per_week(programme, start, end):
     }
 
 
+# --- Mentor-visit lead measures (attributed by visited school's site type) ---
+
+LITERACY_VISIT_BUNDLE = ['letter_trackers_correct', 'reading_trackers_correct',
+                         'sessions_correct', 'admin_correct']
+NUMERACY_VISIT_BUNDLE = ['numeracy_tracker_correct']
+
+
+def _visit_spec(programme):
+    """(model, compliance-bundle fields, site_types) for a programme's visits."""
+    if programme == 'numeracy':
+        return NumeracyVisit, NUMERACY_VISIT_BUNDLE, None
+    return MentorVisit, LITERACY_VISIT_BUNDLE, COHORTS[programme]['site_types']
+
+
+def _programme_visit_qs(programme, start, end):
+    """Observation visits in the window, attributed to the programme by the
+    visited school's site type."""
+    model, _bundle, site_types = _visit_spec(programme)
+    qs = model.objects.filter(visit_type='observation',
+                              visit_date__gte=start, visit_date__lte=end)
+    if site_types is not None:
+        qs = qs.filter(school__type__in=site_types)
+    return qs
+
+
+def visit_compliance(programme, start, end):
+    """Share of observation visits where every tracker boolean is true. A null
+    boolean is non-compliant (and counted as incomplete for transparency)."""
+    _model, bundle, _st = _visit_spec(programme)
+    qs = _programme_visit_qs(programme, start, end)
+    total = qs.count()
+    compliant = qs.filter(**{f: True for f in bundle}).count()
+    incomplete_q = Q()
+    for f in bundle:
+        incomplete_q |= Q(**{f'{f}__isnull': True})
+    incomplete = qs.filter(incomplete_q).count()
+    value = (compliant / total) if total else None
+    return {
+        'numerator': compliant,
+        'denominator': total,
+        'value': value,
+        'incomplete_count': incomplete,
+        'calculation_note': f'{compliant} of {total} observation visits fully compliant',
+    }
+
+
+def school_visits(programme, start, end):
+    """Average observation visits per mentor this window (per-mentor target).
+
+    Counted per submitting user; mentors are dedicated per site type, so a
+    submitter crossing site types would be a data issue (see notes in contract).
+    """
+    qs = _programme_visit_qs(programme, start, end)
+    visits = qs.count()
+    mentors = qs.values('mentor_id').distinct().count()
+    value = (visits / mentors) if mentors else None
+    return {
+        'numerator': visits,
+        'denominator': mentors,
+        'value': value,
+        'eligible_entity_count': mentors,
+        'calculation_note': f'{visits} observation visits across {mentors} mentors',
+    }
+
+
 # --- Assembly into the API payload shapes (see metric-contract.md) ---
 
 def build_lead_measures(reference_dt):
@@ -231,9 +308,12 @@ def build_lead_measures(reference_dt):
         measures[f'{prog}.sessions_per_day'] = sessions_per_day(prog, start, end)
         measures[f'{prog}.active_coaches'] = active_coaches(prog, start, end)
         measures[f'{prog}.school_coverage'] = school_coverage(prog, start, end)
+        measures[f'{prog}.tracker_compliance'] = visit_compliance(prog, start, end)
+        measures[f'{prog}.school_visits'] = school_visits(prog, start, end)
     measures['numeracy.sessions_per_week'] = sessions_per_week('numeracy', start, end)
     measures['numeracy.active_coaches'] = active_coaches('numeracy', start, end)
     measures['numeracy.school_coverage'] = school_coverage('numeracy', start, end)
+    measures['numeracy.admin_compliance'] = visit_compliance('numeracy', start, end)
     return {
         'window': {
             'period': 'last_week',
@@ -255,6 +335,7 @@ def build_data_quality():
     return {
         'scope': 'full_dataset',
         'measures': {
+            'dq.child_fk_resolution': child_fk_resolution(),
             'dq.capture_on_time': capture_on_time(),
             'dq.duplicate_rate': duplicate_rate(),
             'dq.site_job_mismatch': site_job_mismatch(),
