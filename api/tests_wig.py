@@ -579,6 +579,34 @@ class WigDetailBuilderTests(TestCase):
         d = build_wig_detail('core_literacy', 'core_literacy.sessions_per_day', DETAIL_REF)
         self.assertIn('YTH-9', {r['youth_uid'] for r in d['rows']})
 
+    def test_active_coaches_drilldown_is_roster_only(self):
+        # A former coach with a session reconciles session-COUNT rings, but the
+        # active-coaches ring is a roster fraction, so they must not appear there.
+        former = Youth.objects.create(
+            employee_id=8, first_names='Left', last_name='Coach', youth_uid='YTH-8',
+            job_title='Literacy Coach', school=self.primary,
+            employment_status='Inactive', start_date=date(2026, 1, 1))
+        LiteracySession2026.objects.create(
+            source_airtable_id='ac', session_date=date(2026, 5, 20), youth=former, school=self.primary)
+        active = build_wig_detail('core_literacy', 'core_literacy.active_coaches', DETAIL_REF)
+        sessions = build_wig_detail('core_literacy', 'core_literacy.sessions_per_day', DETAIL_REF)
+        self.assertNotIn('YTH-8', {r['youth_uid'] for r in active['rows']})
+        self.assertIn('YTH-8', {r['youth_uid'] for r in sessions['rows']})
+
+    def test_coverage_only_counts_assigned_schools(self):
+        # Coach assigned to P1 (SCH-PA) teaches at unassigned P2 (SCH-PB).
+        self._lit('x1', date(2026, 5, 20), school=self.primary2)
+        d = build_wig_detail('core_literacy', 'core_literacy.school_coverage', DETAIL_REF)
+        covered = {s['school_uid'] for s in d['covered']}
+        uncovered = {s['school_uid'] for s in d['uncovered']}
+        self.assertEqual(covered, set())                    # P1 assigned but not reached
+        self.assertIn('SCH-PA', uncovered)
+        self.assertNotIn('SCH-PB', covered | uncovered)     # reached but unassigned -> excluded
+
+    def test_dq_requires_data_team_programme(self):
+        self.assertEqual(build_wig_detail('core_literacy', 'dq.duplicate_rate', DETAIL_REF)['kind'], 'none')
+        self.assertEqual(build_wig_detail('data_team', 'dq.duplicate_rate', DETAIL_REF)['kind'], 'dq_records')
+
 
 class WigDetailEndpointTests(TestCase):
     """/api/wig/detail/ is role-gated and dispatches by measure key."""

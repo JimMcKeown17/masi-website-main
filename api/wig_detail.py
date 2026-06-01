@@ -40,8 +40,14 @@ def _week_label(monday):
     return monday.strftime('%-d %b')  # e.g. "18 May"
 
 
-def session_heatmap(programme, reference_dt):
-    """Per-coach weekly session counts over the last 8 weeks (current roster)."""
+def session_heatmap(programme, reference_dt, include_non_roster=True):
+    """Per-coach weekly session counts over the last 8 weeks.
+
+    `include_non_roster` controls reconciliation: session-count rings (sessions
+    per day/week) count every cohort session, so off-roster session-bearers are
+    included; the active-coaches ring is a roster fraction, so it stays
+    roster-only.
+    """
     _start, end = last_completed_week(reference_dt)
     buckets = _week_buckets(end)
     rows_qs = _programme_session_qs(programme, buckets[0][0], buckets[-1][1])
@@ -56,8 +62,10 @@ def session_heatmap(programme, reference_dt):
     # is attributable to a row and the columns reconcile.
     eligible = list(eligible_coaches(programme, end).select_related('mentor'))
     eligible_ids = {y.id for y in eligible}
-    extra_ids = [yid for yid in counts if yid not in eligible_ids]
-    extras = list(Youth.objects.filter(id__in=extra_ids).select_related('mentor')) if extra_ids else []
+    extras = []
+    if include_non_roster:
+        extra_ids = [yid for yid in counts if yid not in eligible_ids]
+        extras = list(Youth.objects.filter(id__in=extra_ids).select_related('mentor')) if extra_ids else []
 
     rows = []
     for y in eligible + extras:
@@ -84,47 +92,57 @@ def _school_uid(school_id, school_uid):
 
 
 def coverage_detail(programme, reference_dt):
-    """Schools reached vs assigned-but-not-reached in the last completed week.
+    """Assigned schools split into reached vs not-reached this week.
 
-    Keyed by school_id (not the nullable school_uid) so the detail can't omit a
-    school the headline counts.
+    Mirrors the ring exactly: the denominator is *assigned* schools (>=1 active
+    assigned coach), covered = assigned & reached. A session at an unassigned
+    school is not in the ring, so it isn't shown as covered here either. Keyed by
+    school_id (school_uid is nullable).
     """
     start, end = last_completed_week(reference_dt)
-    reached = list(
-        _programme_session_qs(programme, start, end)
-        .values('school_id', 'school__school_uid', 'school__name', 'school__type')
-        .annotate(session_count=Count('id'), youth_count=Count('youth_id', distinct=True))
-    )
-    covered = [{
-        'school_uid': _school_uid(r['school_id'], r['school__school_uid']),
-        'name': r['school__name'] or 'Unknown school',
-        'type': r['school__type'] or 'Unknown',
-        'session_count': r['session_count'],
-        'youth_count': r['youth_count'],
-    } for r in reached]
-    covered.sort(key=lambda s: s['session_count'], reverse=True)
-    covered_ids = {r['school_id'] for r in reached}
-
-    assigned = (
+    assigned = list(
         eligible_coaches(programme, end).exclude(school__isnull=True)
         .values('school_id', 'school__school_uid', 'school__name', 'school__type').distinct()
     )
-    uncovered_specs = [a for a in assigned if a['school_id'] not in covered_ids]
-    uncovered_ids = [a['school_id'] for a in uncovered_specs]
-    # Last *cohort* session on/before the window end, per uncovered school, one query.
+    assigned_by_id = {a['school_id']: a for a in assigned}
+    assigned_ids = set(assigned_by_id)
+
+    reached = {
+        r['school_id']: r for r in
+        _programme_session_qs(programme, start, end)
+        .values('school_id')
+        .annotate(session_count=Count('id'), youth_count=Count('youth_id', distinct=True))
+    }
+    covered_ids = assigned_ids & set(reached)
+    uncovered_ids = assigned_ids - covered_ids
+
+    def school_fields(sid):
+        a = assigned_by_id[sid]
+        return {
+            'school_uid': _school_uid(sid, a['school__school_uid']),
+            'name': a['school__name'] or 'Unknown school',
+            'type': a['school__type'] or 'Unknown',
+        }
+
+    covered = [{
+        **school_fields(sid),
+        'session_count': reached[sid]['session_count'],
+        'youth_count': reached[sid]['youth_count'],
+    } for sid in covered_ids]
+    covered.sort(key=lambda s: s['session_count'], reverse=True)
+
+    # Last cohort session on/before the window end, per uncovered school, one query.
     last_map = dict(
         _programme_session_qs(programme, date(2000, 1, 1), end)
-        .filter(school_id__in=uncovered_ids)
+        .filter(school_id__in=list(uncovered_ids))
         .values_list('school_id')
         .annotate(last=Max('session_date'))
         .values_list('school_id', 'last')
     )
     uncovered = [{
-        'school_uid': _school_uid(a['school_id'], a['school__school_uid']),
-        'name': a['school__name'] or 'Unknown school',
-        'type': a['school__type'] or 'Unknown',
-        'last_session_date': last_map[a['school_id']].isoformat() if last_map.get(a['school_id']) else None,
-    } for a in uncovered_specs]
+        **school_fields(sid),
+        'last_session_date': last_map[sid].isoformat() if last_map.get(sid) else None,
+    } for sid in uncovered_ids]
     uncovered.sort(key=lambda s: s['name'])
     return {'kind': 'coverage', 'covered': covered, 'uncovered': uncovered}
 
@@ -229,14 +247,15 @@ def dq_detail(measure):
     return {'kind': 'none'}
 
 
-_SESSION_SUFFIXES = {'sessions_per_day', 'sessions_per_week', 'active_coaches'}
+_SESSION_COUNT_SUFFIXES = {'sessions_per_day', 'sessions_per_week'}
 _VISIT_SUFFIXES = {'tracker_compliance', 'admin_compliance', 'school_visits'}
 
 
 def build_wig_detail(programme, measure, reference_dt):
     """Dispatch a (programme, measure) to the right detail builder."""
     if measure.startswith('dq.'):
-        return dq_detail(measure)
+        # Data-quality gauges are global accuracy, owned by the data_team page.
+        return dq_detail(measure) if programme == 'data_team' else {'kind': 'none'}
     if programme not in COHORTS:
         return {'kind': 'none'}
     # The measure must belong to the requested programme (reject e.g.
@@ -244,8 +263,11 @@ def build_wig_detail(programme, measure, reference_dt):
     prefix, _, suffix = measure.partition('.')
     if not suffix or prefix != programme:
         return {'kind': 'none'}
-    if suffix in _SESSION_SUFFIXES:
-        return session_heatmap(programme, reference_dt)
+    if suffix in _SESSION_COUNT_SUFFIXES:
+        return session_heatmap(programme, reference_dt, include_non_roster=True)
+    if suffix == 'active_coaches':
+        # Roster fraction -> show only the eligible roster (reconciles the ring).
+        return session_heatmap(programme, reference_dt, include_non_roster=False)
     if suffix == 'school_coverage':
         return coverage_detail(programme, reference_dt)
     if suffix in _VISIT_SUFFIXES:
