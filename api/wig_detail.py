@@ -6,7 +6,7 @@ returns a discriminated payload ({'kind': ...}) scoped by the same site-type-fir
 cohorts as the headline measure, so the detail always matches the gauge.
 """
 from collections import defaultdict
-from datetime import timedelta
+from datetime import date, timedelta
 
 from django.db.models import Count, Max, Q
 
@@ -51,8 +51,16 @@ def session_heatmap(programme, reference_dt):
         if idx is not None:
             counts[youth_id][idx] += 1
 
+    # Current roster, plus anyone who has cohort sessions in the range but is no
+    # longer eligible (left mid-term) — so every session in the ring's numerator
+    # is attributable to a row and the columns reconcile.
+    eligible = list(eligible_coaches(programme, end).select_related('mentor'))
+    eligible_ids = {y.id for y in eligible}
+    extra_ids = [yid for yid in counts if yid not in eligible_ids]
+    extras = list(Youth.objects.filter(id__in=extra_ids).select_related('mentor')) if extra_ids else []
+
     rows = []
-    for y in eligible_coaches(programme, end).select_related('mentor'):
+    for y in eligible + extras:
         weekly = counts.get(y.id, [0] * WEEKS)
         rows.append({
             'youth_uid': y.youth_uid or f'id-{y.id}',
@@ -69,47 +77,53 @@ def session_heatmap(programme, reference_dt):
     }
 
 
+def _school_uid(school_id, school_uid):
+    """school_uid is nullable; fall back to a stable per-id key so a school the
+    ring counts is never dropped and React keys stay unique."""
+    return school_uid or f'sch-{school_id}'
+
+
 def coverage_detail(programme, reference_dt):
-    """Schools reached vs assigned-but-not-reached in the last completed week."""
+    """Schools reached vs assigned-but-not-reached in the last completed week.
+
+    Keyed by school_id (not the nullable school_uid) so the detail can't omit a
+    school the headline counts.
+    """
     start, end = last_completed_week(reference_dt)
-    reached = (
+    reached = list(
         _programme_session_qs(programme, start, end)
-        .values('school__school_uid', 'school__name', 'school__type')
+        .values('school_id', 'school__school_uid', 'school__name', 'school__type')
         .annotate(session_count=Count('id'), youth_count=Count('youth_id', distinct=True))
     )
     covered = [{
-        'school_uid': r['school__school_uid'],
-        'name': r['school__name'],
+        'school_uid': _school_uid(r['school_id'], r['school__school_uid']),
+        'name': r['school__name'] or 'Unknown school',
         'type': r['school__type'] or 'Unknown',
         'session_count': r['session_count'],
         'youth_count': r['youth_count'],
-    } for r in reached if r['school__school_uid']]
+    } for r in reached]
     covered.sort(key=lambda s: s['session_count'], reverse=True)
-    covered_uids = {c['school_uid'] for c in covered}
+    covered_ids = {r['school_id'] for r in reached}
 
-    model = NumeracySession2026 if programme == 'numeracy' else LiteracySession2026
     assigned = (
         eligible_coaches(programme, end).exclude(school__isnull=True)
-        .values('school__school_uid', 'school__name', 'school__type').distinct()
+        .values('school_id', 'school__school_uid', 'school__name', 'school__type').distinct()
     )
-    uncovered_specs = [
-        a for a in assigned
-        if a['school__school_uid'] and a['school__school_uid'] not in covered_uids
-    ]
-    # Last session date per uncovered school, in one query (not per-school).
+    uncovered_specs = [a for a in assigned if a['school_id'] not in covered_ids]
+    uncovered_ids = [a['school_id'] for a in uncovered_specs]
+    # Last *cohort* session on/before the window end, per uncovered school, one query.
     last_map = dict(
-        model.objects
-        .filter(school__school_uid__in=[a['school__school_uid'] for a in uncovered_specs])
-        .values_list('school__school_uid')
+        _programme_session_qs(programme, date(2000, 1, 1), end)
+        .filter(school_id__in=uncovered_ids)
+        .values_list('school_id')
         .annotate(last=Max('session_date'))
-        .values_list('school__school_uid', 'last')
+        .values_list('school_id', 'last')
     )
     uncovered = [{
-        'school_uid': a['school__school_uid'],
-        'name': a['school__name'],
+        'school_uid': _school_uid(a['school_id'], a['school__school_uid']),
+        'name': a['school__name'] or 'Unknown school',
         'type': a['school__type'] or 'Unknown',
-        'last_session_date': last_map[a['school__school_uid']].isoformat()
-        if last_map.get(a['school__school_uid']) else None,
+        'last_session_date': last_map[a['school_id']].isoformat() if last_map.get(a['school_id']) else None,
     } for a in uncovered_specs]
     uncovered.sort(key=lambda s: s['name'])
     return {'kind': 'coverage', 'covered': covered, 'uncovered': uncovered}
@@ -183,15 +197,19 @@ def dq_detail(measure):
                    'Sessions captured outside the 0-2 day window (or missing a delay).')
 
     if measure == 'dq.child_fk_resolution':
-        qs = (LiteracySession2026.objects.filter(Q(child_1__isnull=True) | Q(child_2__isnull=True))
+        base = LiteracySession2026.objects
+        qs = (base.filter(Q(child_1__isnull=True) | Q(child_2__isnull=True))
               .select_related('youth', 'school').order_by('-session_date'))
         rows = []
         for s in qs[:100]:
             missing = [slot for slot, val in (('child_1', s.child_1_id), ('child_2', s.child_2_id)) if val is None]
             rows.append({**_session_row(s), 'unresolved': ', '.join(missing)})
         cols = _SESSION_COLUMNS + [{'key': 'unresolved', 'label': 'Unresolved slot'}]
-        return _dq('Unresolved child links', cols, rows, qs.count(),
-                   'Literacy sessions with an unresolved child_1 / child_2 slot.')
+        # Count unresolved *slots* (each session has two), matching the gauge.
+        unresolved_slots = (base.filter(child_1__isnull=True).count()
+                            + base.filter(child_2__isnull=True).count())
+        return _dq('Unresolved child links', cols, rows, unresolved_slots,
+                   'Unresolved child_1 / child_2 slots (each session has two).')
 
     if measure == 'dq.site_job_mismatch':
         qs = (Youth.objects.filter(employment_status='Active', job_title__in=ECD_JOB_TITLES,
@@ -221,7 +239,11 @@ def build_wig_detail(programme, measure, reference_dt):
         return dq_detail(measure)
     if programme not in COHORTS:
         return {'kind': 'none'}
-    suffix = measure.split('.', 1)[1] if '.' in measure else measure
+    # The measure must belong to the requested programme (reject e.g.
+    # programme=core_literacy&measure=ecd_literacy.school_coverage).
+    prefix, _, suffix = measure.partition('.')
+    if not suffix or prefix != programme:
+        return {'kind': 'none'}
     if suffix in _SESSION_SUFFIXES:
         return session_heatmap(programme, reference_dt)
     if suffix == 'school_coverage':

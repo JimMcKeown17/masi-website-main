@@ -558,6 +558,27 @@ class WigDetailBuilderTests(TestCase):
         d = build_wig_detail('core_literacy', 'core_literacy.nonsense', DETAIL_REF)
         self.assertEqual(d['kind'], 'none')
 
+    def test_rejects_mismatched_programme_and_measure(self):
+        # programme says core, measure says ecd -> don't silently serve core data.
+        d = build_wig_detail('core_literacy', 'ecd_literacy.school_coverage', DETAIL_REF)
+        self.assertEqual(d['kind'], 'none')
+
+    def test_child_fk_counts_unresolved_slots_not_rows(self):
+        self._lit('cf', date(2026, 5, 20))  # both child slots null -> 2 unresolved slots
+        d = build_wig_detail('data_team', 'dq.child_fk_resolution', DETAIL_REF)
+        self.assertEqual(len(d['rows']), 1)        # one session
+        self.assertEqual(d['total_flagged'], 2)    # two slots (matches the gauge)
+
+    def test_heatmap_includes_session_bearing_non_roster_coach(self):
+        former = Youth.objects.create(
+            employee_id=9, first_names='Gone', last_name='Coach', youth_uid='YTH-9',
+            job_title='Literacy Coach', school=self.primary,
+            employment_status='Inactive', start_date=date(2026, 1, 1))
+        LiteracySession2026.objects.create(
+            source_airtable_id='f1', session_date=date(2026, 5, 20), youth=former, school=self.primary)
+        d = build_wig_detail('core_literacy', 'core_literacy.sessions_per_day', DETAIL_REF)
+        self.assertIn('YTH-9', {r['youth_uid'] for r in d['rows']})
+
 
 class WigDetailEndpointTests(TestCase):
     """/api/wig/detail/ is role-gated and dispatches by measure key."""
