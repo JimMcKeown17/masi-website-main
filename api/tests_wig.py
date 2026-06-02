@@ -476,6 +476,32 @@ class RefreshZaziSnapshotTests(TestCase):
         )
 
     @patch('api.zazi_client.fetch_zazi_programme_overview')
+    def test_rejects_cohort_not_honoured_by_zazi(self, mock_fetch):
+        # An older Zazi backend that doesn't know ?cohort=primary falls through to
+        # all schools, so the "primary" payload still contains ECD schools. Reject
+        # it (don't cache contaminated data as if it were Primary-only).
+        mock_fetch.return_value = {
+            'generated_at': 'x', 'targets': {'dosage': 2.5, 'on_track_pct': 80.0},
+            'kpis': {'total_schools_primary': 10, 'total_schools_ecd': 4,
+                     'pct_eas_on_track': 70.0, 'avg_sessions_per_day_worked': 3.0,
+                     'weighted_dosage': 1.5},
+        }
+        snap = refresh_zazi_snapshot('primary')
+        self.assertFalse(snap.ok)
+        self.assertIn('cohort', snap.error_message.lower())
+
+    @patch('api.zazi_client.fetch_zazi_programme_overview')
+    def test_accepts_cohort_when_honoured(self, mock_fetch):
+        mock_fetch.return_value = {
+            'generated_at': 'x', 'targets': {'dosage': 2.5, 'on_track_pct': 80.0},
+            'kpis': {'total_schools_primary': 10, 'total_schools_ecd': 0,
+                     'pct_eas_on_track': 70.0, 'avg_sessions_per_day_worked': 3.0,
+                     'weighted_dosage': 1.5},
+        }
+        snap = refresh_zazi_snapshot('primary')
+        self.assertTrue(snap.ok)
+
+    @patch('api.zazi_client.fetch_zazi_programme_overview')
     def test_refresh_keeps_last_good_on_error(self, mock_fetch):
         mock_fetch.return_value = ZAZI_OVERVIEW
         refresh_zazi_snapshot('primary')  # seed a good snapshot

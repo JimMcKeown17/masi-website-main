@@ -39,12 +39,31 @@ def fetch_zazi_programme_overview(cohort=None, timeout=30):
     return resp.json()
 
 
+# For a cohort-scoped overview, the *other* school type must be absent. Used to
+# detect an older Zazi backend that ignores ?cohort= and returns all schools.
+_CROSS_COHORT_COUNT = {'primary': 'total_schools_ecd', 'ecd': 'total_schools_primary'}
+
+
+def _cohort_is_honoured(cohort, overview):
+    """True if `overview` is actually scoped to `cohort` (no cross-type schools).
+
+    Guards against a not-yet-deployed Zazi backend that ignores ?cohort=primary
+    and falls through to all schools — caching that as 'primary' would silently
+    show combined data on the Primary tab.
+    """
+    cross_key = _CROSS_COHORT_COUNT.get(cohort)
+    if not cross_key:
+        return True  # 'all'/unknown: no scoping expected
+    return (overview.get('kpis') or {}).get(cross_key, 0) == 0
+
+
 def refresh_zazi_snapshot(cohort='all', timeout=30):
     """Fetch the Zazi overview for a cohort and store it as that cohort's row.
 
     One snapshot row per cohort ('primary', 'ecd'). On failure the previous
     payload is preserved (so a transient Zazi outage doesn't blank the tile) and
-    `ok` is set False. Returns the snapshot row.
+    `ok` is set False. A response that doesn't honour the cohort (e.g. an older
+    Zazi backend) is treated as a failure rather than cached. Returns the row.
     """
     from django.utils import timezone
     from .models import ZaziOverviewSnapshot
@@ -52,6 +71,8 @@ def refresh_zazi_snapshot(cohort='all', timeout=30):
     snap, _ = ZaziOverviewSnapshot.objects.get_or_create(cohort=cohort)
     try:
         overview = fetch_zazi_programme_overview(cohort=cohort, timeout=timeout)
+        if not _cohort_is_honoured(cohort, overview):
+            raise ValueError(f"Zazi did not honour cohort={cohort} (cross-type schools present)")
     except Exception as exc:  # keep last-good payload, record the error
         snap.ok = False
         snap.error_message = str(exc)
