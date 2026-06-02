@@ -42,8 +42,9 @@ class ClassifyLiteracySiteTests(SimpleTestCase):
     def test_ecdc_is_ecd_literacy(self):
         self.assertEqual(classify_literacy_site('ECDC'), 'ecd_literacy')
 
-    def test_ecd_spelling_variant_is_ecd_literacy(self):
-        self.assertEqual(classify_literacy_site('ECD'), 'ecd_literacy')
+    def test_bare_ecd_is_not_ecd_literacy(self):
+        # Bare 'ECD' is the Zazi iZandi ECD programme, not Masi ECD Literacy.
+        self.assertIsNone(classify_literacy_site('ECD'))
 
     def test_secondary_school_is_not_a_literacy_programme(self):
         self.assertIsNone(classify_literacy_site('Secondary School'))
@@ -100,6 +101,17 @@ class EligibleCoachesTests(TestCase):
     def test_ecd_literacy_includes_ecdc_literacy_coach(self):
         y = self._coach(3, 'Literacy Coach', self.ecdc)
         self.assertIn(y, eligible_coaches('ecd_literacy', self.AS_OF))
+
+    def test_ecd_literacy_excludes_zz_ecd_coach(self):
+        # ZZ ECD Coaches deliver the Zazi iZandi ECD programme (their own tab),
+        # not Masi ECD Literacy. They have no sessions in the PG literacy table,
+        # so including them only deflates ECD Literacy's ratios.
+        y = self._coach(7, 'ZZ ECD Coach', self.ecdc)
+        self.assertNotIn(y, eligible_coaches('ecd_literacy', self.AS_OF))
+
+    def test_ecd_literacy_excludes_practitioner(self):
+        y = self._coach(8, 'Practitioner', self.ecdc)
+        self.assertNotIn(y, eligible_coaches('ecd_literacy', self.AS_OF))
 
     def test_excludes_inactive_coach(self):
         y = self._coach(4, 'Literacy Coach', self.primary, status='Inactive')

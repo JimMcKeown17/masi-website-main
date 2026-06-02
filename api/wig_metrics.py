@@ -28,22 +28,23 @@ def last_completed_week(reference_dt):
     return start, end
 
 
-# Site types are free-text on School.type and inconsistent in prod
-# ('ECDC' and 'ECD' both occur). Normalise here, once.
-ECD_SITE_TYPES = {'ECD', 'ECDC'}
+# Site types are free-text on School.type. In prod, Masi's ECD *literacy* centres
+# are recorded as 'ECDC'; the bare 'ECD' value (a handful of schools) belongs to
+# the separate Zazi iZandi ECD programme (its own tab), NOT ECD Literacy.
 PRIMARY_SITE_TYPES = {'Primary School'}
+ECDC_SITE_TYPES = {'ECDC'}
 
 
 def classify_literacy_site(site_type):
-    """Map a school's site type to a literacy programme.
+    """Map a school's site type to a Masi literacy programme.
 
-    Core Literacy is delivered at primary schools, ECD Literacy at ECD sites.
-    The same coach can work at both, so the *session's* site type decides the
-    programme. Non-literacy sites (e.g. secondary) and blank/unknown -> None.
+    Core Literacy is delivered at primary schools, ECD Literacy at ECDC centres.
+    A session's site type decides the programme. Non-literacy sites (secondary,
+    bare-'ECD' Zazi sites) and blank/unknown -> None.
     """
     if site_type in PRIMARY_SITE_TYPES:
         return 'core_literacy'
-    if site_type in ECD_SITE_TYPES:
+    if site_type in ECDC_SITE_TYPES:
         return 'ecd_literacy'
     return None
 
@@ -58,8 +59,8 @@ COHORTS = {
         'job_titles': {'Literacy Coach', 'Literacy Coaches (ZZ)'},
     },
     'ecd_literacy': {
-        'site_types': ECD_SITE_TYPES,
-        'job_titles': {'Literacy Coach', 'ZZ ECD Coach', 'ECD Practitioner', 'Practitioner'},
+        'site_types': ECDC_SITE_TYPES,
+        'job_titles': {'Literacy Coach'},
     },
     'numeracy': {
         'site_types': None,  # all sites for now (ECDC today; Primary coming)
