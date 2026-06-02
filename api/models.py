@@ -547,6 +547,10 @@ class ZaziOverviewSnapshot(models.Model):
     this single-row snapshot out-of-band; /api/wig/zazi/ serves it instantly. On a
     refresh failure the last-good payload is kept and `ok` is set False.
     """
+    cohort = models.CharField(
+        max_length=20, default='all', unique=True,
+        help_text="Zazi programme-overview cohort: 'primary' or 'ecd' (one row each)",
+    )
     payload = models.JSONField(default=dict, blank=True)
     fetched_at = models.DateTimeField(null=True, blank=True, help_text="When the payload was last fetched successfully")
     ok = models.BooleanField(default=False)
@@ -559,7 +563,7 @@ class ZaziOverviewSnapshot(models.Model):
 
     def __str__(self):
         state = "ok" if self.ok else "stale/error"
-        return f"Zazi snapshot ({state}) fetched {self.fetched_at}"
+        return f"Zazi snapshot [{self.cohort}] ({state}) fetched {self.fetched_at}"
 
 
 # api/models.py (add to your existing models)

@@ -443,27 +443,46 @@ class ZaziNormalizeTests(SimpleTestCase):
         self.assertEqual(ms['zazi.sessions_per_day']['value'], 3.2)
         self.assertEqual(ms['zazi.sessions_per_day']['target'], 2.5)
 
+    def test_prefix_namespaces_measures_for_ecd(self):
+        # The ECD segment reuses the same mapping under a distinct key prefix so
+        # both Zazi tabs can live in one merged measures map.
+        ms = build_zazi_measures(ZAZI_OVERVIEW, prefix='zazi_ecd')['measures']
+        self.assertIn('zazi_ecd.pct_eas_on_track', ms)
+        self.assertEqual(ms['zazi_ecd.pct_eas_on_track']['value'], 76.3)
+        self.assertNotIn('zazi.pct_eas_on_track', ms)
+
 
 class RefreshZaziSnapshotTests(TestCase):
-    """The Zazi overview is slow (~10s/call), so a cron refreshes a single
-    cached snapshot row out-of-band. refresh_zazi_snapshot() does that fetch."""
+    """The Zazi overview is slow (~10s/call), so a cron refreshes cached snapshot
+    rows out-of-band. There is one row per cohort (primary, ecd) so the WIG board
+    can show a Zazi Primary tab and a Zazi ECD tab from separate fetches."""
 
     @patch('api.zazi_client.fetch_zazi_programme_overview', return_value=ZAZI_OVERVIEW)
-    def test_refresh_stores_payload(self, _mock):
-        snap = refresh_zazi_snapshot()
-        self.assertEqual(ZaziOverviewSnapshot.objects.count(), 1)
+    def test_refresh_stores_payload_for_cohort(self, mock_fetch):
+        snap = refresh_zazi_snapshot('ecd')
+        self.assertEqual(snap.cohort, 'ecd')
         self.assertTrue(snap.ok)
         self.assertEqual(snap.payload, ZAZI_OVERVIEW)
         self.assertIsNotNone(snap.fetched_at)
+        self.assertEqual(mock_fetch.call_args.kwargs.get('cohort'), 'ecd')
+
+    @patch('api.zazi_client.fetch_zazi_programme_overview', return_value=ZAZI_OVERVIEW)
+    def test_each_cohort_is_its_own_row(self, _mock):
+        refresh_zazi_snapshot('primary')
+        refresh_zazi_snapshot('ecd')
+        self.assertEqual(
+            set(ZaziOverviewSnapshot.objects.values_list('cohort', flat=True)),
+            {'primary', 'ecd'},
+        )
 
     @patch('api.zazi_client.fetch_zazi_programme_overview')
     def test_refresh_keeps_last_good_on_error(self, mock_fetch):
         mock_fetch.return_value = ZAZI_OVERVIEW
-        refresh_zazi_snapshot()  # seed a good snapshot
+        refresh_zazi_snapshot('primary')  # seed a good snapshot
         mock_fetch.side_effect = Exception('zazi down')
-        snap = refresh_zazi_snapshot()  # now fails
-        # Still one row; last-good payload preserved, but flagged not-ok.
-        self.assertEqual(ZaziOverviewSnapshot.objects.count(), 1)
+        snap = refresh_zazi_snapshot('primary')  # now fails
+        # Still one primary row; last-good payload preserved, flagged not-ok.
+        self.assertEqual(ZaziOverviewSnapshot.objects.filter(cohort='primary').count(), 1)
         self.assertFalse(snap.ok)
         self.assertEqual(snap.payload, ZAZI_OVERVIEW)
         self.assertIn('zazi down', snap.error_message)
@@ -482,21 +501,26 @@ class ZaziEndpointTests(TestCase):
         return c
 
     @patch('api.zazi_client.fetch_zazi_programme_overview', side_effect=Exception('must not be called'))
-    def test_admin_gets_cached_measures_without_live_fetch(self, mock_fetch):
-        ZaziOverviewSnapshot.objects.create(payload=ZAZI_OVERVIEW, ok=True)
+    def test_admin_gets_both_segments_from_cache(self, mock_fetch):
+        ZaziOverviewSnapshot.objects.create(cohort='primary', payload=ZAZI_OVERVIEW, ok=True)
+        ZaziOverviewSnapshot.objects.create(cohort='ecd', payload=ZAZI_OVERVIEW, ok=True)
         r = self._client_as('za', 'ADMIN').get('/api/wig/zazi/')
         self.assertEqual(r.status_code, 200)
         body = r.json()
-        self.assertTrue(body['available'])
+        self.assertTrue(body['available']['zazi_izandi'])
+        self.assertTrue(body['available']['zazi_izandi_ecd'])
         self.assertIn('zazi.pct_eas_on_track', body['measures'])
+        self.assertIn('zazi_ecd.pct_eas_on_track', body['measures'])
         mock_fetch.assert_not_called()  # served from cache, no slow live call
 
     @patch('api.zazi_client.fetch_zazi_programme_overview', side_effect=Exception('down'))
-    def test_zazi_unavailable_is_graceful(self, _mock):
-        # No snapshot row and the lazy populate fails -> graceful unavailable.
+    def test_zazi_unavailable_is_graceful_per_segment(self, _mock):
+        # No snapshot rows and the lazy populate fails -> each segment unavailable.
         r = self._client_as('zb', 'ADMIN').get('/api/wig/zazi/')
         self.assertEqual(r.status_code, 200)
-        self.assertFalse(r.json()['available'])
+        body = r.json()
+        self.assertFalse(body['available']['zazi_izandi'])
+        self.assertFalse(body['available']['zazi_izandi_ecd'])
 
     def test_mentor_forbidden(self):
         r = self._client_as('zm', 'MENTOR').get('/api/wig/zazi/')

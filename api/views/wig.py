@@ -38,25 +38,30 @@ def wig_data_quality(request):
 @authentication_classes(AUTH_CLASSES)
 @permission_classes(PERM_CLASSES)
 def wig_zazi(request):
-    """Zazi iZandi tile: served from the cached snapshot.
+    """Zazi iZandi tiles (Primary + ECD): served from cached snapshots.
 
     The Zazi overview endpoint takes ~10s to compute, so we never call it live on
-    a board load. A cron (refresh_zazi_overview) keeps the snapshot fresh; if it
-    has never run (e.g. right after deploy) we populate it once, lazily. Degrades
-    to {available: False} when there is no usable snapshot.
+    a board load. A cron (refresh_zazi_overview) keeps one snapshot per cohort
+    fresh; if a cohort has never been fetched (e.g. right after deploy) we
+    populate it once, lazily. Each segment degrades independently to unavailable.
     """
     from ..models import ZaziOverviewSnapshot
+    from ..zazi_client import ZAZI_SEGMENTS
 
-    snap = ZaziOverviewSnapshot.objects.first()
-    if snap is None:
-        snap = zazi_client.refresh_zazi_snapshot()
-
-    if snap and snap.ok and snap.payload:
-        payload = zazi_client.build_zazi_measures(snap.payload)
-        payload['available'] = True
-        payload['fetched_at'] = snap.fetched_at.isoformat() if snap.fetched_at else None
-        return Response(payload)
-    return Response({'available': False, 'measures': {}})
+    measures = {}
+    available = {}
+    fetched_at = {}
+    for prog_key, cohort, prefix in ZAZI_SEGMENTS:
+        snap = ZaziOverviewSnapshot.objects.filter(cohort=cohort).first()
+        if snap is None:
+            snap = zazi_client.refresh_zazi_snapshot(cohort)
+        if snap and snap.ok and snap.payload:
+            measures.update(zazi_client.build_zazi_measures(snap.payload, prefix=prefix)['measures'])
+            available[prog_key] = True
+            fetched_at[prog_key] = snap.fetched_at.isoformat() if snap.fetched_at else None
+        else:
+            available[prog_key] = False
+    return Response({'available': available, 'measures': measures, 'fetched_at': fetched_at})
 
 
 @api_view(['GET'])
