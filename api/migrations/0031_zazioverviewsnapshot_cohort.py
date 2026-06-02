@@ -3,6 +3,17 @@
 from django.db import migrations, models
 
 
+def clear_snapshots(apps, schema_editor):
+    """Empty the disposable cache before adding the unique `cohort` column.
+
+    Pre-0031 the table held a single cohort-less row; backfilling it all to the
+    same default 'all' would risk a unique-constraint violation if more than one
+    row ever existed. The cron (refresh_zazi_overview) and the lazy-populate in
+    wig_zazi recreate the per-cohort rows on the next run, so deleting is safe.
+    """
+    apps.get_model('api', 'ZaziOverviewSnapshot').objects.all().delete()
+
+
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -10,6 +21,7 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
+        migrations.RunPython(clear_snapshots, migrations.RunPython.noop),
         migrations.AddField(
             model_name='zazioverviewsnapshot',
             name='cohort',
