@@ -1,5 +1,9 @@
 from rest_framework import serializers
-from .models import MentorVisit, YeboVisit, ThousandStoriesVisit, NumeracyVisit, School
+from django.core.exceptions import ValidationError as DjangoValidationError
+from .models import (
+    MentorVisit, YeboVisit, ThousandStoriesVisit, NumeracyVisit, School,
+    SchoolClosure, StaffAbsence, Youth,
+)
 from django.contrib.auth.models import User
 
 
@@ -190,3 +194,68 @@ class NumeracyVisitSerializer(serializers.ModelSerializer):
             'supplies_needed': {'required': False, 'allow_blank': True},
             'commentary': {'required': False, 'allow_blank': True},
         }
+
+
+class SchoolClosureSerializer(serializers.ModelSerializer):
+    """Closure CRUD. scope_key/source/created_by are derived or server-set; the
+    model's clean() validates that the scope fields match the scope_type."""
+    scope_display = serializers.SerializerMethodField()
+
+    class Meta:
+        model = SchoolClosure
+        fields = [
+            'id', 'date', 'scope_type', 'scope_school', 'scope_school_type',
+            'scope_region', 'scope_key', 'scope_display', 'is_open', 'source',
+            'reason', 'created_by', 'created_at', 'updated_at',
+        ]
+        read_only_fields = ['scope_key', 'source', 'created_by', 'created_at', 'updated_at']
+
+    def get_scope_display(self, obj):
+        if obj.scope_type == 'global':
+            return 'All schools'
+        if obj.scope_type == 'type':
+            return f'All {obj.get_scope_school_type_display()} schools' if obj.scope_school_type else 'All (by type)'
+        if obj.scope_type == 'region':
+            return obj.scope_region or 'Region'
+        if obj.scope_type == 'school':
+            return obj.scope_school.name if obj.scope_school_id else 'School'
+        return obj.scope_key
+
+    def validate(self, attrs):
+        # Validate scope consistency through the model's clean(), merging with the
+        # existing instance on PATCH so partial updates still validate.
+        get = (lambda f: attrs.get(f, getattr(self.instance, f, None))) if self.instance else attrs.get
+        probe = SchoolClosure(
+            date=get('date'),
+            scope_type=get('scope_type'),
+            scope_school=get('scope_school'),
+            scope_school_type=get('scope_school_type'),
+            scope_region=get('scope_region'),
+            is_open=get('is_open') or False,
+        )
+        try:
+            probe.clean()
+        except DjangoValidationError as e:
+            raise serializers.ValidationError(getattr(e, 'message_dict', e.messages))
+        return attrs
+
+
+class StaffAbsenceSerializer(serializers.ModelSerializer):
+    """Per-youth absence. youth_uid is derived from the selected youth."""
+    youth_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = StaffAbsence
+        fields = [
+            'id', 'date', 'youth', 'youth_uid', 'youth_name', 'reason', 'note',
+            'created_by', 'created_at', 'updated_at',
+        ]
+        read_only_fields = ['youth_uid', 'created_by', 'created_at', 'updated_at']
+
+    def get_youth_name(self, obj):
+        return obj.youth.full_name if obj.youth_id else obj.youth_uid
+
+    def validate_youth(self, youth):
+        if not youth.youth_uid:
+            raise serializers.ValidationError('That youth has no youth_uid and cannot have absences recorded.')
+        return youth

@@ -48,4 +48,14 @@ urlpatterns = [
     path('wig/data-quality/', views.wig_data_quality, name='wig_data_quality'),
     path('wig/zazi/', views.wig_zazi, name='wig_zazi'),
     path('wig/detail/', views.wig_detail, name='wig_detail'),
+
+    # Closure calendar (authoring: ADMIN / PROJECT MANAGER; export: shared-secret)
+    path('closures/', views.ClosureListCreateAPIView.as_view(), name='closures'),
+    path('closures/bulk/', views.closures_bulk, name='closures_bulk'),
+    path('closures/export/', views.closures_export, name='closures_export'),
+    path('closures/<int:pk>/', views.ClosureDetailAPIView.as_view(), name='closure_detail'),
+    path('absences/', views.AbsenceListCreateAPIView.as_view(), name='absences'),
+    path('absences/bulk/', views.absences_bulk, name='absences_bulk'),
+    path('absences/export/', views.absences_export, name='absences_export'),
+    path('absences/<int:pk>/', views.AbsenceDetailAPIView.as_view(), name='absence_detail'),
 ]

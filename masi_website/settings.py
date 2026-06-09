@@ -312,3 +312,7 @@ CORS_ALLOW_METHODS = [
 
 # Add this to your settings.py
 CLERK_SECRET_KEY = os.environ.get('CLERK_SECRET_KEY')
+
+# Shared secret for service-to-service calls (the Zazi backend pulls the closure
+# calendar export). Sent/verified as the X-Internal-Auth header.
+MASI_INTERNAL_API_SECRET = os.environ.get('MASI_INTERNAL_API_SECRET', '')
