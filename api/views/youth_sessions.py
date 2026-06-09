@@ -13,6 +13,7 @@ from ..models import (
     Youth, School, Mentor,
 )
 from ..authentication import ClerkAuthentication
+from ..closures import open_working_days_bulk
 
 AUTH_CLASSES = [SessionAuthentication, ClerkAuthentication]
 PERM_CLASSES = [permissions.IsAuthenticated]
@@ -126,6 +127,36 @@ def _get_session_querysets(params):
     return lit_qs, num_qs
 
 
+def _inactivity_state(params, days, today):
+    """Inputs for closure/absence-aware inactivity: the active youth, each youth's
+    open working days (closures + absences + start-date applied), and the dates
+    each had sessions. Looks back a generous window so closures don't shorten the
+    'last N working days' check."""
+    active = list(_active_youth_qs(params, reference_date=today).select_related('mentor', 'school'))
+    lookback = _last_n_working_days(days + 14, today)
+    window_start = lookback[0] if lookback else today
+    open_by_id = open_working_days_bulk(active, window_start, today)
+    lit_qs, num_qs = _get_session_querysets(params)
+    sess = defaultdict(set)
+    for uid, d in lit_qs.filter(session_date__gte=window_start).values_list('youth_uid', 'session_date'):
+        if uid:
+            sess[uid].add(d)
+    for uid, d in num_qs.filter(session_date__gte=window_start).values_list('youth_uid', 'session_date'):
+        if uid:
+            sess[uid].add(d)
+    return active, open_by_id, sess
+
+
+def _is_inactive(youth, open_by_id, sess, days):
+    """Inactive = no session on any of the youth's last `days` OPEN working days.
+    Youth with no recent expected days (brand new, or fully closed) aren't flagged."""
+    open_days = sorted(open_by_id.get(youth.id, set()))
+    last_n_open = set(open_days[-days:])
+    if not last_n_open:
+        return False
+    return not (last_n_open & sess.get(youth.youth_uid, set()))
+
+
 @api_view(['GET'])
 @authentication_classes(AUTH_CLASSES)
 @permission_classes(PERM_CLASSES)
@@ -160,17 +191,13 @@ def youth_sessions_summary(request):
     active_youth = _active_youth_qs(params, reference_date=today)
     total_active_youth = active_youth.count()
 
-    # Inactive: active youth with no sessions in last 2 working days
-    last_2_days = _last_n_working_days(2, today)
-    recent_youth_uids = set(
-        lit_qs.filter(session_date__in=last_2_days).values_list('youth_uid', flat=True)
-    ) | set(
-        num_qs.filter(session_date__in=last_2_days).values_list('youth_uid', flat=True)
+    # Inactive: active youth with no sessions in their last 2 *expected* working
+    # days (so a closure or personal absence doesn't count against them).
+    inactive_active, inactive_open, inactive_sess = _inactivity_state(params, 2, today)
+    inactive_count = sum(
+        1 for y in inactive_active
+        if y.youth_uid and _is_inactive(y, inactive_open, inactive_sess, 2)
     )
-    all_active_uids = set(
-        active_youth.values_list('youth_uid', flat=True)
-    )
-    inactive_count = len(all_active_uids - recent_youth_uids)
 
     today_school_uids = set(
         lit_qs.filter(session_date=today).values_list('school_uid', flat=True)
@@ -283,7 +310,16 @@ def youth_sessions_heatmap(request):
             youth_data[uid][str(row['session_date'])] += row['count']
 
     max_date = working_days[-1] if working_days else None
-    active_youth = _active_youth_qs(params, reference_date=max_date).select_related('mentor')
+    active_youth = list(
+        _active_youth_qs(params, reference_date=max_date).select_related('mentor', 'school')
+    )
+
+    # Per-youth open working days in the window: weekdays minus closures and the
+    # youth's absences, clipped to their start_date.
+    window_start = working_days[0] if working_days else today
+    window_end = working_days[-1] if working_days else today
+    open_by_id = open_working_days_bulk(active_youth, window_start, window_end)
+    open_by_uid = {y.youth_uid: open_by_id.get(y.id, set()) for y in active_youth if y.youth_uid}
 
     youth_info = {
         y.youth_uid: {
@@ -314,19 +350,22 @@ def youth_sessions_heatmap(request):
     for uid in all_uids:
         info = youth_info[uid]
         daily_counts = [youth_data[uid].get(d, 0) for d in date_strs]
+        open_set = open_by_uid.get(uid, set())
+        # expected[i] == was this youth expected to work on working_days[i]?
+        expected = [d in open_set for d in working_days]
         total_active_days = sum(1 for c in daily_counts if c > 0)
         total_sessions = sum(daily_counts)
         start_date = info.get('start_date')
-        if start_date:
-            eligible_days = sum(1 for d in working_days if d >= start_date)
-        else:
-            eligible_days = len(working_days)
+        # Denominator = days actually expected (weekdays minus closures/absences,
+        # clipped to start_date), not every weekday in the window.
+        eligible_days = len(open_set)
         result.append({
             'youth_uid': uid,
             'full_name': info['full_name'],
             'mentor_name': info['mentor_name'],
             'start_date': start_date.isoformat() if start_date else None,
             'daily_counts': daily_counts,
+            'expected': expected,
             'total_active_days': total_active_days,
             'total_sessions': total_sessions,
             'eligible_days': eligible_days,
@@ -344,24 +383,18 @@ def youth_sessions_heatmap(request):
 @authentication_classes(AUTH_CLASSES)
 @permission_classes(PERM_CLASSES)
 def youth_sessions_inactive(request):
-    """Active youth with no sessions in last N working days."""
+    """Active youth with no sessions in their last N *expected* working days
+    (closures and personal absences don't count against them)."""
     params = request.query_params
     days = int(params.get('days', 2))
 
     today = timezone.now().date()
-    working_days = _last_n_working_days(days, today)
 
-    lit_qs, num_qs = _get_session_querysets(params)
-
-    recent_uids = set(
-        lit_qs.filter(session_date__in=working_days).values_list('youth_uid', flat=True)
-    ) | set(
-        num_qs.filter(session_date__in=working_days).values_list('youth_uid', flat=True)
-    )
-
-    active_youth = _active_youth_qs(params, reference_date=today).select_related('mentor', 'school')
-
-    inactive_youth = [y for y in active_youth if y.youth_uid and y.youth_uid not in recent_uids]
+    active_youth, open_by_id, sess_dates = _inactivity_state(params, days, today)
+    inactive_youth = [
+        y for y in active_youth
+        if y.youth_uid and _is_inactive(y, open_by_id, sess_dates, days)
+    ]
     inactive_uids = [y.youth_uid for y in inactive_youth]
 
     last_lit = dict(
@@ -395,8 +428,8 @@ def youth_sessions_inactive(request):
         last_session = max(filter(None, [lit_last, num_last]), default=None)
         if last_session:
             calendar_days_inactive = (today - last_session).days
-            # Working days strictly after last_session through today (inclusive).
-            working_days_inactive = len(_get_working_days(last_session + timedelta(days=1), today))
+            # OPEN working days strictly after last_session through today.
+            working_days_inactive = sum(1 for d in open_by_id.get(y.id, set()) if d > last_session)
         else:
             calendar_days_inactive = None
             working_days_inactive = None
@@ -532,6 +565,7 @@ def youth_sessions_detail(request, youth_uid):
     )
 
     working_days = _get_working_days(daily_from, daily_to)
+    open_days = open_working_days_bulk([youth], daily_from, daily_to).get(youth.id, set())
     daily_sessions = []
     days_with_sessions = 0
     for d in working_days:
@@ -539,9 +573,13 @@ def youth_sessions_detail(request, youth_uid):
         num_c = num_daily.get(d, 0)
         if lit_c + num_c > 0:
             days_with_sessions += 1
-        daily_sessions.append({'date': str(d), 'literacy': lit_c, 'numeracy': num_c})
+        daily_sessions.append({
+            'date': str(d), 'literacy': lit_c, 'numeracy': num_c,
+            'expected': d in open_days,
+        })
 
-    total_working_days = len(working_days)
+    # Expected working days = weekdays minus closures and this youth's absences.
+    total_working_days = len(open_days)
     avg_per_day = round(total_sessions / days_with_sessions, 1) if days_with_sessions else 0
 
     # Children worked with — bounded to the same daily_from/daily_to window
@@ -564,7 +602,7 @@ def youth_sessions_detail(request, youth_uid):
         'total_sessions': total_sessions,
         'total_sessions_this_month': total_month,
         'avg_sessions_per_day': avg_per_day,
-        'days_with_no_sessions': total_working_days - days_with_sessions,
+        'days_with_no_sessions': max(total_working_days - days_with_sessions, 0),
         'total_working_days': total_working_days,
         'children_worked_with': len(child_uids),
         'daily_sessions': daily_sessions,
