@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.utils.html import format_html
-from .models import School, Youth, Child, Mentor, MentorVisit, YeboVisit, ThousandStoriesVisit, NumeracyVisit, Session, AirtableSyncLog
+from .models import School, Youth, Child, Mentor, MentorVisit, YeboVisit, ThousandStoriesVisit, NumeracyVisit, Session, AirtableSyncLog, SchoolClosure, StaffAbsence
 
 @admin.register(School)
 class SchoolAdmin(admin.ModelAdmin):
@@ -314,3 +314,25 @@ class AirtableSyncLogAdmin(admin.ModelAdmin):
         else:
             return format_html('<span style="color: red;">Failed</span>')
     status_label.short_description = 'Status'
+
+
+@admin.register(SchoolClosure)
+class SchoolClosureAdmin(admin.ModelAdmin):
+    list_display = ('date', 'scope_key', 'is_open', 'source', 'reason', 'created_by')
+    list_filter = ('scope_type', 'source', 'is_open', 'scope_school_type')
+    search_fields = ('scope_key', 'scope_region', 'reason', 'scope_school__name')
+    date_hierarchy = 'date'
+    ordering = ('-date', 'scope_key')
+    # scope_key is derived from the scope fields on save -- never hand-edited.
+    readonly_fields = ('scope_key', 'created_at', 'updated_at')
+
+
+@admin.register(StaffAbsence)
+class StaffAbsenceAdmin(admin.ModelAdmin):
+    list_display = ('date', 'youth_uid', 'youth', 'reason', 'note', 'created_by')
+    list_filter = ('reason',)
+    search_fields = ('youth_uid', 'youth__full_name', 'note')
+    date_hierarchy = 'date'
+    ordering = ('-date',)
+    # youth_uid is populated from the selected youth on save.
+    readonly_fields = ('youth_uid', 'created_at', 'updated_at')

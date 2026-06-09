@@ -12,6 +12,7 @@ from django.db.models import Q
 from .models import (
     Youth, LiteracySession2026, NumeracySession2026, MentorVisit, NumeracyVisit,
 )
+from .closures import open_working_days_bulk
 
 # Programme dates are South African; the server runs UTC, so resolve the
 # business day in SAST before deriving week boundaries.
@@ -111,22 +112,29 @@ def _programme_session_qs(programme, start, end):
 
 
 def sessions_per_day(programme, start, end):
-    """Average sessions per eligible coach per working day across the window.
+    """Average sessions per eligible coach per *open* working day across the window.
 
-    Zero eligible coaches (or zero working days) -> value None, so the frontend
+    The denominator is "expected coach-days": for each eligible coach, the Mon-Fri
+    days their assigned school was open (per the closure calendar), clipped to the
+    coach's start date, minus the coach's personal absences. A coach at a flooded
+    school -- or one on leave -- contributes fewer days than one whose school stayed
+    open, instead of every coach sharing one flat Mon-Fri count.
+
+    Zero eligible coaches (or zero open coach-days) -> value None, so the frontend
     can render "no eligible coaches" rather than a misleading 0 or a crash.
     """
-    eligible = eligible_coaches(programme, end).count()
-    working_days = _working_days_count(start, end)
+    coaches = list(eligible_coaches(programme, end).select_related('school'))
+    open_days = open_working_days_bulk(coaches, start, end)
+    denominator = sum(len(open_days.get(c.id, ())) for c in coaches)
     numerator = _programme_session_qs(programme, start, end).count()
-    denominator = eligible * working_days
     value = (numerator / denominator) if denominator else None
     return {
         'numerator': numerator,
         'denominator': denominator,
         'value': value,
-        'eligible_entity_count': eligible,
-        'calculation_note': f'{numerator} sessions / ({eligible} coaches x {working_days} working days)',
+        'eligible_entity_count': len(coaches),
+        'calculation_note': f'{numerator} sessions / {denominator} open coach-days '
+                            f"({len(coaches)} coaches across their schools' open days)",
     }
 
 

@@ -1312,3 +1312,212 @@ class Assessment2025(models.Model):
         if jan and nov and jan > 0:
             return round(((nov - jan) / jan) * 100, 2)
         return None
+
+
+# ---------------------------------------------------------------------------
+# Working-days calendar: school closures + staff absences
+#
+# The per-day stats (WIG sessions_per_day, youth-sessions coverage/inactivity)
+# divide by a count of working days. These two models record the exceptions to
+# "open Mon-Fri" so the denominator reflects reality. Masi is the source of
+# truth; the Zazi iZandi backend pulls these over HTTP. Resolution logic lives
+# in api/closures.py.
+# ---------------------------------------------------------------------------
+
+CLOSURE_SCOPE_CHOICES = [
+    ('global', 'Global (all schools)'),
+    ('type', 'By school type'),
+    ('region', 'By region (suburb)'),
+    ('school', 'Single school'),
+]
+
+# Canonical school-type enum used at the API boundary so Zazi (which uses 'ECD')
+# can match Masi (which uses 'ECDC'/'Primary School'). See api/closures.py for
+# the School.type -> canonical mapping.
+CANONICAL_TYPE_CHOICES = [
+    ('primary', 'Primary'),
+    ('ecd', 'ECD'),
+    ('secondary', 'Secondary'),
+    ('other', 'Other'),
+]
+
+CLOSURE_SOURCE_CHOICES = [
+    ('manual', 'Manual'),
+    ('public_holiday', 'Public holiday'),
+]
+
+_CANONICAL_BY_MASI_TYPE = {
+    'ECDC': 'ecd',
+    'Primary School': 'primary',
+    'Secondary School': 'secondary',
+    'Other': 'other',
+}
+
+
+def canonical_school_type(masi_type):
+    """Map Masi School.type to the cross-system canonical enum (primary/ecd/...)."""
+    return _CANONICAL_BY_MASI_TYPE.get(masi_type, 'other')
+
+
+def normalize_region(value):
+    """Uppercase, trim, collapse internal whitespace; '' for falsy input."""
+    return ' '.join((value or '').strip().upper().split())
+
+
+def build_scope_key(scope_type, *, school_uid=None, canonical_type=None, region=None):
+    """Canonical, always-non-null discriminator stored on SchoolClosure.scope_key."""
+    if scope_type == 'global':
+        return 'global'
+    if scope_type == 'type':
+        return f'type:{canonical_type}'
+    if scope_type == 'region':
+        return f'region:{normalize_region(region)}'
+    if scope_type == 'school':
+        return f'school:{school_uid}'
+    raise ValueError(f'unknown scope_type: {scope_type!r}')
+
+
+class SchoolClosure(models.Model):
+    """A single non-working day for some set of schools.
+
+    Exception-based: schools are assumed open Mon-Fri unless a closure says
+    otherwise. The scope is encoded in a single always-non-null ``scope_key`` so
+    the unique constraint actually dedupes -- Postgres treats NULLs as distinct,
+    so a nullable composite key would let duplicate global/holiday rows through.
+
+    ``scope_key`` formats: ``global`` | ``type:<canonical>`` |
+    ``region:<NORMALISED_SUBURB>`` | ``school:<school_uid>``. Resolution is
+    most-specific-wins (school > region > type > global); an ``is_open=True`` row
+    overrides a broader closure (e.g. a school that works on a public holiday).
+    """
+    date = models.DateField(db_index=True)
+    # Derived from the scope fields in clean()/save(); never set by hand. Always
+    # non-null so the (date, scope_key) unique constraint actually dedupes.
+    scope_key = models.CharField(max_length=120, db_index=True, blank=True)
+
+    # Descriptive columns for display/filtering only; scope_key owns uniqueness.
+    scope_type = models.CharField(max_length=10, choices=CLOSURE_SCOPE_CHOICES)
+    scope_school = models.ForeignKey(
+        'School', on_delete=models.CASCADE, null=True, blank=True,
+        related_name='closures',
+    )
+    scope_school_type = models.CharField(
+        max_length=10, choices=CANONICAL_TYPE_CHOICES, blank=True, null=True,
+    )
+    scope_region = models.CharField(max_length=100, blank=True, null=True)
+
+    is_open = models.BooleanField(
+        default=False,
+        help_text="True = explicit 'actually open' override of a broader closure",
+    )
+    source = models.CharField(
+        max_length=20, choices=CLOSURE_SOURCE_CHOICES, default='manual', db_index=True,
+    )
+    reason = models.CharField(max_length=255, blank=True)
+    created_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['date', 'scope_key'], name='uniq_closure_date_scope'),
+        ]
+        indexes = [models.Index(fields=['date', 'scope_type'])]
+        ordering = ['-date', 'scope_key']
+
+    def _derive_scope_key(self):
+        return build_scope_key(
+            self.scope_type,
+            school_uid=self.scope_school.school_uid if self.scope_school_id else None,
+            canonical_type=self.scope_school_type,
+            region=self.scope_region,
+        )
+
+    def _normalize_scope(self):
+        """Clear descriptive fields irrelevant to this scope, normalise the
+        region, and (re)derive scope_key so it can never drift from the scope."""
+        if self.scope_type != 'school':
+            self.scope_school = None
+        if self.scope_type != 'type':
+            self.scope_school_type = None
+        if self.scope_type != 'region':
+            self.scope_region = None
+        elif self.scope_region:
+            self.scope_region = normalize_region(self.scope_region)
+        self.scope_key = self._derive_scope_key()
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        if self.scope_type == 'school':
+            if not self.scope_school_id:
+                raise ValidationError({'scope_school': 'A school is required for a school-scoped closure.'})
+            if not self.scope_school.school_uid:
+                raise ValidationError({'scope_school': 'That school has no school_uid and cannot be targeted.'})
+        elif self.scope_type == 'type':
+            if not self.scope_school_type:
+                raise ValidationError({'scope_school_type': 'A school type is required for a type-scoped closure.'})
+        elif self.scope_type == 'region':
+            if not normalize_region(self.scope_region):
+                raise ValidationError({'scope_region': 'A region (suburb) is required for a region-scoped closure.'})
+        self._normalize_scope()
+
+    def save(self, *args, **kwargs):
+        self._normalize_scope()
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        state = 'open' if self.is_open else 'closed'
+        return f"{self.date} {self.scope_key} ({state})"
+
+
+class StaffAbsence(models.Model):
+    """A single non-working day for one youth/coach (vacation, funeral, sick).
+
+    Distinct from SchoolClosure -- the place is open, this person just isn't
+    expected -- but it feeds the same per-coach denominator.
+
+    Keyed by ``youth_uid`` (the stable YTH-XXXX identity), not the Youth PK: the
+    nightly Airtable youth sync hard-deletes orphan Youth rows, so the FK is
+    SET_NULL and resolution/uniqueness ride youth_uid. That preserves absence
+    history across a transient sync drop and is the key the export/Zazi cache use.
+    """
+    ABSENCE_REASON_CHOICES = [
+        ('vacation', 'Vacation'),
+        ('funeral', 'Funeral'),
+        ('sick', 'Sick'),
+        ('other', 'Other'),
+    ]
+    youth_uid = models.CharField(max_length=50, db_index=True, blank=True,
+                                 help_text="YTH-XXXX; stable key, survives youth re-sync")
+    youth = models.ForeignKey('Youth', on_delete=models.SET_NULL, null=True, blank=True,
+                              related_name='absences')
+    date = models.DateField(db_index=True)
+    reason = models.CharField(max_length=20, choices=ABSENCE_REASON_CHOICES, default='other')
+    note = models.CharField(max_length=255, blank=True)
+    created_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['date', 'youth_uid'], name='uniq_absence_date_youth_uid'),
+        ]
+        ordering = ['-date']
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        uid = self.youth_uid or (self.youth.youth_uid if self.youth_id else None)
+        if not uid:
+            raise ValidationError({'youth': 'Youth must have a youth_uid to record an absence.'})
+
+    def save(self, *args, **kwargs):
+        if not self.youth_uid and self.youth_id:
+            self.youth_uid = self.youth.youth_uid or ''
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.date} {self.youth_uid} ({self.reason})"
