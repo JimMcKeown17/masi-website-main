@@ -76,6 +76,47 @@ class ClosureDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = PERM
 
 
+@api_view(['GET'])
+@authentication_classes(AUTH)
+@permission_classes(PERM)
+def closures_lookups(request):
+    """Dropdown data for the closure-calendar UI: active schools (with uid,
+    normalised suburb, canonical type), the distinct suburbs, the canonical
+    school types, and active youth."""
+    schools = (
+        School.objects.filter(is_active=True)
+        .exclude(school_uid__isnull=True).exclude(school_uid='')
+        .order_by('name')
+    )
+    school_rows = [{
+        'school_uid': s.school_uid,
+        'name': s.name,
+        'suburb': closures_svc.normalize_region(s.suburb) or None,
+        'canonical_type': closures_svc.canonical_school_type(s.type),
+    } for s in schools]
+    suburbs = sorted({r['suburb'] for r in school_rows if r['suburb']})
+    youth = (
+        Youth.objects.filter(employment_status='Active')
+        .exclude(youth_uid__isnull=True).exclude(youth_uid='')
+        .order_by('first_names', 'last_name')
+    )
+    youth_rows = [{
+        'youth_uid': y.youth_uid,
+        'name': y.full_name or f'{y.first_names} {y.last_name}'.strip(),
+    } for y in youth]
+    return Response({
+        'schools': school_rows,
+        'suburbs': suburbs,
+        'school_types': [
+            {'value': 'primary', 'label': 'Primary'},
+            {'value': 'ecd', 'label': 'ECD'},
+            {'value': 'secondary', 'label': 'Secondary'},
+            {'value': 'other', 'label': 'Other'},
+        ],
+        'youth': youth_rows,
+    })
+
+
 def _closure_scope_kwargs(scope_type, value):
     """Return (model field kwargs, scope_key) for one (scope_type, value)."""
     if scope_type == 'global':

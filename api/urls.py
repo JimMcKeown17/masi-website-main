@@ -52,6 +52,7 @@ urlpatterns = [
     # Closure calendar (authoring: ADMIN / PROJECT MANAGER; export: shared-secret)
     path('closures/', views.ClosureListCreateAPIView.as_view(), name='closures'),
     path('closures/bulk/', views.closures_bulk, name='closures_bulk'),
+    path('closures/lookups/', views.closures_lookups, name='closures_lookups'),
     path('closures/export/', views.closures_export, name='closures_export'),
     path('closures/<int:pk>/', views.ClosureDetailAPIView.as_view(), name='closure_detail'),
     path('absences/', views.AbsenceListCreateAPIView.as_view(), name='absences'),

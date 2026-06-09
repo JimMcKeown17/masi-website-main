@@ -118,3 +118,31 @@ class AbsenceApiTests(TestCase):
         self.assertEqual(resp.status_code, 201, resp.content)
         self.assertEqual(resp.data['created'], 5)
         self.assertEqual(StaffAbsence.objects.filter(youth_uid='YTH-1').count(), 5)
+
+
+class ClosureLookupsTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.client.force_authenticate(make_user('admin', 'ADMIN'))
+        School.objects.create(name='Walmer Primary', type='Primary School',
+                             school_uid='SCH-W', suburb='Walmer', is_active=True)
+        School.objects.create(name='Closed', type='ECDC', school_uid='SCH-I',
+                             suburb='Korsten', is_active=False)
+        Youth.objects.create(employee_id=7, first_names='Loyiso', last_name='Coach',
+                            youth_uid='YTH-7', employment_status='Active',
+                            start_date=date(2026, 1, 1))
+
+    def test_returns_active_schools_suburbs_and_youth(self):
+        resp = self.client.get('/api/closures/lookups/')
+        self.assertEqual(resp.status_code, 200)
+        uids = [s['school_uid'] for s in resp.data['schools']]
+        self.assertIn('SCH-W', uids)
+        self.assertNotIn('SCH-I', uids)  # inactive school excluded
+        self.assertIn('WALMER', resp.data['suburbs'])
+        self.assertEqual(resp.data['schools'][0]['canonical_type'], 'primary')
+        self.assertTrue(any(y['youth_uid'] == 'YTH-7' for y in resp.data['youth']))
+
+    def test_lookups_gated_to_admin_pm(self):
+        viewer = APIClient()
+        viewer.force_authenticate(make_user('viewer', 'VIEWER'))
+        self.assertEqual(viewer.get('/api/closures/lookups/').status_code, 403)

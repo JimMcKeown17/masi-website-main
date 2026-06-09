@@ -19,6 +19,7 @@ from .youth_sessions import (
 from .wig import wig_lead_measures, wig_data_quality, wig_zazi, wig_detail
 from .closures import (
     ClosureListCreateAPIView, ClosureDetailAPIView, closures_bulk, closures_export,
+    closures_lookups,
     AbsenceListCreateAPIView, AbsenceDetailAPIView, absences_bulk, absences_export,
 )
 
@@ -54,6 +55,7 @@ __all__ = [
     'ClosureDetailAPIView',
     'closures_bulk',
     'closures_export',
+    'closures_lookups',
     'AbsenceListCreateAPIView',
     'AbsenceDetailAPIView',
     'absences_bulk',
