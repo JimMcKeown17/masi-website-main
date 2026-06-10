@@ -282,6 +282,37 @@ def absences_bulk(request):
 @api_view(['GET'])
 @authentication_classes([])
 @permission_classes([IsInternalService])
+def identity_export(request):
+    """School + youth identity for the Zazi backend to reconcile its local keys
+    (program_name -> school_uid by name; EA email -> youth_uid by email).
+    Shared-secret only; no user identity."""
+    schools = (
+        School.objects.filter(is_active=True)
+        .exclude(school_uid__isnull=True).exclude(school_uid='')
+        .order_by('name')
+    )
+    school_rows = [{
+        'school_uid': s.school_uid,
+        'name': s.name,
+        'suburb': closures_svc.normalize_region(s.suburb) or None,
+        'canonical_type': closures_svc.canonical_school_type(s.type),
+    } for s in schools]
+    youth = (
+        Youth.objects.filter(employment_status='Active')
+        .exclude(youth_uid__isnull=True).exclude(youth_uid='')
+        .order_by('first_names', 'last_name')
+    )
+    youth_rows = [{
+        'youth_uid': y.youth_uid,
+        'name': (y.full_name or f'{y.first_names} {y.last_name}').strip(),
+        'email': (y.email or '').strip().lower() or None,
+    } for y in youth]
+    return Response({'schools': school_rows, 'youth': youth_rows})
+
+
+@api_view(['GET'])
+@authentication_classes([])
+@permission_classes([IsInternalService])
 def absences_export(request):
     """Bounded-window absence feed for the Zazi backend (shared-secret only)."""
     p = request.query_params

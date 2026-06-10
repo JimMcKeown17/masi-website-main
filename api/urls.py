@@ -59,4 +59,7 @@ urlpatterns = [
     path('absences/bulk/', views.absences_bulk, name='absences_bulk'),
     path('absences/export/', views.absences_export, name='absences_export'),
     path('absences/<int:pk>/', views.AbsenceDetailAPIView.as_view(), name='absence_detail'),
+
+    # Identity feed for the Zazi backend (shared-secret only)
+    path('identity/export/', views.identity_export, name='identity_export'),
 ]

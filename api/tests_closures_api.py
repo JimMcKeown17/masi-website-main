@@ -146,3 +146,28 @@ class ClosureLookupsTests(TestCase):
         viewer = APIClient()
         viewer.force_authenticate(make_user('viewer', 'VIEWER'))
         self.assertEqual(viewer.get('/api/closures/lookups/').status_code, 403)
+
+
+@override_settings(MASI_INTERNAL_API_SECRET='test-secret')
+class IdentityExportTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        School.objects.create(name='Walmer P', type='Primary School', school_uid='SCH-W',
+                             suburb='Walmer', is_active=True)
+        Youth.objects.create(employee_id=5, first_names='Sip', last_name='V', youth_uid='YTH-5',
+                            email='Sip.V@masinyusane.org', employment_status='Active',
+                            start_date=date(2026, 1, 1))
+
+    def test_requires_secret(self):
+        self.assertEqual(self.client.get('/api/identity/export/').status_code, 403)
+
+    def test_returns_school_and_youth_identity(self):
+        resp = self.client.get('/api/identity/export/', HTTP_X_INTERNAL_AUTH='test-secret')
+        self.assertEqual(resp.status_code, 200)
+        school = resp.data['schools'][0]
+        self.assertEqual(school['school_uid'], 'SCH-W')
+        self.assertEqual(school['suburb'], 'WALMER')
+        self.assertEqual(school['canonical_type'], 'primary')
+        youth = resp.data['youth'][0]
+        self.assertEqual(youth['youth_uid'], 'YTH-5')
+        self.assertEqual(youth['email'], 'sip.v@masinyusane.org')  # normalised
