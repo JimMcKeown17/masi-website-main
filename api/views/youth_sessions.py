@@ -13,7 +13,7 @@ from ..models import (
     Youth, School, Mentor,
 )
 from ..authentication import ClerkAuthentication
-from ..closures import open_working_days_bulk
+from ..closures import open_working_days_bulk, working_days_count
 
 AUTH_CLASSES = [SessionAuthentication, ClerkAuthentication]
 PERM_CLASSES = [permissions.IsAuthenticated]
@@ -428,8 +428,12 @@ def youth_sessions_inactive(request):
         last_session = max(filter(None, [lit_last, num_last]), default=None)
         if last_session:
             calendar_days_inactive = (today - last_session).days
-            # OPEN working days strictly after last_session through today.
-            working_days_inactive = sum(1 for d in open_by_id.get(y.id, set()) if d > last_session)
+            # OPEN working days (excluding closures + this youth's absences) strictly
+            # after last_session through today -- over the full gap, not just the
+            # recent inactivity lookback window.
+            working_days_inactive = working_days_count(
+                y.school, last_session + timedelta(days=1), today, youth=y,
+            )
         else:
             calendar_days_inactive = None
             working_days_inactive = None

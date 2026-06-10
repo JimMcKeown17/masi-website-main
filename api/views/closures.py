@@ -6,6 +6,7 @@ shared secret, which the Zazi backend sends when pulling the calendar.
 """
 from datetime import date as date_cls, timedelta
 
+from django.db import transaction
 from rest_framework import generics, status
 from rest_framework.authentication import SessionAuthentication
 from rest_framework.decorators import api_view, authentication_classes, permission_classes
@@ -165,21 +166,24 @@ def closures_bulk(request):
     reason = data.get('reason', '') or ''
     user = _request_user(request)
 
+    # Resolve every scope target up front so a bad value fails before any write.
+    try:
+        targets = [_closure_scope_kwargs(scope_type, value) for value in values]
+    except ValueError as e:
+        return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
     created = updated = 0
-    for value in values:
-        try:
-            fields, scope_key = _closure_scope_kwargs(scope_type, value)
-        except ValueError as e:
-            return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        for day in _weekdays(start, end):
-            _, was_created = SchoolClosure.objects.update_or_create(
-                date=day, scope_key=scope_key,
-                defaults={'scope_type': scope_type, 'is_open': is_open,
-                          'reason': reason, 'source': 'manual', 'created_by': user,
-                          **fields},
-            )
-            created += int(was_created)
-            updated += int(not was_created)
+    with transaction.atomic():
+        for fields, scope_key in targets:
+            for day in _weekdays(start, end):
+                _, was_created = SchoolClosure.objects.update_or_create(
+                    date=day, scope_key=scope_key,
+                    defaults={'scope_type': scope_type, 'is_open': is_open,
+                              'reason': reason, 'source': 'manual', 'created_by': user,
+                              **fields},
+                )
+                created += int(was_created)
+                updated += int(not was_created)
     return Response({'created': created, 'updated': updated}, status=status.HTTP_201_CREATED)
 
 
@@ -264,18 +268,22 @@ def absences_bulk(request):
     user = _request_user(request)
     youths = {y.youth_uid: y for y in Youth.objects.filter(youth_uid__in=uids)}
 
+    # Verify every youth exists up front so a bad uid fails before any write.
+    missing = [uid for uid in uids if uid not in youths]
+    if missing:
+        return Response({'detail': f'unknown youth_uid: {missing[0]}'}, status=status.HTTP_400_BAD_REQUEST)
+
     created = updated = 0
-    for uid in uids:
-        youth = youths.get(uid)
-        if not youth:
-            return Response({'detail': f'unknown youth_uid: {uid}'}, status=status.HTTP_400_BAD_REQUEST)
-        for day in _weekdays(start, end):
-            _, was_created = StaffAbsence.objects.update_or_create(
-                date=day, youth_uid=uid,
-                defaults={'youth': youth, 'reason': reason, 'note': note, 'created_by': user},
-            )
-            created += int(was_created)
-            updated += int(not was_created)
+    with transaction.atomic():
+        for uid in uids:
+            youth = youths[uid]
+            for day in _weekdays(start, end):
+                _, was_created = StaffAbsence.objects.update_or_create(
+                    date=day, youth_uid=uid,
+                    defaults={'youth': youth, 'reason': reason, 'note': note, 'created_by': user},
+                )
+                created += int(was_created)
+                updated += int(not was_created)
     return Response({'created': created, 'updated': updated}, status=status.HTTP_201_CREATED)
 
 
