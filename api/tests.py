@@ -6,7 +6,7 @@ from rest_framework.test import APIClient
 from api.models import (
     School, Youth, CanonicalChild,
     LiteracySession2026, NumeracySession2026,
-    AirtableSyncLog,
+    AirtableSyncLog, StaffAbsence,
 )
 
 
@@ -170,3 +170,70 @@ class TestEtlPreviewEndpoint(TestCase):
         self.assertEqual(data['record_count'], 1)
         self.assertEqual(len(data['sample_rows']), 1)
         self.assertEqual(data['sample_rows'][0]['name'], 'Test School')
+
+
+class TestYouthDetailAbsences(TestCase):
+    """youth_sessions_detail surfaces the youth's in-window StaffAbsence rows,
+    but only to ADMIN / PROJECT MANAGER (absence reason/note is HR-sensitive)."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(username='pm', password='x')
+        # A UserProfile is auto-created (post_save signal) with role VIEWER and
+        # cached on this in-memory user. Mutate through that cached relation so the
+        # role the force_authenticate'd view reads is ADMIN, not the stale VIEWER.
+        self.user.profile.role = 'ADMIN'
+        self.user.profile.save()
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.user)
+        self.youth = Youth.objects.create(
+            employee_id=1, first_names='Nomsa', last_name='Dlamini',
+            youth_uid='YTH-0001',
+        )
+
+    def test_detail_returns_youth_absences_in_window(self):
+        StaffAbsence.objects.create(
+            youth_uid='YTH-0001', date=date(2026, 3, 3), reason='funeral', note='Family',
+        )
+        # Outside the queried window -- must NOT appear.
+        StaffAbsence.objects.create(
+            youth_uid='YTH-0001', date=date(2026, 1, 5), reason='sick',
+        )
+        resp = self.client.get(
+            '/api/youth-sessions/youth-detail/YTH-0001/'
+            '?date_from=2026-03-02&date_to=2026-03-06'
+        )
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertIn('absences', data)
+        self.assertEqual(len(data['absences']), 1)
+        row = data['absences'][0]
+        self.assertEqual(row['date'], '2026-03-03')
+        self.assertEqual(row['reason'], 'funeral')
+        self.assertEqual(row['note'], 'Family')
+        self.assertIn('id', row)
+
+    def test_detail_absences_empty_when_none(self):
+        resp = self.client.get(
+            '/api/youth-sessions/youth-detail/YTH-0001/'
+            '?date_from=2026-03-02&date_to=2026-03-06'
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json()['absences'], [])
+
+    def test_detail_absences_hidden_from_mentor(self):
+        # A MENTOR can reach this endpoint (IsAuthenticated) but must NOT see
+        # absence reasons/notes -- the field returns empty for non-leadership.
+        mentor = User.objects.create_user(username='mentor', password='x')
+        mentor.profile.role = 'MENTOR'
+        mentor.profile.save()
+        mentor_client = APIClient()
+        mentor_client.force_authenticate(user=mentor)
+        StaffAbsence.objects.create(
+            youth_uid='YTH-0001', date=date(2026, 3, 3), reason='funeral', note='Family',
+        )
+        resp = mentor_client.get(
+            '/api/youth-sessions/youth-detail/YTH-0001/'
+            '?date_from=2026-03-02&date_to=2026-03-06'
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json()['absences'], [])

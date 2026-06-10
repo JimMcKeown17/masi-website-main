@@ -11,9 +11,11 @@ from itertools import chain
 from ..models import (
     LiteracySession2026, NumeracySession2026,
     Youth, School, Mentor,
+    StaffAbsence,
 )
 from ..authentication import ClerkAuthentication
 from ..closures import open_working_days_bulk, working_days_count
+from ..permissions import WIG_ALLOWED_ROLES
 
 AUTH_CLASSES = [SessionAuthentication, ClerkAuthentication]
 PERM_CLASSES = [permissions.IsAuthenticated]
@@ -586,6 +588,27 @@ def youth_sessions_detail(request, youth_uid):
     total_working_days = len(open_days)
     avg_per_day = round(total_sessions / days_with_sessions, 1) if days_with_sessions else 0
 
+    # This youth's recorded days off in the window. Reason/note is HR-sensitive,
+    # so only ADMIN / PROJECT MANAGER may see it (the endpoint itself is merely
+    # IsAuthenticated). getattr(..., 'profile', None) is None for profile-less
+    # users -- Django's reverse-OneToOne RelatedObjectDoesNotExist is an
+    # AttributeError subclass.
+    profile = getattr(request.user, 'profile', None)
+    can_manage_absences = bool(profile and profile.role in WIG_ALLOWED_ROLES)
+    if can_manage_absences:
+        absence_rows = (
+            StaffAbsence.objects
+            .filter(youth_uid=youth_uid, date__gte=daily_from, date__lte=daily_to)
+            .order_by('date')
+            .values('id', 'date', 'reason', 'note')
+        )
+        absences = [
+            {'id': a['id'], 'date': str(a['date']), 'reason': a['reason'], 'note': a['note']}
+            for a in absence_rows
+        ]
+    else:
+        absences = []
+
     # Children worked with — bounded to the same daily_from/daily_to window
     child_uids = set()
     for s in lit_filtered:
@@ -610,6 +633,7 @@ def youth_sessions_detail(request, youth_uid):
         'total_working_days': total_working_days,
         'children_worked_with': len(child_uids),
         'daily_sessions': daily_sessions,
+        'absences': absences,
     })
 
 
