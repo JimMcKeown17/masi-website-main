@@ -4,12 +4,12 @@ from .models import School, Youth, Child, Mentor, MentorVisit, YeboVisit, Thousa
 
 @admin.register(School)
 class SchoolAdmin(admin.ModelAdmin):
-    list_display = ('name', 'type', 'site_type', 'is_active', 'date_added')
+    list_display = ('name', 'school_uid', 'type', 'suburb', 'site_type', 'is_active', 'date_added')
     list_filter = ('type', 'site_type', 'is_active')
-    search_fields = ('name', 'address', 'contact_person')
+    search_fields = ('name', 'school_uid', 'address', 'contact_person')
     fieldsets = (
         ('Basic Information', {
-            'fields': ('school_id', 'name', 'type', 'site_type', 'is_active')
+            'fields': ('school_id', 'school_uid', 'name', 'type', 'suburb', 'site_type', 'is_active')
         }),
         ('Contact Information', {
             'fields': ('contact_person', 'contact_phone', 'contact_email')
@@ -25,12 +25,12 @@ class SchoolAdmin(admin.ModelAdmin):
 
 @admin.register(Youth)
 class YouthAdmin(admin.ModelAdmin):
-    list_display = ('full_name', 'employee_id', 'job_title', 'school', 'mentor', 'employment_status')
+    list_display = ('full_name', 'employee_id', 'youth_uid', 'job_title', 'school', 'mentor', 'employment_status')
     list_filter = ('employment_status', 'job_title', 'school', 'mentor', 'gender', 'race')
-    search_fields = ('first_names', 'last_name', 'employee_id', 'email', 'cell_phone_number')
+    search_fields = ('first_names', 'last_name', 'employee_id', 'youth_uid', 'email', 'cell_phone_number')
     fieldsets = (
         ('Basic Information', {
-            'fields': ('employee_id', 'first_names', 'last_name', 'full_name', 'dob', 'age', 'gender', 'race')
+            'fields': ('employee_id', 'youth_uid', 'first_names', 'last_name', 'full_name', 'dob', 'age', 'gender', 'race')
         }),
         ('ID Information', {
             'fields': ('id_type', 'rsa_id_number', 'foreign_id_number')
