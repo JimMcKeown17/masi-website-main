@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup v4 — /impact/ classroom lights + fixed sticky</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Geist', -apple-system, 'Segoe UI', sans-serif; background:#e8eaf0; color:#111827; }
+  .toolbar { position:sticky; top:0; z-index:50; background:#111827; color:#e5e7eb; padding:10px 24px; font-size:13px; }
+  .toolbar b { color:#fff; }
+  .badge { display:inline-flex; align-items:center; justify-content:center; min-width:22px; height:22px; border-radius:99px; background:linear-gradient(135deg,#2563eb,#e11d48); color:#fff; font-size:11px; font-weight:700; padding:0 6px; }
+  .page { max-width:1180px; margin:28px auto 80px; background:#fff; box-shadow:0 20px 60px rgba(17,24,39,0.18); }
+  .browser-bar { background:#f3f4f6; border-bottom:1px solid #e5e7eb; padding:10px 16px; display:flex; align-items:center; gap:8px; border-radius:12px 12px 0 0; }
+  .dot { width:10px; height:10px; border-radius:99px; background:#d1d5db; }
+  .urlbox { flex:1; max-width:420px; background:#fff; border:1px solid #e5e7eb; border-radius:6px; padding:4px 12px; font-size:12px; color:#6b7280; }
+  section { position:relative; }
+  .marker { position:absolute; top:18px; left:18px; display:flex; gap:8px; align-items:center; z-index:5; }
+  .marker span.lbl { font-size:11px; font-weight:600; letter-spacing:1px; text-transform:uppercase; color:#e11d48; background:#fff; border:1px solid #fecdd3; border-radius:99px; padding:3px 10px; }
+
+  .hero { padding:96px 80px 64px; position:relative; overflow:hidden; }
+  .hero-fore { position:absolute; right:60px; top:110px; display:grid; grid-template-columns:repeat(6,1fr); gap:16px 12px; opacity:.5; }
+  .hero-fore .kid { width:20px; height:28px; }
+  .hero-fore .kid::before { width:11px; height:11px; background:#e5e7eb; }
+  .hero-fore .kid::after { width:18px; height:14px; background:#e5e7eb; }
+  .hero-fore .kid.lit::before, .hero-fore .kid.lit::after { background:#fbbf24; }
+  .hero-fore .kid.lit { filter:drop-shadow(0 0 6px rgba(251,191,36,.55)); }
+  .hero-fore .fcap { grid-column:1 / -1; font-size:11px; color:#9ca3af; text-align:center; margin-top:2px; }
+  .kicker { font-size:12px; letter-spacing:3px; text-transform:uppercase; color:#9ca3af; font-weight:600; margin-bottom:18px; }
+  .hero h1 { font-size:66px; font-weight:800; line-height:1.05; letter-spacing:-0.02em; max-width:880px; }
+  .grad { background:linear-gradient(90deg,#2563eb,#9333ea,#e11d48); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .hero p.sub { margin-top:22px; font-size:19px; line-height:1.6; color:#4b5563; max-width:660px; }
+  .kpis { display:flex; gap:56px; margin-top:52px; }
+  .kpi .n { font-size:40px; font-weight:800; letter-spacing:-0.02em; }
+  .kpi .l { font-size:13px; color:#6b7280; margin-top:4px; }
+  .verified { margin-top:36px; font-size:13px; color:#9ca3af; display:flex; align-items:center; gap:8px; }
+  .verified .pulse { width:8px; height:8px; border-radius:99px; background:#10b981; }
+  .verified a { color:#6b7280; }
+
+  /* CRISIS CHAIN (new starting line) */
+  .crisis { background:#f8fafc; border-top:1px solid #eef0f4; border-bottom:1px solid #eef0f4; padding:80px; }
+  .crisis .kicker { color:#9ca3af; }
+  .crisis h2 { font-size:34px; font-weight:800; letter-spacing:-0.02em; max-width:640px; line-height:1.2; }
+  .chain { display:flex; gap:0; margin-top:48px; align-items:stretch; }
+  .link { flex:1; padding:0 28px; position:relative; }
+  .link + .link { border-left:1px solid #e2e8f0; }
+  .link .big { font-size:58px; font-weight:800; letter-spacing:-0.03em; color:#334155; line-height:1; }
+  .link .big.accent { background:linear-gradient(90deg,#2563eb,#9333ea,#e11d48); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .link .desc { margin-top:10px; font-size:14.5px; color:#475569; line-height:1.55; max-width:250px; }
+  .link .src { margin-top:10px; font-size:11.5px; color:#94a3b8; }
+  .tenrow { display:flex; gap:5px; margin:16px 0 4px; }
+  .kid { position:relative; width:17px; height:24px; }
+  .kid::before { content:""; position:absolute; top:0; left:50%; transform:translateX(-50%); width:9px; height:9px; border-radius:99px; background:#cbd5e1; transition:background .5s; }
+  .kid::after { content:""; position:absolute; bottom:0; left:50%; transform:translateX(-50%); width:15px; height:12px; border-radius:7px 7px 2px 2px; background:#cbd5e1; transition:background .5s; }
+  .kid.shaded::before, .kid.shaded::after { background:#334155; }
+  .crisis .sothat { margin-top:44px; font-size:19px; font-weight:700; color:#111827; }
+  .crisis .sothat span { background:linear-gradient(90deg,#2563eb,#9333ea,#e11d48); -webkit-background-clip:text; background-clip:text; color:transparent; }
+
+  /* CINEMATIC — classroom lights */
+  .cine-scroll { height:320vh; position:relative; background:#0c0f1d; }
+  .cine-sticky { position:sticky; top:40px; height:calc(100vh - 40px); display:flex; flex-direction:column; justify-content:center; color:#fff; padding:0 70px; overflow:hidden; }
+  .cine-sticky .kicker { color:#6b7280; }
+  .cine-sticky h2 { font-size:36px; font-weight:800; letter-spacing:-0.02em; line-height:1.15; }
+  .progress { position:absolute; top:0; left:0; height:3px; background:linear-gradient(90deg,#2563eb,#e11d48); width:0; }
+  .stage { display:flex; gap:40px; margin-top:32px; align-items:stretch; }
+  .steps { width:300px; flex-shrink:0; display:flex; flex-direction:column; gap:12px; justify-content:center; }
+  .step { border-radius:10px; padding:13px 16px; font-size:14px; line-height:1.5; color:#6b7280; background:rgba(255,255,255,0.04); opacity:.35; transition:all .5s ease; border-left:3px solid transparent; }
+  .step.on { opacity:1; background:rgba(255,255,255,0.1); color:#f9fafb; border-left-color:#e11d48; }
+  .step b { color:#fff; }
+  .payoff { border-radius:10px; padding:13px 16px; font-size:14.5px; line-height:1.55; font-weight:600; color:#fff; background:linear-gradient(90deg,rgba(37,99,235,.25),rgba(225,29,72,.25)); border:1px solid rgba(244,114,182,.35); opacity:0; transform:translateY(10px); transition:all .6s ease; }
+  .payoff.on { opacity:1; transform:none; }
+  .rooms { flex:1; display:flex; gap:24px; }
+  .room { flex:1; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); border-radius:14px; padding:22px 24px 18px; transition:opacity .8s ease; }
+  .room.dim { opacity:.18; }
+  .room .rt { font-size:13px; font-weight:600; color:#d1d5db; }
+  .room .rc { font-size:12px; color:#6b7280; margin-top:2px; min-height:16px; }
+  .room .rc b { color:#fbbf24; font-size:14px; }
+  .deskgrid { display:grid; grid-template-columns:repeat(7,1fr); gap:14px 8px; justify-items:center; margin-top:18px; }
+  .deskgrid .kid { width:18px; height:26px; }
+  .deskgrid .kid::before { width:10px; height:10px; background:#2a2f45; }
+  .deskgrid .kid::after { width:16px; height:13px; background:#2a2f45; }
+  .deskgrid .kid.lit::before, .deskgrid .kid.lit::after { background:#fbbf24; }
+  .deskgrid .kid.lit { filter:drop-shadow(0 0 7px rgba(251,191,36,.75)); }
+  .deskgrid .kid::before, .deskgrid .kid::after { transition-delay:inherit; }
+  .cine-cap { margin-top:22px; font-size:12.5px; color:#6b7280; }
+  .cine-cap b { color:#9ca3af; }
+
+  .chapter { padding:96px 80px; display:flex; gap:72px; align-items:center; }
+  .chapter.alt { background:#fafbfd; border-top:1px solid #eef0f4; border-bottom:1px solid #eef0f4; }
+  .ch-copy { flex:1; }
+  .ch-num { font-size:12px; letter-spacing:3px; text-transform:uppercase; color:#9ca3af; font-weight:600; margin-bottom:14px; }
+  .ch-stat { font-size:72px; font-weight:800; letter-spacing:-0.03em; line-height:1; }
+  .ch-rule { width:90px; height:3px; background:linear-gradient(90deg,#2563eb,#e11d48); margin:20px 0; }
+  .ch-copy h2 { font-size:26px; font-weight:700; margin-bottom:12px; letter-spacing:-0.01em; }
+  .ch-copy p { font-size:16px; line-height:1.7; color:#4b5563; max-width:440px; }
+  .ch-copy .foot { margin-top:18px; font-size:12.5px; color:#9ca3af; }
+  .ch-copy .foot u { cursor:pointer; }
+  .ch-visual { flex:1; }
+  .panel { background:#fff; border:1px solid #e7e9ef; border-radius:14px; padding:28px; box-shadow:0 8px 30px rgba(17,24,39,0.05); }
+  .panel .pt { font-size:13px; font-weight:600; color:#374151; margin-bottom:18px; }
+  .hbar { display:flex; align-items:center; gap:12px; margin-bottom:14px; font-size:13px; color:#6b7280; }
+  .hbar .lbl2 { width:130px; text-align:right; line-height:1.3; }
+  .hbar .track { flex:1; height:30px; background:#f3f4f6; border-radius:6px; overflow:hidden; }
+  .hbar .fill { height:100%; border-radius:6px; display:flex; align-items:center; justify-content:flex-end; padding-right:8px; color:#fff; font-size:12px; font-weight:600; }
+  .thresholds { display:flex; gap:14px; margin-top:20px; }
+  .th { flex:1; background:#f8fafc; border:1px solid #eef0f4; border-radius:10px; padding:14px; }
+  .th .tn { font-size:22px; font-weight:800; }
+  .th .tl { font-size:11.5px; color:#6b7280; line-height:1.4; margin-top:4px; }
+
+  .child { padding:96px 80px; background:linear-gradient(180deg,#fff 0%,#fdf8f4 50%,#fff 100%); display:flex; gap:56px; align-items:center; }
+  .portrait { width:280px; flex-shrink:0; }
+  .portrait .photo { width:280px; height:340px; border-radius:16px; background:linear-gradient(160deg,#fbbf24 0%,#f59e0b 40%,#b45309 100%); position:relative; overflow:hidden; box-shadow:0 16px 44px rgba(180,83,9,0.25); }
+  .portrait .photo .head { position:absolute; top:24%; left:50%; transform:translateX(-50%); width:100px; height:100px; border-radius:99px; background:rgba(255,255,255,0.35); }
+  .portrait .photo .body2 { position:absolute; top:58%; left:50%; transform:translateX(-50%); width:190px; height:150px; border-radius:99px 99px 0 0; background:rgba(255,255,255,0.35); }
+  .portrait .photo .tag { position:absolute; bottom:14px; left:14px; right:14px; background:rgba(12,15,29,0.65); color:#fff; border-radius:10px; padding:10px 14px; font-size:13px; line-height:1.5; }
+  .portrait .consent { margin-top:12px; font-size:11.5px; color:#9ca3af; line-height:1.5; }
+  .child .story { flex:1; }
+  .child .story h2 { font-size:32px; font-weight:800; letter-spacing:-0.02em; line-height:1.15; max-width:460px; }
+  .child .story p { margin-top:16px; font-size:15.5px; line-height:1.7; color:#4b5563; max-width:450px; }
+  .child .story .depth { margin-top:20px; font-size:14px; font-weight:600; color:#111827; background:#fff; border:1px solid #f1e4d8; border-left:3px solid #f59e0b; border-radius:10px; padding:14px 18px; max-width:450px; line-height:1.6; }
+  .radarbox { flex-shrink:0; width:330px; background:#fff; border:1px solid #e7e9ef; border-radius:14px; padding:24px; box-shadow:0 8px 30px rgba(17,24,39,0.06); }
+  .radarbox .pt { font-size:13px; font-weight:600; color:#374151; }
+  .radarbox .legend2 { display:flex; gap:16px; margin:10px 0 6px; font-size:12px; color:#6b7280; align-items:center; }
+  .key { display:inline-block; width:18px; height:3px; border-radius:2px; margin-right:5px; vertical-align:middle; }
+  .radarbox svg text { font-family:'Geist',sans-serif; font-size:9.5px; fill:#9ca3af; }
+
+  .scale { background:#0c0f1d; color:#fff; padding:88px 80px; }
+  .scale h2 { font-size:38px; font-weight:800; letter-spacing:-0.02em; }
+  .scale .lede { margin-top:14px; font-size:17px; color:#9ca3af; max-width:560px; line-height:1.65; }
+  .scale .grid { display:flex; gap:40px; margin-top:48px; }
+  .map { flex:1.3; background:radial-gradient(ellipse at 30% 70%, rgba(37,99,235,0.16), transparent 60%), rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); border-radius:14px; min-height:340px; position:relative; overflow:hidden; }
+  .map .coast { position:absolute; bottom:-30px; left:-20px; right:-20px; height:120px; background:#1a2036; border-radius:50% 40% 0 0; }
+  .map .dot2 { position:absolute; width:7px; height:7px; border-radius:99px; background:#60a5fa; box-shadow:0 0 10px rgba(96,165,250,0.8); }
+  .map .dot2.rose { background:#fb7185; box-shadow:0 0 10px rgba(251,113,133,0.8); }
+  .map .maplbl { position:absolute; bottom:14px; left:16px; font-size:12px; color:#9ca3af; }
+  .map .legend { position:absolute; top:14px; right:16px; font-size:11px; color:#9ca3af; background:rgba(12,15,29,0.7); border-radius:8px; padding:8px 12px; line-height:1.7; }
+  .timeline { flex:1; display:flex; flex-direction:column; }
+  .t-item { display:flex; gap:18px; }
+  .t-rail { display:flex; flex-direction:column; align-items:center; }
+  .t-dot { width:12px; height:12px; border-radius:99px; background:linear-gradient(135deg,#2563eb,#e11d48); margin-top:4px; flex-shrink:0; }
+  .t-line { width:2px; flex:1; background:rgba(255,255,255,0.12); }
+  .t-body { padding-bottom:24px; }
+  .t-year { font-size:14px; font-weight:700; color:#fff; }
+  .t-desc { font-size:13.5px; color:#9ca3af; line-height:1.6; margin-top:4px; max-width:330px; }
+  .t-desc b { color:#e5e7eb; font-weight:600; }
+
+  .gov { background:#f4f7fb; border-top:1px solid #e3eaf3; border-bottom:1px solid #e3eaf3; padding:56px 80px; display:flex; align-items:center; gap:40px; }
+  .gov .seal { width:84px; height:84px; border-radius:99px; flex-shrink:0; background:#fff; border:2px solid #c7d6e8; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:800; color:#33506b; letter-spacing:1px; }
+  .gov .gcopy h2 { font-size:22px; font-weight:700; color:#1e293b; letter-spacing:-0.01em; }
+  .gov .gcopy p { margin-top:8px; font-size:14.5px; line-height:1.65; color:#475569; max-width:640px; }
+  .gov .marks { margin-top:12px; display:flex; gap:20px; font-size:12.5px; color:#64748b; font-weight:600; }
+  .gov .marks span::before { content:"\2713\00a0"; color:#10b981; }
+
+  .grads { background:#0c0f1d; color:#fff; padding:88px 80px 80px; position:relative; }
+  .grads .inner { display:flex; gap:64px; align-items:center; }
+  .grads .copy3 { flex:1; }
+  .grads .kicker { color:#6b7280; }
+  .grads h2 { font-size:38px; font-weight:800; letter-spacing:-0.02em; line-height:1.15; }
+  .grads p { margin-top:16px; font-size:16.5px; line-height:1.7; color:#9ca3af; max-width:480px; }
+  .grads p b { color:#e5e7eb; }
+  .grads .stat3 { margin-top:28px; display:flex; gap:48px; }
+  .grads .stat3 .n { font-size:44px; font-weight:800; background:linear-gradient(90deg,#60a5fa,#f472b6); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .grads .stat3 .l { font-size:13px; color:#6b7280; margin-top:2px; }
+  .grads .cta2 { display:inline-block; margin-top:32px; border:1px solid rgba(255,255,255,0.25); color:#fff; border-radius:10px; padding:12px 24px; font-size:14.5px; font-weight:600; text-decoration:none; }
+  .facewall { flex:1; display:grid; grid-template-columns:repeat(4,1fr); gap:10px; }
+  .face { aspect-ratio:1; border-radius:12px; position:relative; overflow:hidden; }
+  .face .h3 { position:absolute; top:22%; left:50%; transform:translateX(-50%); width:38%; height:38%; border-radius:99px; background:rgba(255,255,255,0.3); }
+  .face .b3 { position:absolute; top:62%; left:50%; transform:translateX(-50%); width:70%; height:50%; border-radius:99px 99px 0 0; background:rgba(255,255,255,0.3); }
+  .face.big { grid-column:span 2; grid-row:span 2; }
+  .face .cap { position:absolute; bottom:8px; left:8px; right:8px; font-size:10px; color:#fff; background:rgba(12,15,29,0.6); border-radius:6px; padding:4px 8px; line-height:1.4; }
+
+  .how { padding:96px 80px; text-align:center; }
+  .how h2 { font-size:38px; font-weight:800; letter-spacing:-0.02em; }
+  .how .lede { margin:14px auto 0; font-size:17px; color:#4b5563; max-width:620px; line-height:1.65; }
+  .streams { display:flex; gap:24px; margin-top:52px; text-align:left; }
+  .stream { flex:1; border:1px solid #e7e9ef; border-radius:14px; padding:28px; background:#fff; box-shadow:0 8px 30px rgba(17,24,39,0.04); }
+  .stream .ic { width:44px; height:44px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:20px; margin-bottom:16px; background:linear-gradient(135deg,#eff6ff,#fdf2f8); }
+  .stream h3 { font-size:17px; font-weight:700; margin-bottom:8px; }
+  .stream p { font-size:14px; line-height:1.6; color:#6b7280; }
+  .stream .micro { margin-top:14px; font-size:12.5px; color:#9ca3af; }
+  .how .cta { display:inline-block; margin-top:44px; background:#111827; color:#fff; border-radius:10px; padding:14px 28px; font-size:15px; font-weight:600; text-decoration:none; }
+  .how .cta span { background:linear-gradient(90deg,#60a5fa,#f472b6); -webkit-background-clip:text; background-clip:text; color:transparent; }
+
+  .more { padding:56px 80px; background:#fff; border-top:1px solid #eef0f4; }
+  .more h3 { font-size:15px; font-weight:700; color:#6b7280; letter-spacing:1px; text-transform:uppercase; margin-bottom:20px; }
+  .more .row { display:flex; gap:16px; }
+  .mini { flex:1; border:1px solid #e7e9ef; border-radius:12px; padding:18px; }
+  .mini .mn { font-size:22px; font-weight:800; }
+  .mini .ml { font-size:12.5px; color:#6b7280; line-height:1.5; margin-top:4px; }
+
+  .explore { background:#f8fafc; border-top:1px solid #eef0f4; padding:72px 80px; }
+  .explore h2 { font-size:26px; font-weight:700; }
+  .ex-grid { display:flex; gap:18px; margin-top:28px; }
+  .ex { flex:1; background:#fff; border:1px solid #e7e9ef; border-radius:12px; padding:22px; font-size:14px; }
+  .ex b { display:block; margin-bottom:6px; font-size:15px; }
+  .ex span { color:#6b7280; font-size:13px; line-height:1.5; display:block; }
+  .ex .go { margin-top:14px; color:#2563eb; font-weight:600; font-size:13px; }
+  .pagefoot { padding:28px 80px 48px; font-size:12px; color:#9ca3af; line-height:1.7; background:#f8fafc; border-radius:0 0 12px 12px; }
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <b>Mockup v5</b> — self-critique pass: hero foreshadow grid &middot; ECD age-contrast chip &middot; denser map with cities &middot; staggered light-up &middot; <b style="color:#facc15;">scroll slowly through the dark section</b>
+</div>
+
+<div class="page">
+  <div class="browser-bar">
+    <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+    <div class="urlbox">masinyusane.org/impact</div>
+  </div>
+
+  <!-- 1 HERO -->
+  <section class="hero">
+    <div class="marker"><span class="badge">1</span><span class="lbl">Hero</span></div>
+    <div class="hero-fore">
+      <i class="kid lit"></i><i class="kid"></i><i class="kid lit"></i><i class="kid"></i><i class="kid lit"></i><i class="kid"></i>
+      <i class="kid"></i><i class="kid lit"></i><i class="kid"></i><i class="kid lit"></i><i class="kid"></i><i class="kid lit"></i>
+      <i class="kid lit"></i><i class="kid"></i><i class="kid lit"></i><i class="kid lit"></i><i class="kid"></i><i class="kid lit"></i>
+      <i class="kid"></i><i class="kid lit"></i><i class="kid lit"></i><i class="kid"></i><i class="kid lit"></i><i class="kid"></i>
+      <div class="fcap">every figure is a child we measure</div>
+    </div>
+    <div class="kicker">Our Impact in Data</div>
+    <h1>Children years ahead, <span class="grad">measured every day.</span></h1>
+    <p class="sub">Children on Masinyusane programmes perform as much as two grade levels ahead of comparison groups — and a serious measurement system tracks every child, every session, every skill.</p>
+    <div class="kpis">
+      <div class="kpi"><div class="n">19,444&dagger;</div><div class="l">children on programme</div></div>
+      <div class="kpi"><div class="n">231&dagger;</div><div class="l">schools &amp; ECD centres</div></div>
+      <div class="kpi"><div class="n">515&dagger;</div><div class="l">local youth employed</div></div>
+      <div class="kpi"><div class="n">1.1M&dagger;</div><div class="l">assessment &amp; session records</div></div>
+    </div>
+    <div class="verified"><div class="pulse"></div> Figures verified June 2026 &nbsp;&middot;&nbsp; <a href="#">How we count &rarr;</a></div>
+  </section>
+
+  <!-- 2 THE ARGUMENT (was Starting Line) -->
+  <section class="crisis">
+    <div class="marker"><span class="badge">2</span><span class="lbl">The argument — Jim's pitch, on a page</span></div>
+    <div class="kicker">Why letter sounds</div>
+    <h2>South Africa's reading crisis is decided before age eight.</h2>
+    <div class="chain">
+      <div class="link">
+        <div class="tenrow">
+          <i class="kid shaded"></i><i class="kid shaded"></i><i class="kid shaded"></i><i class="kid shaded"></i><i class="kid shaded"></i><i class="kid shaded"></i><i class="kid shaded"></i><i class="kid shaded"></i><i class="kid"></i><i class="kid"></i>
+        </div>
+        <div class="big">81%</div>
+        <div class="desc">of South African 10-year-olds cannot read for meaning.</div>
+        <div class="src">PIRLS 2021</div>
+      </div>
+      <div class="link">
+        <div class="big">Why?</div>
+        <div class="desc" style="margin-top:14px;"><b>73% never learn their letter sounds</b> by the end of Grade 1 — and letter-sound fluency is the strongest single predictor of becoming a reader.</div>
+        <div class="src">Wordworks, Eastern Cape; internal correlation &rho; = 0.93</div>
+      </div>
+      <div class="link">
+        <div class="big accent">2&times;</div>
+        <div class="desc">We double the number of children reaching the letter-sound benchmark in every classroom we enter.</div>
+        <div class="src">See it happen below &darr;</div>
+      </div>
+    </div>
+    <div class="sothat">So we start at the foundation — <span>letter sounds, from age four.</span></div>
+  </section>
+
+  <!-- 3 CINEMATIC — classroom lights -->
+  <div class="cine-scroll" id="cine">
+    <div class="marker" style="top:18px;"><span class="badge">3</span><span class="lbl" style="border-color:#facc15;color:#facc15;background:#1a1d2e;">Cinematic — live motion, scroll slowly</span></div>
+    <div class="cine-sticky">
+      <div class="progress" id="prog"></div>
+      <div class="kicker">Chapter 01 &middot; Literacy</div>
+      <h2>Watch the lights come on in one classroom.</h2>
+      <div class="stage">
+        <div class="steps">
+          <div class="step" id="s1">A typical Eastern Cape Grade 1: <b>42 children</b>. In January, about <b>5</b> are on track to read.</div>
+          <div class="step" id="s2">Six months with Masi coaches: <b>22 of 42</b> cross the letter-sound benchmark.</div>
+          <div class="step" id="s3">A comparison classroom ends the whole year at <b>11 of 42</b>.</div>
+          <div class="payoff" id="s4">In every classroom we enter, the number of readers roughly <b>doubles</b> — our 2023 cohort finished at <b>31 of 42</b>.</div>
+        </div>
+        <div class="rooms">
+          <div class="room dim" id="roomL">
+            <div class="rt">Comparison classroom</div>
+            <div class="rc" id="countL"></div>
+            <div class="deskgrid" id="gridL"></div>
+          </div>
+          <div class="room" id="roomR">
+            <div class="rt">Masinyusane classroom</div>
+            <div class="rc" id="countR"><b>5</b> of 42 readers</div>
+            <div class="deskgrid" id="gridR"></div>
+          </div>
+        </div>
+      </div>
+      <div class="cine-cap"><b>A reader</b> = a child at the Grade 1 benchmark of 40 letter sounds per minute. Class of 42 = average Eastern Cape Grade 1&dagger;.</div>
+    </div>
+  </div>
+
+  <!-- 4 ECD TWO YEARS AHEAD -->
+  <section class="chapter">
+    <div class="marker"><span class="badge">4</span><span class="lbl">Chapter 02 — two years ahead (real data)</span></div>
+    <div class="ch-copy">
+      <div class="ch-num">Chapter 02 &middot; Early Childhood</div>
+      <div class="ch-stat">2 <span style="font-size:40px;">years ahead</span></div>
+      <div class="ch-rule"></div>
+      <h2>Our four- and five-year-olds read at Grade 1 level.</h2>
+      <p>Children in Masinyusane ECD centres already sound letters as fast as Grade 1 learners two school years older in comparison schools. They arrive at school as readers — before the crisis can start.</p>
+      <div class="foot">Source: 2026 live assessment data — ECD midline vs Grade 1 comparison group. <u>Methodology</u></div>
+    </div>
+    <div class="ch-visual">
+      <div class="panel">
+        <div class="pt">Letters correct per minute, 2026</div>
+        <div class="hbar"><div class="lbl2">Masi ECD<br><span style="font-size:11px;">ages 4&ndash;5</span></div><div class="track"><div class="fill" style="width:73%;background:linear-gradient(90deg,#2563eb,#9333ea);">14.9</div></div></div>
+        <div class="hbar"><div class="lbl2">Grade 1 comparison<br><span style="font-size:11px;">ages 6&ndash;7, no programme</span></div><div class="track"><div class="fill" style="width:75.5%;background:#94a3b8;">15.4</div></div></div>
+        <div style="margin-top:18px;display:inline-flex;align-items:center;gap:8px;border:1px solid transparent;border-radius:99px;padding:8px 16px;font-size:13px;font-weight:700;color:#111827;background:linear-gradient(#fff,#fff) padding-box,linear-gradient(90deg,#2563eb,#9333ea,#e11d48) border-box;">
+          Same fluency &mdash; two school years earlier
+        </div>
+        <div style="font-size:12.5px;color:#9ca3af;margin-top:12px;">Same one-minute EGRA letter task, 2026 live data. Ages 4&ndash;5 vs ages 6&ndash;7.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5 CHILD STORY -->
+  <section class="child">
+    <div class="marker"><span class="badge">5</span><span class="lbl">One child, eleven skills</span></div>
+    <div class="portrait">
+      <div class="photo">
+        <div class="head"></div><div class="body2"></div>
+        <div class="tag"><b>Amahle&#42;, Grade 1</b><br>62 sessions &middot; Kwazakhele Primary</div>
+      </div>
+      <div class="consent">&#42;Name changed. Real photo used with guardian consent.</div>
+    </div>
+    <div class="story">
+      <div class="ch-num" style="margin-bottom:10px;">Chapter 03 &middot; One Child</div>
+      <h2>Behind every percentage is a child we know by name.</h2>
+      <p>In January, Amahle could sound four letters and read no words. Her coach — a young woman from the same township — saw it in the data and rebuilt her group's sessions around letter sounds. By November, Amahle reads full sentences.</p>
+      <div class="depth">We can draw this chart for any of 19,444&dagger; children — eleven skills, tracked across the year, for every child on programme. That is what "data-driven" means here.</div>
+    </div>
+    <div class="radarbox">
+      <div class="pt">Amahle&#42; — skill profile</div>
+      <div class="legend2">
+        <span><span class="key" style="background:#cbd5e1;"></span>January</span>
+        <span><span class="key" style="background:linear-gradient(90deg,#2563eb,#e11d48);"></span>November</span>
+      </div>
+      <svg viewBox="0 0 280 290" width="100%">
+        <defs>
+          <linearGradient id="rg" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#2563eb"/><stop offset="50%" stop-color="#9333ea"/><stop offset="100%" stop-color="#e11d48"/>
+          </linearGradient>
+        </defs>
+        <g transform="translate(0,10)">
+          <circle cx="140" cy="140" r="110" fill="none" stroke="#eef0f4"/>
+          <circle cx="140" cy="140" r="82.5" fill="none" stroke="#eef0f4"/>
+          <circle cx="140" cy="140" r="55" fill="none" stroke="#eef0f4"/>
+          <circle cx="140" cy="140" r="27.5" fill="none" stroke="#eef0f4"/>
+          <line x1="140" y1="140" x2="140" y2="30" stroke="#eef0f4"/>
+          <line x1="140" y1="140" x2="217.8" y2="62.2" stroke="#eef0f4"/>
+          <line x1="140" y1="140" x2="250" y2="140" stroke="#eef0f4"/>
+          <line x1="140" y1="140" x2="217.8" y2="217.8" stroke="#eef0f4"/>
+          <line x1="140" y1="140" x2="140" y2="250" stroke="#eef0f4"/>
+          <line x1="140" y1="140" x2="62.2" y2="217.8" stroke="#eef0f4"/>
+          <line x1="140" y1="140" x2="30" y2="140" stroke="#eef0f4"/>
+          <line x1="140" y1="140" x2="62.2" y2="62.2" stroke="#eef0f4"/>
+          <polygon points="140,100 157.7,122.3 175,140 150.6,150.6 140,170 132.9,147.1 120,140 120.2,120.2" fill="rgba(148,163,184,0.25)" stroke="#94a3b8" stroke-width="1.5"/>
+          <polygon points="140,45 196.6,83.4 240,140 189.5,189.5 140,230 97.6,182.4 65,140 79.9,79.9" fill="rgba(147,51,234,0.13)" stroke="url(#rg)" stroke-width="2.5"/>
+          <text x="140" y="22" text-anchor="middle">Letter Sounds</text>
+          <text x="228" y="56" text-anchor="start">Story Comp.</text>
+          <text x="258" y="144" text-anchor="start">First Sounds</text>
+          <text x="226" y="232" text-anchor="start">Read Words</text>
+          <text x="140" y="272" text-anchor="middle">Read Sentences</text>
+          <text x="54" y="232" text-anchor="end">Write Letters</text>
+          <text x="22" y="144" text-anchor="end">Write CVCs</text>
+          <text x="54" y="56" text-anchor="end">Listen Words</text>
+        </g>
+      </svg>
+      <div style="font-size:11px;color:#9ca3af;margin-top:8px;">11 skills on real page; 8 shown here.</div>
+    </div>
+  </section>
+
+  <!-- 6 NUMERACY -->
+  <section class="chapter alt">
+    <div class="marker"><span class="badge">6</span><span class="lbl">Chapter 04 — numeracy</span></div>
+    <div class="ch-copy">
+      <div class="ch-num">Chapter 04 &middot; Numeracy</div>
+      <div class="ch-stat">+21<span style="font-size:36px;color:#9ca3af;">/90&dagger;</span></div>
+      <div class="ch-rule"></div>
+      <h2>Number sense improves across all nine skills.</h2>
+      <p>From counting aloud to word problems, children gain measurable ground in every component of the Yazi Amanani assessment — not just the easy ones.</p>
+      <div class="foot">Source: Yazi Amanani 2025, matched baseline&ndash;endline learners. <u>Methodology</u></div>
+    </div>
+    <div class="ch-visual">
+      <div class="panel">
+        <div class="pt">Baseline vs endline by skill (standardised /10)</div>
+        <div class="hbar"><div class="lbl2">Counting</div><div class="track"><div class="fill" style="width:88%;background:linear-gradient(90deg,#2563eb,#9333ea);">8.8&dagger;</div></div></div>
+        <div class="hbar"><div class="lbl2"></div><div class="track" style="height:18px;margin-top:-8px;"><div class="fill" style="width:61%;background:#cbd5e1;">6.1&dagger;</div></div></div>
+        <div class="hbar"><div class="lbl2">Recognition</div><div class="track"><div class="fill" style="width:74%;background:linear-gradient(90deg,#2563eb,#9333ea);">7.4&dagger;</div></div></div>
+        <div class="hbar"><div class="lbl2"></div><div class="track" style="height:18px;margin-top:-8px;"><div class="fill" style="width:48%;background:#cbd5e1;">4.8&dagger;</div></div></div>
+        <div class="hbar"><div class="lbl2">Sums to 10</div><div class="track"><div class="fill" style="width:58%;background:linear-gradient(90deg,#2563eb,#9333ea);">5.8&dagger;</div></div></div>
+        <div class="hbar"><div class="lbl2"></div><div class="track" style="height:18px;margin-top:-8px;"><div class="fill" style="width:30%;background:#cbd5e1;">3.0&dagger;</div></div></div>
+        <div style="font-size:11.5px;color:#9ca3af;margin-top:4px;">&hellip;all 9 components shown on real page</div>
+        <div class="thresholds">
+          <div class="th"><div class="tn">81%&dagger;</div><div class="tl">can count to 20+</div></div>
+          <div class="th"><div class="tn">64%&dagger;</div><div class="tl">identify numbers to 100</div></div>
+          <div class="th"><div class="tn">72%&dagger;</div><div class="tl">write numbers 1&ndash;10</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 7 SCALE -->
+  <section class="scale">
+    <div class="marker"><span class="badge">7</span><span class="lbl">Scale &amp; model — 2008&ndash;2026</span></div>
+    <div class="kicker" style="color:#6b7280;">Chapter 05 &middot; The model</div>
+    <h2>Eighteen years in the same communities.</h2>
+    <p class="lede">Masinyusane hires and trains unemployed young people from the same communities as the schools — turning an education programme into a jobs programme, and a jobs programme into measurable learning.</p>
+    <div class="grid">
+      <div class="map">
+        <div class="coast"></div>
+        <div class="legend">&#9679; primary schools<br><span style="color:#fb7185;">&#9679;</span> ECD centres</div>
+        <div class="dot2" style="top:38%;left:22%;"></div><div class="dot2" style="top:45%;left:28%;"></div><div class="dot2 rose" style="top:52%;left:25%;"></div>
+        <div class="dot2" style="top:42%;left:48%;"></div><div class="dot2" style="top:55%;left:52%;"></div><div class="dot2 rose" style="top:48%;left:58%;"></div>
+        <div class="dot2" style="top:36%;left:64%;"></div><div class="dot2" style="top:58%;left:70%;"></div><div class="dot2" style="top:50%;left:76%;"></div>
+        <div class="dot2 rose" style="top:60%;left:40%;"></div><div class="dot2" style="top:64%;left:60%;"></div><div class="dot2" style="top:44%;left:36%;"></div>
+        <div class="dot2" style="top:40%;left:25%;"></div><div class="dot2" style="top:47%;left:31%;"></div><div class="dot2" style="top:53%;left:29%;"></div>
+        <div class="dot2" style="top:57%;left:34%;"></div><div class="dot2 rose" style="top:49%;left:38%;"></div><div class="dot2" style="top:43%;left:41%;"></div>
+        <div class="dot2" style="top:51%;left:45%;"></div><div class="dot2" style="top:59%;left:47%;"></div><div class="dot2 rose" style="top:46%;left:51%;"></div>
+        <div class="dot2" style="top:52%;left:56%;"></div><div class="dot2" style="top:61%;left:55%;"></div><div class="dot2" style="top:39%;left:55%;"></div>
+        <div class="dot2" style="top:45%;left:62%;"></div><div class="dot2 rose" style="top:54%;left:64%;"></div><div class="dot2" style="top:61%;left:66%;"></div>
+        <div class="dot2" style="top:42%;left:69%;"></div><div class="dot2" style="top:48%;left:72%;"></div><div class="dot2" style="top:55%;left:74%;"></div>
+        <div class="dot2 rose" style="top:44%;left:77%;"></div><div class="dot2" style="top:52%;left:80%;"></div><div class="dot2" style="top:47%;left:84%;"></div>
+        <div style="position:absolute;top:66%;left:24%;font-size:11px;color:#cbd5e1;font-weight:600;">Gqeberha</div>
+        <div style="position:absolute;top:38%;left:80%;font-size:11px;color:#cbd5e1;font-weight:600;">East London</div>
+        <div class="maplbl">Interactive map — 231&dagger; sites across the Eastern Cape (MapLibre)</div>
+      </div>
+      <div class="timeline">
+        <div class="t-item"><div class="t-rail"><div class="t-dot"></div><div class="t-line"></div></div><div class="t-body"><div class="t-year">2008 — Founded&dagger;</div><div class="t-desc"><b>Gqeberha (Port Elizabeth).</b> University scholarships for township youth begin.</div></div></div>
+        <div class="t-item"><div class="t-rail"><div class="t-dot"></div><div class="t-line"></div></div><div class="t-body"><div class="t-year">2015&dagger; — The jobs model</div><div class="t-desc"><b>Local youth become the workforce.</b> Education delivery and youth employment merge into one model. <i>(Jim: real milestone needed)</i></div></div></div>
+        <div class="t-item"><div class="t-rail"><div class="t-dot"></div><div class="t-line"></div></div><div class="t-body"><div class="t-year">2023 — Zazi iZandi &amp; the data system</div><div class="t-desc"><b>12 schools, 52 youth, 1,897 children.</b> Daily session logging and formal EGRA measurement begin.</div></div></div>
+        <div class="t-item"><div class="t-rail"><div class="t-dot"></div><div class="t-line"></div></div><div class="t-body"><div class="t-year">2025 — Scale</div><div class="t-desc"><b>100+ schools, 500+ youth, three languages.</b> East London launch; 16 ECD centres; government TA partnership.</div></div></div>
+        <div class="t-item"><div class="t-rail"><div class="t-dot"></div></div><div class="t-body"><div class="t-year">2026 — Provincial partner</div><div class="t-desc"><b>Feature partner to the Eastern Cape DoE</b>, with live data across every session, assessment and mentor visit.</div></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 8 GOVERNMENT PARTNERSHIP -->
+  <section class="gov">
+    <div class="marker"><span class="badge">8</span><span class="lbl">Institutional legitimacy</span></div>
+    <div class="seal">EC&nbsp;DoE</div>
+    <div class="gcopy">
+      <h2>Feature partner to the Eastern Cape Department of Education</h2>
+      <p>These results led the provincial government to make Masinyusane its featured literacy partner — with a signed MOU and standing weekly working sessions with senior officials to take what works to every district.</p>
+      <div class="marks"><span>MOU signed</span><span>Weekly sessions with provincial leadership</span><span>Co-designing province-wide early-grade uplift</span></div>
+    </div>
+  </section>
+
+  <!-- 9 GRADUATES -->
+  <section class="grads">
+    <div class="marker"><span class="badge">9</span><span class="lbl">The long game</span></div>
+    <div class="inner">
+      <div class="copy3">
+        <div class="kicker">Chapter 06 &middot; The Long Game</div>
+        <h2>Literacy at six becomes a graduation at twenty-two.</h2>
+        <p>The same model — local people, real investment, relentless follow-through — has put hundreds of young people from these communities through university. <b>Many now lead the programmes measured on this page.</b></p>
+        <div class="stat3">
+          <div><div class="n">454&dagger;</div><div class="l">university graduates</div></div>
+          <div><div class="n">95%&dagger;</div><div class="l">of staff are women</div></div>
+        </div>
+        <a class="cta2" href="#">Meet the graduates &rarr;</a>
+      </div>
+      <div class="facewall">
+        <div class="face big" style="background:linear-gradient(150deg,#3b82f6,#1d4ed8);"><div class="h3"></div><div class="b3"></div><div class="cap"><b>Sive M.</b> — BCom 2024, now a Masi numeracy mentor</div></div>
+        <div class="face" style="background:linear-gradient(150deg,#a855f7,#7e22ce);"><div class="h3"></div><div class="b3"></div></div>
+        <div class="face" style="background:linear-gradient(150deg,#ec4899,#be185d);"><div class="h3"></div><div class="b3"></div></div>
+        <div class="face" style="background:linear-gradient(150deg,#f59e0b,#b45309);"><div class="h3"></div><div class="b3"></div></div>
+        <div class="face" style="background:linear-gradient(150deg,#10b981,#047857);"><div class="h3"></div><div class="b3"></div></div>
+        <div class="face" style="background:linear-gradient(150deg,#6366f1,#4338ca);"><div class="h3"></div><div class="b3"></div></div>
+        <div class="face" style="background:linear-gradient(150deg,#f43f5e,#be123c);"><div class="h3"></div><div class="b3"></div></div>
+        <div class="face" style="background:linear-gradient(150deg,#0ea5e9,#0369a1);"><div class="h3"></div><div class="b3"></div></div>
+        <div class="face" style="background:linear-gradient(150deg,#8b5cf6,#6d28d9);"><div class="h3"></div><div class="b3"></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 10 HOW WE KNOW -->
+  <section class="how">
+    <div class="marker"><span class="badge">10</span><span class="lbl">Credibility teaser &rarr; /impact/measurement</span></div>
+    <div class="kicker">Chapter 07 &middot; Credibility</div>
+    <h2>How we know.</h2>
+    <p class="lede">We don't just collect stories. Three independent evidence streams are triangulated daily — so when a number is high, we know why, and when it's low, we can fix it.</p>
+    <div class="streams">
+      <div class="stream"><div class="ic">&#128203;</div><h3>Daily sessions</h3><p>Every lesson logged: letters taught, group composition, attendance, duration.</p><div class="micro">Shows children receive instruction</div></div>
+      <div class="stream"><div class="ic">&#128202;</div><h3>Formal assessments</h3><p>EGRA letter fluency and nine numeracy skills, at baseline, midline and endline.</p><div class="micro">Shows children actually learn</div></div>
+      <div class="stream"><div class="ic">&#128064;</div><h3>Mentor visits</h3><p>Trained mentors observe sessions, coach youth, and flag quality issues early.</p><div class="micro">Explains the numbers — and improves them</div></div>
+    </div>
+    <a class="cta" href="#">Inside our measurement system <span>&rarr;</span></a>
+  </section>
+
+  <!-- 11 MORE RESULTS -->
+  <section class="more">
+    <div class="marker"><span class="badge">11</span><span class="lbl">Demoted, not deleted</span></div>
+    <h3>More results</h3>
+    <div class="row">
+      <div class="mini"><div class="mn">51% &rarr; 12%&dagger;</div><div class="ml">children with zero letter knowledge, January to November</div></div>
+      <div class="mini"><div class="mn">3&times;&dagger;</div><div class="ml">faster letter-fluency growth than comparison learners</div></div>
+      <div class="mini"><div class="mn">120k+&dagger;</div><div class="ml">stories read aloud to young children (1000 Stories)</div></div>
+      <div class="mini"><div class="mn">0.93</div><div class="ml">correlation between our two independent assessment methods</div></div>
+    </div>
+  </section>
+
+  <!-- 12 EXPLORE -->
+  <section class="explore">
+    <div class="marker"><span class="badge">12</span><span class="lbl">Explore deeper</span></div>
+    <h2>Go deeper.</h2>
+    <div class="ex-grid">
+      <div class="ex"><b>Live data portal</b><span>The full exploration environment our own team uses.</span><div class="go">data.masinyusane.org &rarr;</div></div>
+      <div class="ex"><b>Zazi iZandi portal</b><span>Programme-level literacy results, 2023&ndash;2026.</span><div class="go">Open portal &rarr;</div></div>
+      <div class="ex"><b>Annual reports</b><span>Audited results and financials, year by year.</span><div class="go">View reports &rarr;</div></div>
+      <div class="ex"><b>Due-diligence pack</b><span>Methodology notes, data dictionary, evaluation designs.</span><div class="go">Request pack &rarr;</div></div>
+    </div>
+  </section>
+
+  <div class="pagefoot">
+    &dagger; Illustrative or pending reconciliation via the published-numbers store. Real numbers in this mockup: 81% (PIRLS 2021), 14.9 vs 15.4 lcpm (2026 ECD vs Grade 1 comparison), 0.93 correlation, 13%&rarr;53%, 22%&rarr;74% benchmark movement. Every published stat carries source, population, comparison type, as-of date, methodology link. "Comparison group" wording unless randomized design verified. Child story requires guardian consent + name change (POPIA).
+  </div>
+</div>
+
+<script>
+(function() {
+  var cine = document.getElementById('cine');
+  var gridL = document.getElementById('gridL');
+  var gridR = document.getElementById('gridR');
+  var roomL = document.getElementById('roomL');
+  var countL = document.getElementById('countL');
+  var countR = document.getElementById('countR');
+  var steps = [document.getElementById('s1'), document.getElementById('s2'),
+               document.getElementById('s3'), document.getElementById('s4')];
+  var prog = document.getElementById('prog');
+
+  // Build two classrooms of 42 children
+  for (var i = 0; i < 42; i++) {
+    gridL.insertAdjacentHTML('beforeend', '<i class="kid"></i>');
+    gridR.insertAdjacentHTML('beforeend', '<i class="kid"></i>');
+  }
+  var kidsL = gridL.children, kidsR = gridR.children;
+
+  // Fixed pseudo-random light-up orders (deterministic, scattered)
+  var orderR = [17,3,38,9,28,1,33,12,40,6,22,15,35,0,26,10,31,19,41,4,24,13,37,7,29,2,20,16,39,8,25,11,34,18,30,5,23,14,36,21,32,27];
+  var orderL = [5,30,12,39,2,25,17,34,8,21,41,14,28,0,36,10,19,32,6,23,38,15,3,27,11,35,20,7,40,16,29,1,24,13,37,9,31,18,4,26,33,22];
+
+  function light(kids, order, n) {
+    for (var i = 0; i < 42; i++) {
+      var kid = kids[order[i]];
+      kid.style.transitionDelay = (i < n ? Math.min(i * 35, 900) : 0) + 'ms';
+      kid.classList.toggle('lit', i < n);
+    }
+  }
+
+  function update() {
+    var rect = cine.getBoundingClientRect();
+    var total = cine.offsetHeight - window.innerHeight;
+    var p = Math.min(1, Math.max(0, -rect.top / total));
+    prog.style.width = (p * 100) + '%';
+    var beat = p < 0.2 ? 0 : p < 0.45 ? 1 : p < 0.7 ? 2 : 3;
+
+    var nR = beat === 0 ? 5 : beat === 1 ? 22 : beat === 2 ? 22 : 31;
+    light(kidsR, orderR, nR);
+    countR.innerHTML = '<b>' + nR + '</b> of 42 readers' + (beat >= 3 ? ' — 2023 endline' : beat >= 1 ? ' — June' : ' — January');
+
+    roomL.classList.toggle('dim', beat < 2);
+    var nL = beat >= 2 ? 11 : 0;
+    light(kidsL, orderL, nL);
+    countL.innerHTML = beat >= 2 ? '<b style="color:#94a3b8;">11</b> of 42 readers — full year' : '';
+
+    steps.forEach(function(s, i) { s.classList.toggle('on', i === beat); });
+  }
+
+  window.addEventListener('scroll', update, { passive: true });
+  update();
+})();
+</script>
+</body>
+</html>
