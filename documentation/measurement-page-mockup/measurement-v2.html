@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup v2 — /impact/measurement</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Geist', -apple-system, 'Segoe UI', sans-serif; background:#e8eaf0; color:#111827; }
+  .toolbar { position:sticky; top:0; z-index:50; background:#111827; color:#e5e7eb; padding:10px 24px; font-size:13px; }
+  .toolbar b { color:#fff; }
+  .badge { display:inline-flex; align-items:center; justify-content:center; min-width:22px; height:22px; border-radius:99px; background:linear-gradient(135deg,#2563eb,#e11d48); color:#fff; font-size:11px; font-weight:700; padding:0 6px; }
+  .page { max-width:1180px; margin:28px auto 80px; background:#fff; border-radius:12px; box-shadow:0 20px 60px rgba(17,24,39,0.18); }
+  .browser-bar { background:#f3f4f6; border-bottom:1px solid #e5e7eb; padding:10px 16px; display:flex; align-items:center; gap:8px; border-radius:12px 12px 0 0; }
+  .dot { width:10px; height:10px; border-radius:99px; background:#d1d5db; }
+  .urlbox { flex:1; max-width:460px; background:#fff; border:1px solid #e5e7eb; border-radius:6px; padding:4px 12px; font-size:12px; color:#6b7280; }
+  section { position:relative; }
+  .marker { position:absolute; top:18px; left:18px; display:flex; gap:8px; align-items:center; z-index:5; }
+  .marker span.lbl { font-size:11px; font-weight:600; letter-spacing:1px; text-transform:uppercase; color:#e11d48; background:#fff; border:1px solid #fecdd3; border-radius:99px; padding:3px 10px; }
+  .kicker { font-size:12px; letter-spacing:3px; text-transform:uppercase; color:#9ca3af; font-weight:600; margin-bottom:16px; }
+  .grad { background:linear-gradient(90deg,#2563eb,#9333ea,#e11d48); -webkit-background-clip:text; background-clip:text; color:transparent; }
+
+  /* HERO */
+  .hero { padding:96px 80px 64px; }
+  .hero h1 { font-size:56px; font-weight:800; line-height:1.08; letter-spacing:-0.02em; max-width:760px; }
+  .hero p.sub { margin-top:20px; font-size:18px; line-height:1.65; color:#4b5563; max-width:640px; }
+  .pulseline { margin-top:36px; font-size:14px; color:#6b7280; display:flex; flex-wrap:wrap; gap:8px 26px; }
+  .pulseline span { display:inline-flex; align-items:center; gap:8px; }
+  .pulseline i { width:7px; height:7px; border-radius:99px; background:#10b981; box-shadow:0 0 7px rgba(16,185,129,.6); }
+
+  /* TRIANGLE */
+  .tri { background:#f8fafc; border-top:1px solid #eef0f4; border-bottom:1px solid #eef0f4; padding:88px 80px; display:flex; gap:48px; align-items:center; }
+  .tri .copy { width:360px; flex-shrink:0; }
+  .tri h2 { font-size:32px; font-weight:800; letter-spacing:-0.02em; line-height:1.15; }
+  .tri p { margin-top:14px; font-size:15px; line-height:1.7; color:#4b5563; }
+  .tri .corr { margin-top:22px; display:inline-flex; border-radius:99px; padding:1px; background:linear-gradient(90deg,#2563eb,#9333ea,#e11d48); }
+  .tri .corr span { border-radius:99px; background:#fff; padding:9px 18px; font-size:13px; font-weight:700; }
+  .tri-stage { flex:1; }
+
+  /* LOOP STRIP */
+  .loopstrip { padding:54px 80px; border-bottom:1px solid #eef0f4; }
+  .loopstrip .row { display:flex; align-items:center; gap:0; }
+  .lnode { display:flex; flex-direction:column; align-items:center; gap:8px; width:90px; }
+  .lnode .nd { width:13px; height:13px; border-radius:99px; border:2.5px solid #cbd5e1; background:#fff; }
+  .lnode.hot .nd { width:17px; height:17px; border:none; background:linear-gradient(135deg,#2563eb,#e11d48); box-shadow:0 0 12px rgba(225,29,72,.35); }
+  .lnode .nl { font-size:13px; font-weight:700; color:#6b7280; }
+  .lnode.hot .nl { color:#111827; }
+  .lnode .ns { font-size:10.5px; color:#b6bcc7; text-align:center; line-height:1.35; max-width:88px; }
+  .lwire { flex:1; height:2px; background:#e7e9ef; margin-bottom:42px; }
+  .loopstrip .cap { margin-top:18px; font-size:13px; color:#9ca3af; }
+  .loopstrip .cap b { color:#374151; }
+
+  /* MEASURE */
+  .measure { padding:88px 80px; display:flex; gap:44px; align-items:flex-start; }
+  .measure .left { flex:1.25; }
+  .measure h2 { font-size:32px; font-weight:800; letter-spacing:-0.02em; }
+  .fw { border:1px solid #e7e9ef; border-radius:14px; padding:24px; margin-top:22px; }
+  .fw h3 { font-size:16px; font-weight:700; }
+  .fw .fsub { font-size:12.5px; color:#9ca3af; margin-top:2px; }
+  .chips { display:flex; flex-wrap:wrap; gap:7px; margin-top:14px; }
+  .chip { font-size:12px; font-weight:600; color:#374151; background:#f8fafc; border:1px solid #eef0f4; border-radius:99px; padding:5px 11px; }
+  .chip.hl { background:linear-gradient(135deg,#eff6ff,#fdf2f8); border-color:#e0e7ff; }
+  .measure .right { width:360px; flex-shrink:0; position:sticky; top:70px; }
+  .radarbox { border:1px solid #e7e9ef; border-radius:14px; padding:22px; background:#fff; box-shadow:0 8px 30px rgba(17,24,39,.05); }
+  .radarbox .pt { font-size:13px; font-weight:600; color:#374151; }
+  .radarbox .legend2 { display:flex; gap:16px; margin:8px 0 4px; font-size:12px; color:#6b7280; }
+  .key { display:inline-block; width:18px; height:3px; border-radius:2px; margin-right:5px; vertical-align:middle; }
+  .radarbox svg text { font-size:9.5px; fill:#9ca3af; }
+  .radarbox .undertext { margin-top:10px; font-size:13px; line-height:1.6; color:#4b5563; border-top:1px solid #f1f5f9; padding-top:12px; }
+  .radarbox .undertext b { color:#111827; }
+
+  /* BENCHMARKS */
+  .bench2 { background:#f8fafc; border-top:1px solid #eef0f4; border-bottom:1px solid #eef0f4; padding:72px 80px; display:flex; gap:56px; align-items:center; }
+  .btable { flex:1.2; border:1px solid #e7e9ef; border-radius:14px; background:#fff; overflow:hidden; }
+  .btable .brow { display:flex; padding:12px 20px; font-size:13.5px; border-bottom:1px solid #f1f5f9; }
+  .btable .brow:last-child { border-bottom:none; }
+  .btable .brow.head { background:#f8fafc; font-weight:700; font-size:11.5px; letter-spacing:1px; text-transform:uppercase; color:#9ca3af; }
+  .btable .brow.hl { background:linear-gradient(90deg,#eff6ff,#fdf2f8); font-weight:700; }
+  .btable .c1 { flex:1.4; } .btable .c2 { flex:0.7; } .btable .c3 { flex:1.5; color:#6b7280; }
+  .bench2 .copy { flex:1; }
+  .bench2 h2 { font-size:26px; font-weight:800; letter-spacing:-0.02em; line-height:1.2; }
+  .bench2 p { margin-top:12px; font-size:14.5px; line-height:1.65; color:#4b5563; max-width:380px; }
+
+  /* ENGINE ROOM v2 — the stack */
+  .stack { background:#0c0f1d; color:#fff; padding:88px 80px; }
+  .stack .kicker { color:#6b7280; }
+  .stack h2 { font-size:34px; font-weight:800; letter-spacing:-0.02em; }
+  .stack p.lede { margin-top:12px; color:#9ca3af; font-size:16px; max-width:600px; line-height:1.65; }
+  .layers { margin-top:44px; display:flex; flex-direction:column; gap:10px; max-width:880px; }
+  .layer { display:flex; align-items:center; gap:20px; border:1px solid rgba(255,255,255,.08); background:rgba(255,255,255,.04); border-radius:12px; padding:16px 22px; position:relative; }
+  .layer .lbar { width:4px; align-self:stretch; border-radius:4px; background:linear-gradient(180deg,#2563eb,#e11d48); }
+  .layer .lt { width:230px; flex-shrink:0; }
+  .layer .lt b { font-size:15.5px; color:#fff; display:block; }
+  .layer .lt span { font-size:11px; letter-spacing:1.5px; color:#6b7280; text-transform:uppercase; }
+  .layer .ld { flex:1; font-size:13px; color:#9ca3af; line-height:1.55; }
+  .layer .tech { display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end; max-width:200px; }
+  .layer .tch { font-size:10.5px; font-weight:600; color:#9ca3af; border:1px solid rgba(255,255,255,.14); border-radius:6px; padding:3px 8px; font-family:'Geist Mono', ui-monospace, monospace; }
+  .stack .foot { margin-top:26px; font-size:12.5px; color:#6b7280; max-width:680px; line-height:1.6; }
+
+  /* APPS */
+  .apps { padding:88px 80px; display:flex; gap:60px; align-items:center; }
+  .apps .copy { flex:1; }
+  .apps h2 { font-size:30px; font-weight:800; letter-spacing:-0.02em; line-height:1.18; max-width:420px; }
+  .apps p { margin-top:14px; font-size:15px; line-height:1.7; color:#4b5563; max-width:430px; }
+  .apps ul { margin-top:18px; list-style:none; max-width:430px; }
+  .apps li { font-size:14px; color:#374151; line-height:1.6; padding:9px 0 9px 26px; border-top:1px solid #f1f5f9; position:relative; }
+  .apps li::before { content:""; position:absolute; left:4px; top:16px; width:8px; height:8px; border-radius:2px; background:linear-gradient(135deg,#2563eb,#e11d48); }
+  .phones { flex:1.1; display:flex; gap:28px; justify-content:center; align-items:center; }
+  .phone { width:215px; border-radius:30px; background:#0c0f1d; padding:10px; box-shadow:0 24px 60px rgba(17,24,39,.25); }
+  .phone.tilt { transform:rotate(3deg) translateY(18px); }
+  .phone.tilt2 { transform:rotate(-2deg); }
+  .phone .screen { border-radius:22px; overflow:hidden; background:#f5f7fb; height:420px; display:flex; flex-direction:column; }
+  .phone .appbar { background:#1e293b; color:#fff; padding:14px 14px 12px; }
+  .phone .appbar .at { font-size:12.5px; font-weight:700; }
+  .phone .appbar .as { font-size:9.5px; color:#94a3b8; margin-top:2px; }
+  .phone .body { padding:10px; display:flex; flex-direction:column; gap:8px; }
+  .pcard { background:#fff; border:1px solid #e7e9ef; border-radius:10px; padding:10px; }
+  .pcard .pk { font-size:8.5px; letter-spacing:1px; color:#9ca3af; text-transform:uppercase; font-weight:700; }
+  .pcard .pv { font-size:15px; font-weight:800; margin-top:2px; }
+  .pcard .pb { height:5px; border-radius:3px; background:#eef0f4; margin-top:6px; overflow:hidden; }
+  .pcard .pb i { display:block; height:100%; border-radius:3px; }
+  .pbtn { background:linear-gradient(90deg,#2563eb,#9333ea); color:#fff; text-align:center; border-radius:10px; padding:11px; font-size:12px; font-weight:700; }
+  .lettergrid { display:grid; grid-template-columns:repeat(5,1fr); gap:6px; }
+  .lg { background:#fff; border:1px solid #e7e9ef; border-radius:8px; text-align:center; padding:8px 0; font-size:13px; font-weight:700; color:#374151; }
+  .lg.done { background:linear-gradient(135deg,#eff6ff,#fdf2f8); border-color:#dbeafe; }
+  .apps .shotnote { position:absolute; bottom:18px; right:24px; font-size:11.5px; color:#b6bcc7; font-style:italic; }
+
+  /* AI */
+  .ai { background:#f8fafc; border-top:1px solid #eef0f4; border-bottom:1px solid #eef0f4; padding:88px 80px; display:flex; gap:56px; align-items:center; }
+  .ai .copy { width:380px; flex-shrink:0; }
+  .ai h2 { font-size:30px; font-weight:800; letter-spacing:-0.02em; line-height:1.18; }
+  .ai p { margin-top:14px; font-size:15px; line-height:1.7; color:#4b5563; }
+  .ai .human { margin-top:18px; font-size:13px; color:#374151; background:#fff; border:1px solid #e7e9ef; border-left:3px solid #9333ea; border-radius:10px; padding:12px 16px; line-height:1.6; }
+  .aicard { flex:1; background:#fff; border:1px solid #e7e9ef; border-radius:16px; box-shadow:0 12px 40px rgba(17,24,39,.08); overflow:hidden; }
+  .aicard .ahead { padding:16px 22px; border-bottom:1px solid #f1f5f9; display:flex; justify-content:space-between; align-items:center; }
+  .aicard .ahead b { font-size:14px; }
+  .aicard .ahead span { font-size:11px; color:#9ca3af; }
+  .aicard .asec { padding:16px 22px; border-bottom:1px solid #f1f5f9; }
+  .aicard .ak { font-size:10.5px; letter-spacing:1.5px; text-transform:uppercase; color:#9ca3af; font-weight:700; margin-bottom:8px; }
+  .aicard .arow { font-size:13px; color:#4b5563; line-height:1.7; }
+  .aicard .arow b { color:#111827; }
+  .aicard .rec { background:linear-gradient(135deg,#eff6ff,#fdf2f8); }
+  .aicard .rec .arow { color:#374151; }
+  .aicard .afoot { padding:12px 22px; font-size:11.5px; color:#9ca3af; display:flex; justify-content:space-between; }
+
+  /* DASHBOARDS */
+  .dash { background:#0c0f1d; color:#fff; padding:88px 80px 96px; }
+  .dash .kicker { color:#6b7280; }
+  .dash h2 { font-size:34px; font-weight:800; letter-spacing:-0.02em; max-width:560px; line-height:1.15; }
+  .dash p.lede { margin-top:12px; color:#9ca3af; font-size:16px; max-width:600px; line-height:1.65; }
+  .shots { margin-top:48px; position:relative; }
+  .shot { border-radius:12px; overflow:hidden; border:1px solid rgba(255,255,255,.14); box-shadow:0 30px 80px rgba(0,0,0,.5); }
+  .shot img { display:block; width:100%; }
+  .shot .sbar { background:#1a2036; padding:8px 14px; display:flex; gap:6px; align-items:center; }
+  .shot .sbar .d2 { width:8px; height:8px; border-radius:99px; background:#374151; }
+  .shot .sbar .su { font-size:10.5px; color:#6b7280; margin-left:8px; font-family:ui-monospace, monospace; }
+  .shot.main { width:78%; }
+  .shot.over { position:absolute; right:0; top:120px; width:46%; transform:rotate(1.5deg); }
+  .shotcap { margin-top:26px; display:flex; gap:40px; }
+  .shotcap .sc { flex:1; font-size:13px; color:#9ca3af; line-height:1.6; max-width:380px; }
+  .shotcap .sc b { color:#e5e7eb; display:block; margin-bottom:3px; font-size:13.5px; }
+
+  /* HONEST */
+  .honest { padding:88px 80px; display:flex; gap:56px; }
+  .honest .main2 { flex:1.4; }
+  .honest h2 { font-size:30px; font-weight:800; letter-spacing:-0.02em; }
+  .honest .block { margin-top:26px; max-width:560px; }
+  .honest .block h3 { font-size:16.5px; font-weight:700; }
+  .honest .block p { margin-top:8px; font-size:14.5px; line-height:1.7; color:#4b5563; }
+  .honest .ex { margin-top:12px; background:#f8fafc; border:1px solid #eef0f4; border-radius:10px; padding:13px 16px; font-size:13px; color:#6b7280; line-height:1.6; }
+  .honest .ex b { color:#374151; }
+  .honest .agenda2 { width:330px; flex-shrink:0; border-left:1px solid #eef0f4; padding-left:40px; }
+  .honest .agenda2 h3 { font-size:12px; letter-spacing:2px; text-transform:uppercase; color:#9ca3af; font-weight:700; }
+  .aq2 { margin-top:22px; }
+  .aq2 .an { font-size:24px; font-weight:800; background:linear-gradient(90deg,#2563eb,#e11d48); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .aq2 .at2 { font-size:14.5px; font-weight:700; margin-top:2px; }
+  .aq2 .ad { font-size:13px; color:#6b7280; line-height:1.6; margin-top:4px; }
+
+  .explore { border-top:1px solid #eef0f4; background:#f8fafc; padding:64px 80px; }
+  .explore h2 { font-size:24px; font-weight:700; }
+  .ex-grid { display:flex; gap:18px; margin-top:24px; }
+  .ex { flex:1; background:#fff; border:1px solid #e7e9ef; border-radius:12px; padding:20px; font-size:14px; }
+  .ex b { display:block; margin-bottom:5px; }
+  .ex span { color:#6b7280; font-size:13px; line-height:1.5; display:block; }
+  .ex .go { margin-top:12px; color:#2563eb; font-weight:600; font-size:13px; }
+  .pagefoot { padding:24px 80px 44px; font-size:12px; color:#9ca3af; line-height:1.7; background:#f8fafc; border-radius:0 0 12px 12px; }
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <b>Mockup v2: /impact/measurement</b> — de-templated: no equal-card rows, redesigned triangle, engine room as a real stack, NEW apps + AI sections, and your actual Zazi dashboards embedded.
+</div>
+
+<div class="page">
+  <div class="browser-bar">
+    <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+    <div class="urlbox">masinyusane.org/impact/measurement</div>
+  </div>
+
+  <!-- 1 HERO -->
+  <section class="hero">
+    <div class="marker"><span class="badge">1</span><span class="lbl">Hero — cards replaced by one quiet pulse line</span></div>
+    <div class="kicker">Monitoring, Evaluation &amp; Data</div>
+    <h1>We measure learning, <span class="grad">not just activity.</span></h1>
+    <p class="sub">Daily session logs, formal assessments, and mentor observations — triangulated for every child, every week. This page explains how the numbers on our impact dashboard are made, checked, and challenged.</p>
+    <div class="pulseline">
+      <span><i></i>Sessions synced nightly</span>
+      <span><i></i>Three assessment rounds per child, per year</span>
+      <span><i></i>Mentors in classrooms weekly</span>
+    </div>
+  </section>
+
+  <!-- 2 TRIANGLE (redesigned, merged with streams) -->
+  <section class="tri">
+    <div class="marker"><span class="badge">2</span><span class="lbl">Evidence triangle — streams merged in</span></div>
+    <div class="copy">
+      <div class="kicker">The system</div>
+      <h2>Each stream checks the other two.</h2>
+      <p>High session counts with low learning gains? Mentor observations tell us whether the problem is pace, group composition, or fidelity. Strong assessment results? Session logs confirm the dosage that produced them.</p>
+      <p>When two fully independent measurement methods agree, we trust both more.</p>
+      <div class="corr"><span>Letters Known &times; EGRA improvement: &rho; = 0.93</span></div>
+    </div>
+    <div class="tri-stage">
+      <svg viewBox="0 0 640 470" width="100%">
+        <defs>
+          <linearGradient id="tg" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#2563eb"/><stop offset="50%" stop-color="#9333ea"/><stop offset="100%" stop-color="#e11d48"/>
+          </linearGradient>
+          <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stop-color="#9333ea" stop-opacity="0.10"/>
+            <stop offset="100%" stop-color="#9333ea" stop-opacity="0"/>
+          </radialGradient>
+        </defs>
+
+        <circle cx="320" cy="250" r="190" fill="url(#glow)"/>
+        <path d="M320 95 L130 360 L510 360 Z" fill="none" stroke="url(#tg)" stroke-width="1.5" opacity="0.55"/>
+
+        <!-- edge labels -->
+        <g font-family="Geist, sans-serif" font-size="10.5" fill="#94a3b8">
+          <rect x="148" y="208" width="118" height="22" rx="11" fill="#fff" stroke="#e7e9ef"/>
+          <text x="207" y="222" text-anchor="middle">dosage &times; outcomes</text>
+          <rect x="378" y="208" width="116" height="22" rx="11" fill="#fff" stroke="#e7e9ef"/>
+          <text x="436" y="222" text-anchor="middle">quality &times; dosage</text>
+          <rect x="262" y="372" width="118" height="22" rx="11" fill="#fff" stroke="#e7e9ef"/>
+          <text x="321" y="386" text-anchor="middle">outcomes &times; quality</text>
+        </g>
+
+        <!-- node: sessions (top) -->
+        <g>
+          <circle cx="320" cy="95" r="40" fill="#fff" stroke="url(#tg)" stroke-width="2"/>
+          <g stroke="#374151" stroke-width="2.4" stroke-linecap="round">
+            <line x1="305" y1="87" x2="335" y2="87"/><line x1="305" y1="95" x2="329" y2="95"/><line x1="305" y1="103" x2="333" y2="103"/>
+          </g>
+          <text x="320" y="55" text-anchor="middle" font-family="Geist" font-size="14" font-weight="700" fill="#111827">Daily sessions</text>
+          <text x="320" y="40" text-anchor="middle" font-family="Geist" font-size="10.5" fill="#9ca3af">STREAM 01 — logged by the coach who taught it</text>
+        </g>
+        <!-- node: assessments (bottom left) -->
+        <g>
+          <circle cx="130" cy="360" r="40" fill="#fff" stroke="url(#tg)" stroke-width="2"/>
+          <g stroke="#374151" stroke-width="2.4" stroke-linecap="round" fill="none">
+            <path d="M115 372 L115 352"/><path d="M127 372 L127 344"/><path d="M139 372 L139 358"/>
+          </g>
+          <text x="130" y="425" text-anchor="middle" font-family="Geist" font-size="14" font-weight="700" fill="#111827">Formal assessments</text>
+          <text x="130" y="441" text-anchor="middle" font-family="Geist" font-size="10.5" fill="#9ca3af">STREAM 02 — EGRA + 9 numeracy skills, 3&times;/year</text>
+        </g>
+        <!-- node: mentor visits (bottom right) -->
+        <g>
+          <circle cx="510" cy="360" r="40" fill="#fff" stroke="url(#tg)" stroke-width="2"/>
+          <g stroke="#374151" stroke-width="2.2" fill="none" stroke-linecap="round">
+            <path d="M492 360 Q510 344 528 360 Q510 376 492 360 Z"/>
+            <circle cx="510" cy="360" r="5.5"/>
+          </g>
+          <text x="510" y="425" text-anchor="middle" font-family="Geist" font-size="14" font-weight="700" fill="#111827">Mentor visits</text>
+          <text x="510" y="441" text-anchor="middle" font-family="Geist" font-size="10.5" fill="#9ca3af">STREAM 03 — observed quality, coaching, context</text>
+        </g>
+        <!-- center -->
+        <g>
+          <circle cx="320" cy="272" r="52" fill="#fff" stroke="#e7e9ef"/>
+          <text x="320" y="268" text-anchor="middle" font-family="Geist" font-size="13.5" font-weight="800" fill="#111827">Every child</text>
+          <text x="320" y="285" text-anchor="middle" font-family="Geist" font-size="10" fill="#9ca3af">one evidence record</text>
+        </g>
+      </svg>
+    </div>
+  </section>
+
+  <!-- 3 LOOP STRIP (slimmed) -->
+  <section class="loopstrip">
+    <div class="marker"><span class="badge">3</span><span class="lbl">The loop — boxes &rarr; flowing line</span></div>
+    <div class="row">
+      <div class="lnode"><div class="nd"></div><div class="nl">Collect</div><div class="ns">captured digitally in classrooms</div></div>
+      <div class="lwire"></div>
+      <div class="lnode"><div class="nd"></div><div class="nl">Clean</div><div class="ns">nightly syncs, validation, flags</div></div>
+      <div class="lwire"></div>
+      <div class="lnode"><div class="nd"></div><div class="nl">Analyze</div><div class="ns">child to school level</div></div>
+      <div class="lwire"></div>
+      <div class="lnode hot"><div class="nd"></div><div class="nl">Coach</div><div class="ns">mentors act on what data shows</div></div>
+      <div class="lwire"></div>
+      <div class="lnode"><div class="nd"></div><div class="nl">Adapt</div><div class="ns">groups, pacing, pilots</div></div>
+      <div class="lwire"></div>
+      <div class="lnode"><div class="nd"></div><div class="nl">Report</div><div class="ns">verified, published</div></div>
+    </div>
+    <div class="cap"><b>The point of measurement is the coaching conversation days after the data lands</b> — not the report at the end of the year. The loop repeats weekly during the school year.</div>
+  </section>
+
+  <!-- 4 WHAT WE MEASURE + RADAR -->
+  <section class="measure">
+    <div class="marker"><span class="badge">4</span><span class="lbl">Framework + child radar merged</span></div>
+    <div class="left">
+      <div class="kicker">What we measure</div>
+      <h2>Every skill that makes a reader — and a counter.</h2>
+      <div class="fw">
+        <h3>Literacy — 11 skills per child</h3>
+        <div class="fsub">EGRA-anchored, assessed three times a year</div>
+        <div class="chips">
+          <span class="chip hl">Letter sounds /min</span><span class="chip">Story comprehension</span>
+          <span class="chip">First sounds</span><span class="chip">Listen: words</span>
+          <span class="chip">Write letters</span><span class="chip">Read words</span>
+          <span class="chip">Read sentences</span><span class="chip">Read story</span>
+          <span class="chip">Write CVCs</span><span class="chip">Write sentences</span><span class="chip">Write story</span>
+        </div>
+      </div>
+      <div class="fw">
+        <h3>Numeracy — 9 components</h3>
+        <div class="fsub">Yazi Amanani assessment, standardised to /10 per component</div>
+        <div class="chips">
+          <span class="chip hl">Counting aloud</span><span class="chip">Number recognition</span>
+          <span class="chip">Counting &amp; matching</span><span class="chip">Write numbers</span>
+          <span class="chip">More / less than</span><span class="chip">Missing numbers</span>
+          <span class="chip">Sums to 10</span><span class="chip">Word problems</span><span class="chip">Add / subtract</span>
+        </div>
+      </div>
+    </div>
+    <div class="right">
+      <div class="radarbox">
+        <div class="pt">What that looks like for one child</div>
+        <div class="legend2">
+          <span><span class="key" style="background:#cbd5e1;"></span>January</span>
+          <span><span class="key" style="background:linear-gradient(90deg,#2563eb,#e11d48);"></span>November</span>
+        </div>
+        <svg viewBox="0 0 280 290" width="100%">
+          <defs>
+            <linearGradient id="rg" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#2563eb"/><stop offset="50%" stop-color="#9333ea"/><stop offset="100%" stop-color="#e11d48"/>
+            </linearGradient>
+          </defs>
+          <g transform="translate(0,10)">
+            <circle cx="140" cy="140" r="110" fill="none" stroke="#eef0f4"/>
+            <circle cx="140" cy="140" r="82.5" fill="none" stroke="#eef0f4"/>
+            <circle cx="140" cy="140" r="55" fill="none" stroke="#eef0f4"/>
+            <circle cx="140" cy="140" r="27.5" fill="none" stroke="#eef0f4"/>
+            <line x1="140" y1="140" x2="140" y2="30" stroke="#eef0f4"/>
+            <line x1="140" y1="140" x2="217.8" y2="62.2" stroke="#eef0f4"/>
+            <line x1="140" y1="140" x2="250" y2="140" stroke="#eef0f4"/>
+            <line x1="140" y1="140" x2="217.8" y2="217.8" stroke="#eef0f4"/>
+            <line x1="140" y1="140" x2="140" y2="250" stroke="#eef0f4"/>
+            <line x1="140" y1="140" x2="62.2" y2="217.8" stroke="#eef0f4"/>
+            <line x1="140" y1="140" x2="30" y2="140" stroke="#eef0f4"/>
+            <line x1="140" y1="140" x2="62.2" y2="62.2" stroke="#eef0f4"/>
+            <polygon points="140,100 157.7,122.3 175,140 150.6,150.6 140,170 132.9,147.1 120,140 120.2,120.2" fill="rgba(148,163,184,0.25)" stroke="#94a3b8" stroke-width="1.5"/>
+            <polygon points="140,45 196.6,83.4 240,140 189.5,189.5 140,230 97.6,182.4 65,140 79.9,79.9" fill="rgba(147,51,234,0.13)" stroke="url(#rg)" stroke-width="2.5"/>
+            <text x="140" y="22" text-anchor="middle">Letter Sounds</text>
+            <text x="228" y="56" text-anchor="start">Story Comp.</text>
+            <text x="258" y="144" text-anchor="start">First Sounds</text>
+            <text x="226" y="232" text-anchor="start">Read Words</text>
+            <text x="140" y="272" text-anchor="middle">Read Sentences</text>
+            <text x="54" y="232" text-anchor="end">Write Letters</text>
+            <text x="22" y="144" text-anchor="end">Write CVCs</text>
+            <text x="54" y="56" text-anchor="end">Listen Words</text>
+          </g>
+        </svg>
+        <div class="undertext">We hold a chart like this for <b>every child on programme</b> — improvement reported four ways: raw points, standardised (0&ndash;10), percent change, learning gain %.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5 BENCHMARKS -->
+  <section class="bench2">
+    <div class="marker"><span class="badge">5</span><span class="lbl">Benchmarks — table leads, copy follows</span></div>
+    <div class="btable">
+      <div class="brow head"><div class="c1">Benchmark</div><div class="c2">Target</div><div class="c3">Why it matters</div></div>
+      <div class="brow hl"><div class="c1">isiXhosa Gr 1 letter sounds</div><div class="c2">40 / min</div><div class="c3">The reading-readiness threshold</div></div>
+      <div class="brow"><div class="c1">isiXhosa Gr 2 passage</div><div class="c2">20 wpm</div><div class="c3">First fluency milestone</div></div>
+      <div class="brow"><div class="c1">isiXhosa Gr 3 passage</div><div class="c2">35 wpm</div><div class="c3">Reading to learn begins</div></div>
+      <div class="brow"><div class="c1">English Gr 2 passage</div><div class="c2">30 wpm</div><div class="c3">FAL fluency baseline</div></div>
+      <div class="brow"><div class="c1">English Gr 3 passage</div><div class="c2">50 wpm</div><div class="c3">On track for Gr 4 switch</div></div>
+      <div class="brow"><div class="c1">English Gr 4 passage</div><div class="c2">70 wpm</div><div class="c3">Full curriculum access</div></div>
+    </div>
+    <div class="copy">
+      <div class="kicker">The bar we measure against</div>
+      <h2>National benchmarks, by language and grade.</h2>
+      <p>We don't grade our own homework. Every result is measured against South Africa's published early-grade reading benchmarks — and the Grade 1 letter-sound benchmark is the one that decides reading futures.</p>
+    </div>
+  </section>
+
+  <!-- 6 THE STACK -->
+  <section class="stack">
+    <div class="marker"><span class="badge">6</span><span class="lbl">Engine room v2 — capability stack</span></div>
+    <div class="kicker">The engine room</div>
+    <h2>A real data system, built layer by layer.</h2>
+    <p class="lede">Most nonprofits collect data. Very few engineer it. Every layer below replaced manual work with code — and made the numbers faster, cleaner, and harder to fudge.</p>
+    <div class="layers">
+      <div class="layer"><div class="lbar"></div>
+        <div class="lt"><span>Layer 01 — Capture</span><b>Mobile apps in classrooms</b></div>
+        <div class="ld">Coaches and mentors log sessions, assessments and visits on phones, offline-first, synced the same night.</div>
+        <div class="tech"><span class="tch">TeamPact</span><span class="tch">SurveyCTO</span></div>
+      </div>
+      <div class="layer"><div class="lbar"></div>
+        <div class="lt"><span>Layer 02 — Store</span><b>Database backbone</b></div>
+        <div class="ld">Production tables for every assessment, session and mentor visit — one source of truth, synced nightly via API.</div>
+        <div class="tech"><span class="tch">PostgreSQL</span><span class="tch">REST APIs</span></div>
+      </div>
+      <div class="layer"><div class="lbar"></div>
+        <div class="lt"><span>Layer 03 — Verify</span><b>Quality &amp; fidelity scripts</b></div>
+        <div class="ld">Automated checks flag implementation drift — pacing too fast, undifferentiated groups, missing data — before it reaches results.</div>
+        <div class="tech"><span class="tch">Python</span></div>
+      </div>
+      <div class="layer"><div class="lbar"></div>
+        <div class="lt"><span>Layer 04 — Analyze</span><b>Advanced analytics</b></div>
+        <div class="ld">Matched-cohort gains, benchmark movement, treatment-comparison designs, correlation across independent measures.</div>
+        <div class="tech"><span class="tch">Python</span><span class="tch">pandas</span></div>
+      </div>
+      <div class="layer"><div class="lbar"></div>
+        <div class="lt"><span>Layer 05 — Recommend</span><b>AI integrations</b></div>
+        <div class="ld">Models read each group's session history and suggest next steps to coaches — humans decide, AI prepares.</div>
+        <div class="tech"><span class="tch">LLM agents</span></div>
+      </div>
+      <div class="layer"><div class="lbar"></div>
+        <div class="lt"><span>Layer 06 — See</span><b>Live dashboards</b></div>
+        <div class="ld">Operations, assessment and coaching dashboards used daily by programme teams — shown below.</div>
+        <div class="tech"><span class="tch">Streamlit</span><span class="tch">Next.js</span></div>
+      </div>
+    </div>
+    <div class="foot">Tech labels to be confirmed — exact stack naming (TeamPact / SurveyCTO / Postgres / agent tooling) needs Jim's sign-off before publication.</div>
+  </section>
+
+  <!-- 7 APPS -->
+  <section class="apps">
+    <div class="marker"><span class="badge">7</span><span class="lbl">NEW — mobile apps</span></div>
+    <div class="copy">
+      <div class="kicker">Layer 01, up close</div>
+      <h2>Built for a classroom, not an office.</h2>
+      <p>Data quality starts where data is born. Our apps are designed for coaches standing in classrooms — fast, offline-first, structured so the right data is the easy data to enter.</p>
+      <ul>
+        <li>Session logging in under a minute: letters taught, attendance, group</li>
+        <li>One-minute EGRA letter timer built into assessment capture</li>
+        <li>Mentor visit scoring with action items that route to follow-up</li>
+        <li>Works offline in no-signal schools; syncs the same night</li>
+      </ul>
+    </div>
+    <div class="phones">
+      <div class="phone tilt2">
+        <div class="screen">
+          <div class="appbar"><div class="at">Session Log</div><div class="as">Group B-12 · Kwazakhele Primary</div></div>
+          <div class="body">
+            <div class="pcard"><div class="pk">Today's letters</div></div>
+            <div class="lettergrid">
+              <div class="lg done">e</div><div class="lg done">a</div><div class="lg done">s</div><div class="lg">i</div><div class="lg">m</div>
+            </div>
+            <div class="pcard"><div class="pk">Attendance</div><div class="pv">9 / 10</div><div class="pb"><i style="width:90%;background:linear-gradient(90deg,#2563eb,#9333ea);"></i></div></div>
+            <div class="pbtn">Save session</div>
+          </div>
+        </div>
+      </div>
+      <div class="phone tilt">
+        <div class="screen">
+          <div class="appbar"><div class="at">Letter Assessment</div><div class="as">Amahle M. · 0:42 remaining</div></div>
+          <div class="body">
+            <div class="pcard"><div class="pk">Letters correct</div><div class="pv">23</div><div class="pb"><i style="width:57%;background:linear-gradient(90deg,#9333ea,#e11d48);"></i></div></div>
+            <div class="lettergrid">
+              <div class="lg done">u</div><div class="lg done">b</div><div class="lg">k</div><div class="lg done">o</div><div class="lg">t</div>
+            </div>
+            <div class="pcard"><div class="pk">Last assessment</div><div class="pv">14 lcpm</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="shotnote">placeholder UI — drop in real app screenshots</div>
+  </section>
+
+  <!-- 8 AI -->
+  <section class="ai">
+    <div class="marker"><span class="badge">8</span><span class="lbl">NEW — AI integrations</span></div>
+    <div class="copy">
+      <div class="kicker">Layer 05, up close</div>
+      <h2>AI that reads 60 sessions so a mentor doesn't have to.</h2>
+      <p>Before a mentor walks into a school, our tools have already read every session log and assessment for the groups she'll visit — and drafted what to look for.</p>
+      <div class="human"><b>Humans decide; AI prepares.</b> Every recommendation is reviewed by the mentor who knows the coach and the children. Nothing is automated into a classroom.</div>
+    </div>
+    <div class="aicard">
+      <div class="ahead"><b>Coach assistant — pre-visit brief</b><span>generated 06:14, reviewed by mentor</span></div>
+      <div class="asec">
+        <div class="ak">Group B-12 · read from 61 session logs</div>
+        <div class="arow">Six weeks on <b>e, a, s, i</b> with strong attendance (92%). Letter <b>m</b> introduced twice but never reviewed. Pace slowed after mid-May.</div>
+      </div>
+      <div class="asec">
+        <div class="ak">Assessment signal</div>
+        <div class="arow">Three children still below <b>10 letters/min</b> while four are above 30 — the group has split into two ability bands.</div>
+      </div>
+      <div class="asec rec">
+        <div class="ak">Suggested focus for this visit</div>
+        <div class="arow">Observe whether <b>m</b> gets review rotation; discuss splitting the group into two ability bands; re-run the letter check on the three lagging children before Friday.</div>
+      </div>
+      <div class="afoot"><span>Sources: sessions_2026 · assessments_2026 · mentor_visits_2026</span><span>illustrative example</span></div>
+    </div>
+  </section>
+
+  <!-- 9 DASHBOARDS (real screenshots) -->
+  <section class="dash">
+    <div class="marker"><span class="badge">9</span><span class="lbl">NEW — the real dashboards</span></div>
+    <div class="kicker">Layer 06, up close</div>
+    <h2>The dashboards our team opens every morning.</h2>
+    <p class="lede">Not mock-ups — these are live screens from our Zazi iZandi programme management system, June 2026. Funders get curated views; our team gets everything.</p>
+    <div class="shots">
+      <div class="shot main">
+        <div class="sbar"><div class="d2"></div><div class="d2"></div><div class="d2"></div><div class="su">zazi.masinyusane.org / operations</div></div>
+        <img src="dash-ops.png" alt="2026 programme operations dashboard">
+      </div>
+      <div class="shot over">
+        <div class="sbar"><div class="d2"></div><div class="d2"></div><div class="d2"></div><div class="su">/ ea-performance</div></div>
+        <img src="dash-ea-map.png" alt="EA performance map">
+      </div>
+    </div>
+    <div class="shotcap">
+      <div class="sc"><b>Live operations</b>Teaching week 14 of 38: dosage against target, on-track groups, active quality flags — refreshed nightly, red when it needs to be.</div>
+      <div class="sc"><b>Coaching targets</b>Every education assistant plotted by session rate and quality score, animated over time — so mentors know exactly where support goes next.</div>
+    </div>
+  </section>
+
+  <!-- 10 HONEST -->
+  <section class="honest">
+    <div class="marker"><span class="badge">10</span><span class="lbl">Quality + privacy + agenda collapsed</span></div>
+    <div class="main2">
+      <div class="kicker">Kept honest</div>
+      <h2>A system designed to catch its own problems.</h2>
+      <div class="block">
+        <h3>We flag our own implementation issues first.</h3>
+        <p>Automated checks run across session data, flagging patterns that reduce learning quality before they show up in results.</p>
+        <div class="ex"><b>Example:</b> a coach advancing groups to new letters with no review built in — caught by the "moving too fast" flag, resolved through a mentor visit that week, not a report at year end.</div>
+      </div>
+      <div class="block">
+        <h3>Children's privacy is a design constraint, not a policy PDF.</h3>
+        <p>Public dashboards are aggregate and anonymized. Names and sensitive fields are masked in every unauthenticated view; detailed records sit behind role-based access. POPIA compliance is checked before anything is published.</p>
+      </div>
+    </div>
+    <div class="agenda2">
+      <h3>Open questions we're testing</h3>
+      <div class="aq2"><div class="an">01</div><div class="at2">Early start</div><div class="ad">How much of the Grade 1 gap can ECD close before school begins?</div></div>
+      <div class="aq2"><div class="an">02</div><div class="at2">Model intensity</div><div class="ad">Full-time vs part-time coaches: where is the learning-per-rand frontier?</div></div>
+      <div class="aq2"><div class="an">03</div><div class="at2">Government scale</div><div class="ad">Do results hold when delivery runs through provincial teaching assistants?</div></div>
+    </div>
+  </section>
+
+  <!-- 11 EXPLORE -->
+  <section class="explore">
+    <div class="marker"><span class="badge">11</span><span class="lbl">Explore</span></div>
+    <h2>See the system for yourself.</h2>
+    <div class="ex-grid">
+      <div class="ex"><b>Impact dashboard</b><span>The results this system produces.</span><div class="go">/impact &rarr;</div></div>
+      <div class="ex"><b>Live data portal</b><span>The same dashboards our team uses daily.</span><div class="go">data.masinyusane.org &rarr;</div></div>
+      <div class="ex"><b>Annual reports</b><span>Audited results, year by year.</span><div class="go">View reports &rarr;</div></div>
+      <div class="ex"><b>Due-diligence pack</b><span>Methodology, data dictionary, evaluation designs.</span><div class="go">Request pack &rarr;</div></div>
+    </div>
+  </section>
+
+  <div class="pagefoot">
+    Needs from Jim before this page is final: real mobile-app screenshots (section 7) · confirm tech-stack labels (section 6) · confirm the AI example is representative and publishable (section 8) · permission to show these dashboard screenshots publicly, or swap for donor-safe equivalents (section 9). Dropped from v1: standalone streams cards, pulse cards, phase timeline — all merged or replaced.
+  </div>
+</div>
+
+</body>
+</html>

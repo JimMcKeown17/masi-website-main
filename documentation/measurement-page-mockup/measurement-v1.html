@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup v1 — /impact/measurement</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Geist', -apple-system, 'Segoe UI', sans-serif; background:#e8eaf0; color:#111827; }
+  .toolbar { position:sticky; top:0; z-index:50; background:#111827; color:#e5e7eb; padding:10px 24px; font-size:13px; }
+  .toolbar b { color:#fff; }
+  .badge { display:inline-flex; align-items:center; justify-content:center; min-width:22px; height:22px; border-radius:99px; background:linear-gradient(135deg,#2563eb,#e11d48); color:#fff; font-size:11px; font-weight:700; padding:0 6px; }
+  .page { max-width:1180px; margin:28px auto 80px; background:#fff; border-radius:12px; box-shadow:0 20px 60px rgba(17,24,39,0.18); overflow:visible; }
+  .browser-bar { background:#f3f4f6; border-bottom:1px solid #e5e7eb; padding:10px 16px; display:flex; align-items:center; gap:8px; border-radius:12px 12px 0 0; }
+  .dot { width:10px; height:10px; border-radius:99px; background:#d1d5db; }
+  .urlbox { flex:1; max-width:460px; background:#fff; border:1px solid #e5e7eb; border-radius:6px; padding:4px 12px; font-size:12px; color:#6b7280; }
+  section { position:relative; }
+  .marker { position:absolute; top:18px; left:18px; display:flex; gap:8px; align-items:center; z-index:5; }
+  .marker span.lbl { font-size:11px; font-weight:600; letter-spacing:1px; text-transform:uppercase; color:#e11d48; background:#fff; border:1px solid #fecdd3; border-radius:99px; padding:3px 10px; }
+  .kicker { font-size:12px; letter-spacing:3px; text-transform:uppercase; color:#9ca3af; font-weight:600; margin-bottom:16px; }
+  .grad { background:linear-gradient(90deg,#2563eb,#9333ea,#e11d48); -webkit-background-clip:text; background-clip:text; color:transparent; }
+
+  .hero { padding:96px 80px 72px; }
+  .hero h1 { font-size:56px; font-weight:800; line-height:1.08; letter-spacing:-0.02em; max-width:760px; }
+  .hero p.sub { margin-top:20px; font-size:18px; line-height:1.65; color:#4b5563; max-width:640px; }
+  .pulse-strip { margin-top:44px; display:flex; gap:24px; }
+  .pulse { flex:1; border:1px solid #e7e9ef; border-radius:12px; padding:16px 18px; display:flex; align-items:center; gap:12px; }
+  .pulse .dotg { width:9px; height:9px; border-radius:99px; background:#10b981; box-shadow:0 0 8px rgba(16,185,129,.6); }
+  .pulse .pl { font-size:13px; color:#6b7280; line-height:1.4; }
+  .pulse .pl b { color:#111827; font-size:15px; display:block; }
+
+  .streams { background:#f8fafc; border-top:1px solid #eef0f4; border-bottom:1px solid #eef0f4; padding:80px; }
+  .streams h2 { font-size:34px; font-weight:800; letter-spacing:-0.02em; }
+  .stream-row { display:flex; gap:24px; margin-top:40px; }
+  .stream { flex:1; background:#fff; border:1px solid #e7e9ef; border-radius:14px; padding:26px; }
+  .stream .num { font-size:12px; font-weight:700; color:#9ca3af; letter-spacing:2px; }
+  .stream h3 { font-size:18px; font-weight:700; margin:10px 0 8px; }
+  .stream p { font-size:14px; line-height:1.6; color:#6b7280; }
+  .stream .what { margin-top:14px; font-size:12.5px; color:#9ca3af; line-height:1.6; border-top:1px solid #f1f5f9; padding-top:12px; }
+  .stream .what b { color:#6b7280; }
+
+  .tri { padding:88px 80px; display:flex; gap:64px; align-items:center; }
+  .tri .copy { flex:1; }
+  .tri h2 { font-size:32px; font-weight:800; letter-spacing:-0.02em; line-height:1.15; max-width:420px; }
+  .tri p { margin-top:14px; font-size:15.5px; line-height:1.7; color:#4b5563; max-width:430px; }
+  .tri .corr { margin-top:20px; display:inline-flex; border-radius:99px; padding:1px; background:linear-gradient(90deg,#2563eb,#9333ea,#e11d48); }
+  .tri .corr span { border-radius:99px; background:#fff; padding:9px 18px; font-size:13.5px; font-weight:700; }
+  .tri-diagram { flex:1; position:relative; height:360px; }
+  .tnode { position:absolute; width:150px; text-align:center; }
+  .tnode .tc { width:74px; height:74px; margin:0 auto; border-radius:99px; background:#fff; border:1px solid #e7e9ef; box-shadow:0 8px 24px rgba(17,24,39,.07); display:flex; align-items:center; justify-content:center; font-size:24px; }
+  .tnode .tl2 { margin-top:8px; font-size:13px; font-weight:700; }
+  .tnode .ts { font-size:11.5px; color:#9ca3af; }
+  .tcenter { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:120px; height:120px; border-radius:99px; background:linear-gradient(135deg,#eff6ff,#fdf2f8); border:1px solid #e7e9ef; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; }
+  .tcenter b { font-size:13px; }
+  .tcenter span { font-size:10.5px; color:#9ca3af; }
+  svg.trilines { position:absolute; inset:0; }
+
+  .cycle { background:#f8fafc; border-top:1px solid #eef0f4; border-bottom:1px solid #eef0f4; padding:72px 80px; }
+  .cycle h2 { font-size:28px; font-weight:800; letter-spacing:-0.02em; }
+  .cycle p.lede { margin-top:10px; color:#4b5563; font-size:15px; max-width:560px; line-height:1.6; }
+  .steps2 { display:flex; gap:0; margin-top:36px; align-items:stretch; }
+  .step2 { flex:1; position:relative; padding:18px 14px 16px; border:1px solid #e7e9ef; background:#fff; }
+  .step2:first-child { border-radius:12px 0 0 12px; }
+  .step2:last-child { border-radius:0 12px 12px 0; }
+  .step2 + .step2 { border-left:none; }
+  .step2 .sn { font-size:11px; font-weight:700; color:#9ca3af; letter-spacing:1px; }
+  .step2 .st { font-size:14.5px; font-weight:700; margin-top:4px; }
+  .step2 .sd { font-size:11.5px; color:#9ca3af; line-height:1.5; margin-top:4px; }
+  .step2.hot { background:linear-gradient(135deg,#eff6ff,#fdf2f8); }
+  .cycle .loop { margin-top:14px; font-size:12.5px; color:#9ca3af; text-align:right; }
+
+  .framework { padding:88px 80px; }
+  .framework h2 { font-size:32px; font-weight:800; letter-spacing:-0.02em; }
+  .fw-grid { display:flex; gap:28px; margin-top:38px; }
+  .fw { flex:1; border:1px solid #e7e9ef; border-radius:14px; padding:26px; }
+  .fw h3 { font-size:17px; font-weight:700; }
+  .fw .fsub { font-size:12.5px; color:#9ca3af; margin-top:2px; }
+  .chips { display:flex; flex-wrap:wrap; gap:7px; margin-top:16px; }
+  .chip { font-size:12px; font-weight:600; color:#374151; background:#f8fafc; border:1px solid #eef0f4; border-radius:99px; padding:5px 11px; }
+  .chip.hl { background:linear-gradient(135deg,#eff6ff,#fdf2f8); border-color:#e0e7ff; }
+  .fw .fmeta { margin-top:16px; font-size:12.5px; color:#9ca3af; line-height:1.6; border-top:1px solid #f1f5f9; padding-top:12px; }
+
+  .bench2 { background:#f8fafc; border-top:1px solid #eef0f4; border-bottom:1px solid #eef0f4; padding:72px 80px; display:flex; gap:56px; align-items:flex-start; }
+  .bench2 .copy { max-width:360px; }
+  .bench2 h2 { font-size:26px; font-weight:800; letter-spacing:-0.02em; line-height:1.2; }
+  .bench2 p { margin-top:12px; font-size:14.5px; line-height:1.65; color:#4b5563; }
+  .btable { flex:1; border:1px solid #e7e9ef; border-radius:14px; background:#fff; overflow:hidden; }
+  .btable .brow { display:flex; padding:13px 20px; font-size:13.5px; border-bottom:1px solid #f1f5f9; }
+  .btable .brow:last-child { border-bottom:none; }
+  .btable .brow.head { background:#f8fafc; font-weight:700; font-size:12px; letter-spacing:1px; text-transform:uppercase; color:#9ca3af; }
+  .btable .brow.hl { background:linear-gradient(90deg,#eff6ff,#fdf2f8); font-weight:700; }
+  .btable .c1 { flex:1.4; } .btable .c2 { flex:1; } .btable .c3 { flex:1.6; color:#6b7280; }
+  .btable .brow.hl .c3 { color:#374151; }
+
+  .infra { background:#0c0f1d; color:#fff; padding:88px 80px; }
+  .infra .kicker { color:#6b7280; }
+  .infra h2 { font-size:34px; font-weight:800; letter-spacing:-0.02em; }
+  .infra p.lede { margin-top:12px; color:#9ca3af; font-size:16px; max-width:580px; line-height:1.65; }
+  .phases { display:flex; gap:16px; margin-top:40px; }
+  .phase { flex:1; border:1px solid rgba(255,255,255,.08); background:rgba(255,255,255,.04); border-radius:12px; padding:20px; position:relative; }
+  .phase .pn { font-size:11px; font-weight:700; letter-spacing:1.5px; color:#6b7280; }
+  .phase h3 { font-size:15.5px; font-weight:700; margin-top:6px; color:#fff; }
+  .phase p { font-size:12.5px; color:#9ca3af; line-height:1.55; margin-top:6px; }
+  .phase.now { border-color:rgba(244,114,182,.4); background:linear-gradient(135deg,rgba(37,99,235,.12),rgba(225,29,72,.12)); }
+  .phase.now .pn { color:#f472b6; }
+  .infra .live { display:flex; gap:28px; margin-top:36px; }
+  .live .lstat b { display:block; font-size:26px; font-weight:800; background:linear-gradient(90deg,#60a5fa,#f472b6); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .live .lstat span { font-size:12px; color:#6b7280; }
+  .technote { margin-top:36px; border:1px solid rgba(255,255,255,.12); border-radius:12px; }
+  .technote summary { cursor:pointer; padding:16px 20px; font-size:14px; font-weight:600; color:#d1d5db; }
+  .technote .tn-body { padding:0 20px 18px; font-size:13px; color:#9ca3af; line-height:1.7; }
+
+  .quality { padding:88px 80px; display:flex; gap:28px; }
+  .qcard { flex:1; border:1px solid #e7e9ef; border-radius:14px; padding:28px; }
+  .qcard h3 { font-size:18px; font-weight:700; margin-bottom:10px; }
+  .qcard p { font-size:14.5px; line-height:1.65; color:#4b5563; }
+  .qcard .qex { margin-top:16px; background:#f8fafc; border:1px solid #eef0f4; border-radius:10px; padding:14px; font-size:13px; color:#6b7280; line-height:1.6; }
+  .qcard .qex b { color:#374151; }
+
+  .agenda { background:#f8fafc; border-top:1px solid #eef0f4; padding:72px 80px; }
+  .agenda h2 { font-size:26px; font-weight:800; letter-spacing:-0.02em; }
+  .agenda p.lede { margin-top:10px; color:#4b5563; font-size:15px; max-width:600px; line-height:1.65; }
+  .agenda .qs { display:flex; gap:16px; margin-top:28px; }
+  .aq { flex:1; background:#fff; border:1px solid #e7e9ef; border-radius:12px; padding:20px; font-size:14px; line-height:1.6; color:#374151; }
+  .aq b { display:block; font-size:12px; letter-spacing:1.5px; text-transform:uppercase; color:#9ca3af; margin-bottom:8px; }
+
+  .explore { border-top:1px solid #eef0f4; padding:64px 80px; }
+  .explore h2 { font-size:24px; font-weight:700; }
+  .ex-grid { display:flex; gap:18px; margin-top:24px; }
+  .ex { flex:1; background:#fff; border:1px solid #e7e9ef; border-radius:12px; padding:20px; font-size:14px; }
+  .ex b { display:block; margin-bottom:5px; }
+  .ex span { color:#6b7280; font-size:13px; line-height:1.5; display:block; }
+  .ex .go { margin-top:12px; color:#2563eb; font-weight:600; font-size:13px; }
+  .pagefoot { padding:24px 80px 44px; font-size:12px; color:#9ca3af; line-height:1.7; background:#f8fafc; border-radius:0 0 12px 12px; }
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <b>Mockup v1: /impact/measurement</b> — "How We Measure Impact". Calmer sibling of the dashboard: no cinematic moment, one dark band (the engine room). Same design language.
+</div>
+
+<div class="page">
+  <div class="browser-bar">
+    <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+    <div class="urlbox">masinyusane.org/impact/measurement</div>
+  </div>
+
+  <!-- 1 HERO -->
+  <section class="hero">
+    <div class="marker"><span class="badge">1</span><span class="lbl">Hero</span></div>
+    <div class="kicker">Monitoring, Evaluation &amp; Data</div>
+    <h1>We measure learning, <span class="grad">not just activity.</span></h1>
+    <p class="sub">Daily session logs, formal assessments, and mentor observations — triangulated for every child, every week. This page explains how the numbers on our impact dashboard are made, checked, and challenged.</p>
+    <div class="pulse-strip">
+      <div class="pulse"><div class="dotg"></div><div class="pl"><b>Sessions synced nightly</b>from every classroom</div></div>
+      <div class="pulse"><div class="dotg"></div><div class="pl"><b>3 assessment rounds</b>baseline · midline · endline</div></div>
+      <div class="pulse"><div class="dotg"></div><div class="pl"><b>Mentors in schools weekly</b>observing and coaching</div></div>
+    </div>
+  </section>
+
+  <!-- 2 EVIDENCE STREAMS -->
+  <section class="streams">
+    <div class="marker"><span class="badge">2</span><span class="lbl">Three evidence streams</span></div>
+    <div class="kicker">The system</div>
+    <h2>Three independent streams of evidence.</h2>
+    <div class="stream-row">
+      <div class="stream">
+        <div class="num">STREAM 01</div>
+        <h3>Daily sessions</h3>
+        <p>Every lesson logged by the coach who taught it: letters and skills covered, group composition, attendance, duration.</p>
+        <div class="what"><b>Answers:</b> are children receiving instruction — the right instruction, at the right pace?</div>
+      </div>
+      <div class="stream">
+        <div class="num">STREAM 02</div>
+        <h3>Formal assessments</h3>
+        <p>One-minute EGRA letter fluency plus reading, writing and nine numeracy skills — at baseline, midline and endline, child by child.</p>
+        <div class="what"><b>Answers:</b> are children actually learning?</div>
+      </div>
+      <div class="stream">
+        <div class="num">STREAM 03</div>
+        <h3>Mentor visits</h3>
+        <p>Trained mentors observe sessions in classrooms, score implementation quality, coach the youth, and log action items.</p>
+        <div class="what"><b>Answers:</b> why are the numbers what they are — and what do we do next?</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3 TRIANGULATION -->
+  <section class="tri">
+    <div class="marker"><span class="badge">3</span><span class="lbl">Triangulation</span></div>
+    <div class="copy">
+      <div class="kicker">Why three streams</div>
+      <h2>Each stream checks the other two.</h2>
+      <p>High session counts with low learning gains? Mentor observations tell us whether the problem is pace, group composition, or fidelity. Strong assessment results? Session logs confirm the dosage that produced them.</p>
+      <p>And when two fully independent measurement methods agree, we trust both more.</p>
+      <div class="corr"><span>Letters Known &times; EGRA improvement: ρ = 0.93</span></div>
+    </div>
+    <div class="tri-diagram">
+      <svg class="trilines" viewBox="0 0 480 360">
+        <line x1="240" y1="80" x2="110" y2="270" stroke="#e7e9ef" stroke-width="2"/>
+        <line x1="240" y1="80" x2="370" y2="270" stroke="#e7e9ef" stroke-width="2"/>
+        <line x1="110" y1="270" x2="370" y2="270" stroke="#e7e9ef" stroke-width="2"/>
+      </svg>
+      <div class="tnode" style="top:16px;left:50%;transform:translateX(-50%);">
+        <div class="tc">&#9998;</div><div class="tl2">Daily sessions</div><div class="ts">dosage &amp; content</div>
+      </div>
+      <div class="tnode" style="bottom:14px;left:2%;">
+        <div class="tc">&#9201;</div><div class="tl2">Assessments</div><div class="ts">learning outcomes</div>
+      </div>
+      <div class="tnode" style="bottom:14px;right:2%;">
+        <div class="tc">&#128065;</div><div class="tl2">Mentor visits</div><div class="ts">quality &amp; context</div>
+      </div>
+      <div class="tcenter"><b>Every child</b><span>one evidence record</span></div>
+    </div>
+  </section>
+
+  <!-- 4 COLLECTION TO ACTION -->
+  <section class="cycle">
+    <div class="marker"><span class="badge">4</span><span class="lbl">From collection to action</span></div>
+    <div class="kicker">The loop</div>
+    <h2>Data that changes next week's teaching.</h2>
+    <p class="lede">The point of measurement is not the report at the end of the year. It is the coaching conversation that happens days after the data lands.</p>
+    <div class="steps2">
+      <div class="step2"><div class="sn">01</div><div class="st">Collect</div><div class="sd">Sessions, assessments, visits — captured digitally in classrooms</div></div>
+      <div class="step2"><div class="sn">02</div><div class="st">Clean</div><div class="sd">Nightly syncs, validation, quality flags</div></div>
+      <div class="step2"><div class="sn">03</div><div class="st">Analyze</div><div class="sd">Child, group, school and coach level dashboards</div></div>
+      <div class="step2 hot"><div class="sn">04</div><div class="st">Coach</div><div class="sd">Mentors act on what the data shows, child by child</div></div>
+      <div class="step2"><div class="sn">05</div><div class="st">Adapt</div><div class="sd">Groups re-formed, pacing adjusted, pilots refined</div></div>
+      <div class="step2"><div class="sn">06</div><div class="st">Report</div><div class="sd">Verified results published to funders and government</div></div>
+    </div>
+    <div class="loop">&#8635; repeats weekly during the school year</div>
+  </section>
+
+  <!-- 5 ASSESSMENT FRAMEWORK -->
+  <section class="framework">
+    <div class="marker"><span class="badge">5</span><span class="lbl">Assessment framework</span></div>
+    <div class="kicker">What we measure</div>
+    <h2>Every skill that makes a reader — and a counter.</h2>
+    <div class="fw-grid">
+      <div class="fw">
+        <h3>Literacy — 11 skills per child</h3>
+        <div class="fsub">EGRA-anchored, assessed three times a year</div>
+        <div class="chips">
+          <span class="chip hl">Letter sounds /min</span><span class="chip">Story comprehension</span>
+          <span class="chip">First sounds</span><span class="chip">Listen: words</span>
+          <span class="chip">Write letters</span><span class="chip">Read words</span>
+          <span class="chip">Read sentences</span><span class="chip">Read story</span>
+          <span class="chip">Write CVCs</span><span class="chip">Write sentences</span><span class="chip">Write story</span>
+        </div>
+        <div class="fmeta">Improvement reported four ways: raw points · standardised (0&ndash;10) · percent change · learning gain %. The one-minute letter task is the anchor — it is the strongest single predictor of future reading.</div>
+      </div>
+      <div class="fw">
+        <h3>Numeracy — 9 components</h3>
+        <div class="fsub">Yazi Amanani assessment, standardised to /10 per component</div>
+        <div class="chips">
+          <span class="chip hl">Counting aloud</span><span class="chip">Number recognition</span>
+          <span class="chip">Counting &amp; matching</span><span class="chip">Write numbers</span>
+          <span class="chip">More / less than</span><span class="chip">Missing numbers</span>
+          <span class="chip">Sums to 10</span><span class="chip">Word problems</span><span class="chip">Add / subtract</span>
+        </div>
+        <div class="fmeta">Standardising each component to 10 points lets progress be compared fairly across skills — and shows whether gains come from everywhere or only the easy wins.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6 BENCHMARKS -->
+  <section class="bench2">
+    <div class="marker"><span class="badge">6</span><span class="lbl">Benchmarks</span></div>
+    <div class="copy">
+      <div class="kicker">The bar we measure against</div>
+      <h2>National benchmarks, by language and grade.</h2>
+      <p>We don't grade our own homework. Every result is measured against South Africa's published early-grade reading benchmarks.</p>
+      <p>The Grade 1 letter-sound benchmark is the one that decides reading futures — it anchors our dashboard.</p>
+    </div>
+    <div class="btable">
+      <div class="brow head"><div class="c1">Benchmark</div><div class="c2">Target</div><div class="c3">Why it matters</div></div>
+      <div class="brow hl"><div class="c1">isiXhosa Gr 1 letter sounds</div><div class="c2">40 / min</div><div class="c3">The reading-readiness threshold</div></div>
+      <div class="brow"><div class="c1">isiXhosa Gr 2 passage</div><div class="c2">20 wpm</div><div class="c3">First fluency milestone</div></div>
+      <div class="brow"><div class="c1">isiXhosa Gr 3 passage</div><div class="c2">35 wpm</div><div class="c3">Reading to learn begins</div></div>
+      <div class="brow"><div class="c1">English Gr 2 passage</div><div class="c2">30 wpm</div><div class="c3">FAL fluency baseline</div></div>
+      <div class="brow"><div class="c1">English Gr 3 passage</div><div class="c2">50 wpm</div><div class="c3">On track for Gr 4 switch</div></div>
+      <div class="brow"><div class="c1">English Gr 4 passage</div><div class="c2">70 wpm</div><div class="c3">Full curriculum access</div></div>
+    </div>
+  </section>
+
+  <!-- 7 INFRASTRUCTURE -->
+  <section class="infra">
+    <div class="marker"><span class="badge">7</span><span class="lbl">The engine room — only dark band</span></div>
+    <div class="kicker">Data infrastructure</div>
+    <h2>From spreadsheets to a live data system.</h2>
+    <p class="lede">Four years of deliberate engineering: every phase replaced manual work with automation, and every phase made the data faster, cleaner, and harder to fudge.</p>
+    <div class="phases">
+      <div class="phase"><div class="pn">PHASE 1</div><h3>Manual exports</h3><p>CSV and Excel files, assembled by hand each term.</p></div>
+      <div class="phase"><div class="pn">PHASE 2</div><h3>API integration</h3><p>Session and assessment capture flows in automatically from classroom tools.</p></div>
+      <div class="phase"><div class="pn">PHASE 3</div><h3>Database backbone</h3><p>Production tables for assessments, sessions and mentor visits.</p></div>
+      <div class="phase now"><div class="pn">PHASE 4 — NOW</div><h3>Live &amp; optimised</h3><p>Nightly syncs power live dashboards for programme management.</p></div>
+    </div>
+    <div class="live">
+      <div class="lstat"><b>9</b><span>production database tables</span></div>
+      <div class="lstat"><b>Nightly</b><span>automatic data syncs</span></div>
+      <div class="lstat"><b>13+</b><span>live dashboard pages</span></div>
+      <div class="lstat"><b>3</b><span>languages of instruction tracked</span></div>
+    </div>
+    <details class="technote">
+      <summary>Technical note for due-diligence readers</summary>
+      <div class="tn-body">
+        2026 assessments sync from the TeamPact API via a two-step resolution: survey responses provide a group ID, which is resolved to class and programme; grade derives from class name, with learner-baseline fallback for letter-group labels. ECD baseline 2026 lacked participant IDs, so the ECD midline comparison is cross-sectional rather than matched-learner — and is labelled as such wherever it appears. Historical 2023/24 data is served from Parquet archives. Full data-source documentation is available in the due-diligence pack.
+      </div>
+    </details>
+  </section>
+
+  <!-- 8 QUALITY & PRIVACY -->
+  <section class="quality">
+    <div class="marker"><span class="badge">8</span><span class="lbl">Quality &amp; privacy</span></div>
+    <div class="qcard">
+      <h3>We flag our own problems first.</h3>
+      <p>Automated quality checks run across implementation data, flagging patterns that may reduce learning quality before they show up in results.</p>
+      <div class="qex"><b>Example flag:</b> a coach advancing groups to new letters with no review built in — caught by the "moving too fast" check, resolved through a mentor visit, not a report at year end.</div>
+    </div>
+    <div class="qcard">
+      <h3>Children's privacy is a design constraint.</h3>
+      <p>Public dashboards show aggregate, anonymized results only. Names and sensitive fields are masked in every unauthenticated view; detailed records live behind authenticated, role-based access for programme teams.</p>
+      <div class="qex"><b>In practice:</b> the child profile on our impact page uses a changed name and a guardian-consented photo — POPIA compliance is checked before anything is published.</div>
+    </div>
+  </section>
+
+  <!-- 9 LEARNING AGENDA -->
+  <section class="agenda">
+    <div class="marker"><span class="badge">9</span><span class="lbl">Learning agenda</span></div>
+    <div class="kicker">What we're testing</div>
+    <h2>The questions we're trying to answer next.</h2>
+    <p class="lede">A measurement system that only confirms what you already believe is decoration. Each year we run deliberate pilots against open questions.</p>
+    <div class="qs">
+      <div class="aq"><b>Early start</b>How much of the Grade 1 gap can ECD programmes close before school even begins?</div>
+      <div class="aq"><b>Model intensity</b>Full-time vs part-time coaches: where is the learning-per-rand frontier?</div>
+      <div class="aq"><b>Government scale</b>Do results hold when delivery runs through provincial teaching assistants?</div>
+    </div>
+  </section>
+
+  <!-- 10 EXPLORE -->
+  <section class="explore">
+    <div class="marker"><span class="badge">10</span><span class="lbl">Explore</span></div>
+    <h2>See the system for yourself.</h2>
+    <div class="ex-grid">
+      <div class="ex"><b>Impact dashboard</b><span>The results this system produces.</span><div class="go">/impact &rarr;</div></div>
+      <div class="ex"><b>Live data portal</b><span>The same dashboards our team uses daily.</span><div class="go">data.masinyusane.org &rarr;</div></div>
+      <div class="ex"><b>Annual reports</b><span>Audited results, year by year.</span><div class="go">View reports &rarr;</div></div>
+      <div class="ex"><b>Due-diligence pack</b><span>Methodology, data dictionary, evaluation designs.</span><div class="go">Request pack &rarr;</div></div>
+    </div>
+  </section>
+
+  <div class="pagefoot">
+    Numbers shown (9 tables, 13+ pages, benchmarks) come from portal documentation and will flow through the same published-numbers store as the dashboard. Wordcount target: this page should read in under 4 minutes.
+  </div>
+</div>
+
+</body>
+</html>
