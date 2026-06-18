@@ -1,6 +1,10 @@
 from django.contrib import admin
 from django.utils.html import format_html
-from .models import School, Youth, Child, Mentor, MentorVisit, YeboVisit, ThousandStoriesVisit, NumeracyVisit, Session, AirtableSyncLog, SchoolClosure, StaffAbsence
+from .models import (
+    School, Youth, Child, Mentor, MentorVisit, YeboVisit, ThousandStoriesVisit,
+    NumeracyVisit, Session, AirtableSyncLog, SchoolClosure, StaffAbsence,
+    PublishedStat,
+)
 
 @admin.register(School)
 class SchoolAdmin(admin.ModelAdmin):
@@ -336,3 +340,16 @@ class StaffAbsenceAdmin(admin.ModelAdmin):
     ordering = ('-date',)
     # youth_uid is populated from the selected youth on save.
     readonly_fields = ('youth_uid', 'created_at', 'updated_at')
+
+
+@admin.register(PublishedStat)
+class PublishedStatAdmin(admin.ModelAdmin):
+    list_display = ('key', 'value', 'label', 'group', 'as_of', 'is_published')
+    list_filter = ('is_published', 'group', 'comparison_type')
+    search_fields = ('key', 'label', 'source_system')
+    list_editable = ('is_published',)
+    fieldsets = (
+        ('Identity', {'fields': ('key', 'group', 'sort_order', 'is_published')}),
+        ('Value', {'fields': ('value', 'numeric_value', 'numeric_value_secondary', 'label', 'description')}),
+        ('Provenance', {'fields': ('source_system', 'population', 'comparison_type', 'as_of', 'methodology_note')}),
+    )

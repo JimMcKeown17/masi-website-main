@@ -172,6 +172,53 @@ class TestEtlPreviewEndpoint(TestCase):
         self.assertEqual(data['sample_rows'][0]['name'], 'Test School')
 
 
+class PublishedStatTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+
+    def _make(self, **kw):
+        from api.models import PublishedStat
+
+        defaults = dict(
+            key="test_stat",
+            value="42%",
+            numeric_value=42.0,
+            label="Test stat",
+            source_system="Test source",
+            population="Test population",
+            comparison_type="none",
+            as_of="2026-06-01",
+            methodology_note="Test note",
+            group="test_group",
+            sort_order=1,
+            is_published=True,
+        )
+        defaults.update(kw)
+        return PublishedStat.objects.create(**defaults)
+
+    def test_model_str(self):
+        stat = self._make()
+        self.assertEqual(str(stat), "test_stat = 42%")
+
+    def test_endpoint_returns_published_only(self):
+        self._make(key="pub", group="g1", sort_order=2)
+        self._make(key="pub_first", group="g1", sort_order=1)
+        self._make(key="hidden", is_published=False)
+
+        res = self.client.get("/api/impact/published-stats/")
+
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertIn("pub", data["stats"])
+        self.assertNotIn("hidden", data["stats"])
+        self.assertEqual(data["groups"]["g1"], ["pub_first", "pub"])
+        self.assertEqual(data["verified_through"], "2026-06-01")
+
+    def test_endpoint_requires_no_auth(self):
+        res = self.client.get("/api/impact/published-stats/")
+        self.assertEqual(res.status_code, 200)
+
+
 class TestYouthDetailAbsences(TestCase):
     """youth_sessions_detail surfaces the youth's in-window StaffAbsence rows,
     but only to ADMIN / PROJECT MANAGER (absence reason/note is HR-sensitive)."""

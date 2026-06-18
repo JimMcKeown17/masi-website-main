@@ -1521,3 +1521,44 @@ class StaffAbsence(models.Model):
 
     def __str__(self):
         return f"{self.date} {self.youth_uid} ({self.reason})"
+
+
+class PublishedStat(models.Model):
+    """Hand-approved public stat for the donor-facing impact pages.
+
+    Every number rendered on /impact/ comes from a row here. Updating a row is
+    an editorial act (Django admin, with history) -- never a pipeline side effect.
+    """
+
+    COMPARISON_CHOICES = [
+        ('none', 'None'),
+        ('comparison_group', 'Comparison group'),
+        ('control_group', 'Control group'),
+        ('benchmark', 'Benchmark'),
+    ]
+
+    key = models.SlugField(max_length=80, unique=True)
+    value = models.CharField(max_length=40, help_text="Display string, e.g. '19,444' or '53%'")
+    numeric_value = models.FloatField(null=True, blank=True)
+    numeric_value_secondary = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="Second number for baseline/endline pairs (numeric_value=endline, secondary=baseline)",
+    )
+    label = models.CharField(max_length=120)
+    description = models.TextField(blank=True, default="")
+    source_system = models.CharField(max_length=200)
+    population = models.CharField(max_length=200, blank=True, default="")
+    comparison_type = models.CharField(max_length=20, choices=COMPARISON_CHOICES, default='none')
+    as_of = models.DateField()
+    methodology_note = models.TextField(blank=True, default="")
+    group = models.CharField(max_length=60, blank=True, default="")
+    sort_order = models.IntegerField(default=0)
+    is_published = models.BooleanField(default=False)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['group', 'sort_order']
+
+    def __str__(self):
+        return f"{self.key} = {self.value}"

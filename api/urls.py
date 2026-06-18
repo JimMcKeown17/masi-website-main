@@ -30,6 +30,9 @@ urlpatterns = [
 
     path("me/", views.me, name="me"),
 
+    # Public impact dashboard (no auth -- aggregate, hand-approved stats only)
+    path('impact/published-stats/', views.published_stats, name='published_stats'),
+
     # ETL preview
     path('etl-status/', views.etl_status, name='etl_status'),
     path('etl-preview/<str:table_name>/', views.etl_preview, name='etl_preview'),

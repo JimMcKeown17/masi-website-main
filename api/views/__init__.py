@@ -4,6 +4,7 @@ from .thousand_stories_visits import ThousandStoriesVisitListCreateAPIView, Thou
 from .numeracy_visits import NumeracyVisitListCreateAPIView, NumeracyVisitDetailAPIView
 from .lookups import SchoolListAPIView, MentorListAPIView
 from .info import api_info, me
+from .impact import published_stats
 from .dashboard import dashboard_summary
 from .recent_visits import recent_visits
 from .etl_preview import etl_status, etl_preview
@@ -36,6 +37,7 @@ __all__ = [
     'MentorListAPIView',
     'api_info',
     'me',
+    'published_stats',
     'dashboard_summary',
     'recent_visits',
     'etl_status',
@@ -62,4 +64,3 @@ __all__ = [
     'absences_bulk',
     'absences_export',
 ]
-
