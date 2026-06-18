@@ -284,3 +284,33 @@ class TestYouthDetailAbsences(TestCase):
         )
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.json()['absences'], [])
+
+
+class SyncAirtableChildrenExtractRowTests(TestCase):
+    """extract_row unwraps the Airtable 'Teampact Participant ID' lookup (a
+    single-element list) to a scalar string, and tolerates missing/empty."""
+
+    def _cmd(self):
+        from api.management.commands.sync_airtable_children import Command
+        return Command()
+
+    def _record(self, **field_overrides):
+        fields = {'Mcode': 6191, 'Child UID': 'CH-6191'}
+        fields.update(field_overrides)
+        return {'id': 'rec123', 'fields': fields}
+
+    def test_participant_id_unwrapped_from_list(self):
+        row = self._cmd().extract_row(self._record(**{'Teampact Participant ID': ['386722']}))
+        self.assertEqual(row['participant_id'], '386722')
+
+    def test_participant_id_absent_is_none(self):
+        row = self._cmd().extract_row(self._record())
+        self.assertIsNone(row['participant_id'])
+
+    def test_participant_id_empty_list_is_none(self):
+        row = self._cmd().extract_row(self._record(**{'Teampact Participant ID': []}))
+        self.assertIsNone(row['participant_id'])
+
+    def test_required_fields_missing_returns_none(self):
+        row = self._cmd().extract_row({'id': 'rec', 'fields': {'Mcode': 1}})  # no Child UID
+        self.assertIsNone(row)

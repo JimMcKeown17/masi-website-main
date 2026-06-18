@@ -62,6 +62,7 @@ class Command(BaseCommand):
                     self.stdout.write(
                         f"  Sample: {f.get('Child UID')} | "
                         f"mcode={f.get('Mcode')} | "
+                        f"tp={f.get('Teampact Participant ID')} | "
                         f"{f.get('Canonical Full Name')} | "
                         f"years={f.get('Years')} | "
                         f"school_2025={f.get('2025 School')}"
@@ -129,7 +130,7 @@ class Command(BaseCommand):
                 new_objs.append(CanonicalChild(source_airtable_id=airtable_id, **row_data))
 
         update_fields = [
-            'child_uid', 'mcode', 'first_name', 'surname', 'full_name',
+            'child_uid', 'mcode', 'participant_id', 'first_name', 'surname', 'full_name',
             'gender', 'identity_confidence', 'years_active', 'programme',
             'school_2025', 'grade_2025', 'created_in_airtable',
         ]
@@ -168,9 +169,20 @@ class Command(BaseCommand):
         if not isinstance(programme, list):
             programme = [programme] if programme else []
 
+        # 'Teampact Participant ID' is an Airtable lookup -> a single-element list
+        # (e.g. ['386722']); unwrap to a scalar string. Join key to the Zazi backend.
+        tp = fields.get('Teampact Participant ID')
+        if isinstance(tp, list):
+            participant_id = str(tp[0]) if tp else None
+        elif tp:
+            participant_id = str(tp)
+        else:
+            participant_id = None
+
         return dict(
             child_uid=child_uid,
             mcode=int(mcode),
+            participant_id=participant_id,
             first_name=fields.get('Canonical First Name'),
             surname=fields.get('Canonical Surname'),
             full_name=fields.get('Canonical Full Name'),

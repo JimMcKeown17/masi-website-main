@@ -192,6 +192,10 @@ class CanonicalChild(models.Model):
     source_airtable_id = models.CharField(max_length=100, unique=True, db_index=True)
     child_uid = models.CharField(max_length=50, unique=True, db_index=True, help_text="CH-XXXXX format UID")
     mcode = models.IntegerField(unique=True, db_index=True, help_text="Stable integer child identifier")
+    participant_id = models.CharField(
+        max_length=50, blank=True, null=True, db_index=True,
+        help_text="TeamPact participant id (from Airtable 'Teampact Participant ID' lookup) -- join key to Zazi TeampactParticipant.participant_id",
+    )
     first_name = models.CharField(max_length=200, blank=True, null=True)
     surname = models.CharField(max_length=200, blank=True, null=True)
     full_name = models.CharField(max_length=400, blank=True, null=True)
