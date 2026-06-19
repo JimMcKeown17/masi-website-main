@@ -17,6 +17,7 @@ from api.school_programme import (
     refresh_school_programme_grid,
     rollup_to_published_stats,
 )
+from api.zazi_client import fetch_school_programme_export
 
 
 class Command(BaseCommand):
@@ -29,13 +30,25 @@ class Command(BaseCommand):
             default=None,
             help="Year to refresh (default: current year).",
         )
+        parser.add_argument(
+            "--skip-zazi",
+            action="store_true",
+            help="Explicitly skip the Zazi export (within-Masi only). Use during a "
+                 "Zazi maintenance window; otherwise the refresh fails closed if "
+                 "Zazi is unreachable rather than silently undercounting.",
+        )
 
     def handle(self, *args, **options):
         year = options["year"] or timezone.now().year
         sync_log = AirtableSyncLog.objects.create(sync_type="school_programme_grid")
         try:
+            # Fetch Zazi BEFORE opening the write transaction: a network failure
+            # then aborts with zero DB changes (fail-closed, prior grid intact).
+            zazi_export = None
+            if not options["skip_zazi"]:
+                zazi_export = fetch_school_programme_export(year)
             with transaction.atomic():
-                result = refresh_school_programme_grid(year)
+                result = refresh_school_programme_grid(year, zazi_export=zazi_export)
                 rollup = rollup_to_published_stats(year)
             sync_log.records_processed = result["schools_processed"]
             sync_log.records_created = result["rows_created"]
@@ -47,8 +60,8 @@ class Command(BaseCommand):
         self._report(result)
         self.stdout.write(
             self.style.SUCCESS(
-                f"Rollups (within-Masi, unpublished): "
-                f"{rollup['children_within_masi']:,} children, "
+                f"Rollups (Zazi-inclusive, unpublished): "
+                f"{rollup['children']:,} children, "
                 f"{rollup['sites_total']} sites "
                 f"({rollup['schools_primary']} primary / {rollup['schools_ecd']} ECD)."
             )
@@ -70,6 +83,8 @@ class Command(BaseCommand):
             ("Unknown site_type tokens", integ["unknown_site_type_tokens"]),
             ("Reach without identities", integ["reach_without_identities"]),
             ("Site-assigned youth with no school", integ["site_assigned_no_school"]),
+            ("Unmapped Zazi schools", integ.get("unmapped_zazi_schools")),
+            ("Unresolved Zazi participants", integ.get("unresolved_zazi_participants")),
         ]
         for label, value in warnings:
             if value:

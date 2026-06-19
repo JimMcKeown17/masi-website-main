@@ -742,11 +742,23 @@ class RefreshGridTests(TestCase):
 class RefreshGridCommandTests(TestCase):
     """The nightly management command: AirtableSyncLog logging + fail-closed."""
 
+    _FETCH = (
+        "api.management.commands.refresh_school_programme_grid"
+        ".fetch_school_programme_export"
+    )
+    _REFRESH = (
+        "api.management.commands.refresh_school_programme_grid"
+        ".refresh_school_programme_grid"
+    )
+
     def test_logs_success(self):
+        from unittest.mock import patch
         from django.core.management import call_command
         from api.models import AirtableSyncLog
 
-        call_command("refresh_school_programme_grid", "--year", "2026")
+        # Mock the Zazi fetch so the unit test never touches the network.
+        with patch(self._FETCH, return_value={"schools": []}):
+            call_command("refresh_school_programme_grid", "--year", "2026")
         log = AirtableSyncLog.objects.filter(
             sync_type="school_programme_grid"
         ).latest("started_at")
@@ -762,18 +774,15 @@ class RefreshGridCommandTests(TestCase):
             name="X", school_uid="SCH-1", type="Primary School", is_active=True
         )
 
-        def boom(year):
+        def boom(year, zazi_export=None):
             # A partial write, then a failure mid-refresh (e.g. an input vanished).
             SchoolProgrammeYear.objects.create(
                 school=school, programme="edutech", year=year
             )
             raise RuntimeError("required input missing")
 
-        target = (
-            "api.management.commands.refresh_school_programme_grid"
-            ".refresh_school_programme_grid"
-        )
-        with patch(target, side_effect=boom):
+        with patch(self._REFRESH, side_effect=boom), \
+                patch(self._FETCH, return_value={"schools": []}):
             with self.assertRaises(RuntimeError):
                 call_command("refresh_school_programme_grid", "--year", "2026")
 
@@ -787,6 +796,40 @@ class RefreshGridCommandTests(TestCase):
         ).latest("started_at")
         self.assertFalse(log.success)
         self.assertIn("required input missing", log.error_message)
+
+    def test_fails_closed_when_zazi_unreachable(self):
+        # Plan section 8.6: if Zazi is unreachable the refresh fails closed
+        # (no partial publish) rather than silently undercounting.
+        import requests
+        from unittest.mock import patch
+        from django.core.management import call_command
+        from api.models import AirtableSyncLog, SchoolProgrammeYear
+
+        with patch(self._FETCH, side_effect=requests.RequestException("zazi down")):
+            with self.assertRaises(requests.RequestException):
+                call_command("refresh_school_programme_grid", "--year", "2026")
+
+        self.assertFalse(SchoolProgrammeYear.objects.exists())  # nothing written
+        log = AirtableSyncLog.objects.filter(
+            sync_type="school_programme_grid"
+        ).latest("started_at")
+        self.assertFalse(log.success)
+        self.assertIn("zazi down", log.error_message)
+
+    def test_skip_zazi_flag_skips_the_fetch(self):
+        from unittest.mock import patch
+        from django.core.management import call_command
+        from api.models import AirtableSyncLog
+
+        with patch(self._FETCH) as mfetch:
+            call_command(
+                "refresh_school_programme_grid", "--year", "2026", "--skip-zazi"
+            )
+            mfetch.assert_not_called()
+        log = AirtableSyncLog.objects.filter(
+            sync_type="school_programme_grid"
+        ).latest("started_at")
+        self.assertTrue(log.success)
 
 
 class RollupToPublishedStatsTests(TestCase):
@@ -815,7 +858,7 @@ class RollupToPublishedStatsTests(TestCase):
         self._stats(self._school("A", "SCH-A", "Primary School"), 100)
         self._stats(self._school("B", "SCH-B", "ECDC"), 40)
         result = rollup_to_published_stats(self.YEAR)
-        self.assertEqual(result["children_within_masi"], 140)
+        self.assertEqual(result["children"], 140)
 
     def test_active_schools_split_by_type(self):
         from api.school_programme import rollup_to_published_stats
@@ -835,10 +878,10 @@ class RollupToPublishedStatsTests(TestCase):
 
         self._stats(self._school("A", "SCH-A", "Primary School"), 100)
         rollup_to_published_stats(self.YEAR)
-        stat = PublishedStat.objects.get(key="grid_children_within_masi")
+        stat = PublishedStat.objects.get(key="grid_children")
         self.assertEqual(stat.numeric_value, 100)
         self.assertFalse(stat.is_published)  # internal, not donor-facing
-        self.assertIn("within-masi", stat.methodology_note.lower())
+        self.assertIn("zazi-inclusive", stat.methodology_note.lower())
 
     def test_does_not_touch_live_hero_keys(self):
         from api.models import PublishedStat
@@ -863,7 +906,7 @@ class RollupToPublishedStatsTests(TestCase):
         rollup_to_published_stats(self.YEAR)
         rollup_to_published_stats(self.YEAR)
         self.assertEqual(
-            PublishedStat.objects.filter(key="grid_children_within_masi").count(), 1
+            PublishedStat.objects.filter(key="grid_children").count(), 1
         )
 
 
@@ -982,6 +1025,161 @@ class GridServiceTests(TestCase):
             ).count(),
             2,
         )
+
+
+class ResolveZaziExportTests(TestCase):
+    """Increment 2: resolve a Zazi per-school export into Masi identities."""
+
+    def setUp(self):
+        self._n = 0
+
+    def _canon(self, child_uid, participant_id):
+        from api.models import CanonicalChild
+
+        self._n += 1
+        return CanonicalChild.objects.create(
+            source_airtable_id=f"z-{self._n}", child_uid=child_uid,
+            mcode=970000 + self._n, participant_id=str(participant_id),
+        )
+
+    def test_resolves_participant_ids_and_counts_unresolved(self):
+        from api.school_programme import resolve_zazi_export
+
+        self._canon("CH-1", 5001)
+        self._canon("CH-2", 5002)
+        export = {"schools": [{
+            "program_name": "X", "school_uid": "SCH-1", "child_count": 3,
+            "children": [{"participant_id": 5001}, {"participant_id": 5002},
+                         {"participant_id": 9999}],
+        }]}
+        result = resolve_zazi_export(export)
+        entry = result["by_uid"]["SCH-1"]
+        self.assertEqual(entry["reach"], 3)  # full reach, incl unresolved
+        self.assertEqual(entry["child_uids"], {"CH-1", "CH-2"})
+        self.assertEqual(entry["unresolved"], 1)  # 9999 not in canonical
+
+    def test_unmapped_schools_listed(self):
+        from api.school_programme import resolve_zazi_export
+
+        export = {"schools": [{
+            "program_name": "Unmapped", "school_uid": None, "child_count": 5,
+            "children": [{"participant_id": 1}],
+        }]}
+        result = resolve_zazi_export(export)
+        self.assertIn("Unmapped", result["unmapped_schools"])
+        self.assertEqual(result["by_uid"], {})
+
+
+class FetchSchoolProgrammeExportTests(SimpleTestCase):
+    """Increment 2: the zazi_client call to the ZZ export endpoint."""
+
+    def test_calls_endpoint_with_auth_and_year(self):
+        from unittest.mock import patch, MagicMock
+        from api import zazi_client
+
+        with patch.dict("os.environ", {"ZAZI_API_BASE_URL": "http://zz.test",
+                                       "ZAZI_INTERNAL_API_SECRET": "sek"}):
+            with patch("api.zazi_client.requests.get") as mget:
+                resp = MagicMock()
+                resp.json.return_value = {"schools": []}
+                mget.return_value = resp
+                result = zazi_client.fetch_school_programme_export(2026)
+        args, kwargs = mget.call_args
+        self.assertIn("/api/school-programme-export/", args[0])
+        self.assertEqual(kwargs["params"], {"year": 2026})
+        self.assertEqual(kwargs["headers"]["X-Internal-Auth"], "sek")
+        self.assertEqual(result, {"schools": []})
+
+
+class RefreshGridZaziTests(TestCase):
+    """Increment 2: the cron folds Zazi reach + identities into the grid."""
+
+    YEAR = 2026
+
+    def setUp(self):
+        from api.models import School
+
+        self.school = School.objects.create(
+            name="Z Primary", school_uid="SCH-09600",
+            type="Primary School", is_active=True,
+        )
+        self._n = 0
+
+    def _canon(self, child_uid, participant_id):
+        from api.models import CanonicalChild
+
+        self._n += 1
+        return CanonicalChild.objects.create(
+            source_airtable_id=f"zc-{self._n}", child_uid=child_uid,
+            mcode=980000 + self._n, participant_id=str(participant_id),
+        )
+
+    def test_zazi_reach_and_identities_folded(self):
+        from api.models import SchoolProgrammeYear, SchoolYearStats
+        from api.school_programme import refresh_school_programme_grid
+
+        self._canon("CH-Z1", 7001)
+        self._canon("CH-Z2", 7002)
+        export = {"schools": [{
+            "program_name": "Z Primary", "school_uid": "SCH-09600", "child_count": 3,
+            "children": [{"participant_id": 7001}, {"participant_id": 7002},
+                         {"participant_id": 7003}],  # 7003 unresolved
+        }]}
+        refresh_school_programme_grid(self.YEAR, zazi_export=export)
+        zrow = SchoolProgrammeYear.objects.get(
+            school=self.school, programme="zazi_izandi", year=self.YEAR
+        )
+        self.assertEqual(zrow.children_count, 3)  # reach = full child_count
+        self.assertEqual(zrow.count_source, "computed")
+        stats = SchoolYearStats.objects.get(school=self.school, year=self.YEAR)
+        self.assertEqual(stats.unique_beneficiaries, 2)  # only resolved CH-Z1/Z2
+
+    def test_zazi_dedups_against_masi(self):
+        from api.models import LiteracySession2026, SchoolYearStats
+        from api.school_programme import refresh_school_programme_grid
+
+        self._canon("CH-SHARED", 7001)
+        self._canon("CH-ZONLY", 7002)
+        LiteracySession2026.objects.create(
+            source_airtable_id="zl-1", school_uid="SCH-09600",
+            session_date="2026-02-01", child_uid_1="CH-SHARED", child_uid_2="CH-MASI",
+        )
+        export = {"schools": [{
+            "program_name": "Z", "school_uid": "SCH-09600", "child_count": 2,
+            "children": [{"participant_id": 7001}, {"participant_id": 7002}],
+        }]}
+        refresh_school_programme_grid(self.YEAR, zazi_export=export)
+        stats = SchoolYearStats.objects.get(school=self.school, year=self.YEAR)
+        # literacy {CH-SHARED, CH-MASI} U zazi {CH-SHARED, CH-ZONLY} = 3 (SHARED once)
+        self.assertEqual(stats.unique_beneficiaries, 3)
+
+    def test_unresolved_and_unmapped_flagged(self):
+        from api.school_programme import refresh_school_programme_grid
+
+        export = {"schools": [
+            {"program_name": "Z", "school_uid": "SCH-09600", "child_count": 1,
+             "children": [{"participant_id": 9999}]},
+            {"program_name": "Unmapped ECD", "school_uid": None, "child_count": 4,
+             "children": []},
+        ]}
+        result = refresh_school_programme_grid(self.YEAR, zazi_export=export)
+        self.assertEqual(result["integrity"]["unresolved_zazi_participants"], 1)
+        self.assertIn("Unmapped ECD", result["integrity"]["unmapped_zazi_schools"])
+
+    def test_no_zazi_export_leaves_zazi_staffing_only(self):
+        # Without an export, zazi children are NOT computed (Increment-1 behaviour).
+        from api.models import SchoolProgrammeYear
+        from api.school_programme import refresh_school_programme_grid
+
+        self.school.site_type = "Zazi Izandi"
+        self.school.save()
+        refresh_school_programme_grid(self.YEAR)  # no zazi_export
+        zrow = SchoolProgrammeYear.objects.filter(
+            school=self.school, programme="zazi_izandi", year=self.YEAR
+        ).first()
+        if zrow:  # row may exist from site_type seed
+            self.assertIsNone(zrow.children_count)
+            self.assertEqual(zrow.count_source, "manual")
 
 
 class GridEndpointAuthzTests(TestCase):

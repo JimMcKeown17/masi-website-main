@@ -347,6 +347,63 @@ def programmes_from_site_type(site_type):
     return {"programmes": programmes, "unknown_tokens": unknown_tokens}
 
 
+# --- Zazi cross-backend dedup (Increment 2) ----------------------------------
+
+def resolve_zazi_export(zazi_export):
+    """Resolve a Zazi per-school export into Masi identities.
+
+    Returns:
+      by_uid: {school_uid: {'reach': int, 'child_uids': set, 'unresolved': int}}.
+        reach = raw distinct Zazi children (complete, needs no canonical);
+        child_uids = those resolved to CanonicalChild via participant_id (the
+        deduppable subset); unresolved = participants not yet in canonical (the
+        reconciliation gap).
+      unmapped_schools: [program_name, ...] -- ZZ schools with no Masi school_uid.
+    """
+    from api.models import CanonicalChild
+
+    schools = (zazi_export or {}).get("schools", [])
+    all_pids = set()
+    for school in schools:
+        if not school.get("school_uid"):
+            continue
+        for child in school.get("children", []):
+            pid = child.get("participant_id")
+            if pid is not None:
+                all_pids.add(str(pid))
+
+    # One query resolves every participant_id -> canonical child_uid.
+    pid_to_uid = dict(
+        CanonicalChild.objects
+        .filter(participant_id__in=all_pids)
+        .exclude(child_uid__isnull=True)
+        .values_list("participant_id", "child_uid")
+    )
+
+    by_uid = {}
+    unmapped_schools = []
+    for school in schools:
+        uid = school.get("school_uid")
+        if not uid:
+            unmapped_schools.append(school.get("program_name"))
+            continue
+        child_uids = set()
+        unresolved = 0
+        for child in school.get("children", []):
+            pid = child.get("participant_id")
+            resolved = pid_to_uid.get(str(pid)) if pid is not None else None
+            if resolved:
+                child_uids.add(resolved)
+            else:
+                unresolved += 1
+        by_uid[uid] = {
+            "reach": school.get("child_count", 0),
+            "child_uids": child_uids,
+            "unresolved": unresolved,
+        }
+    return {"by_uid": by_uid, "unmapped_schools": unmapped_schools}
+
+
 # --- the nightly refresh orchestrator (section 8) -----------------------------
 
 def recompute_school_year_stats(school, year, now=None, identities=None,
@@ -374,16 +431,17 @@ def recompute_school_year_stats(school, year, now=None, identities=None,
             .values_list("programme", flat=True)
         )
 
-    identity_union = set()
-    for programme in COMPUTED_PROGRAMMES:
-        identity_union |= identities.get(programme, set())
+    # Union over ALL identity sets the caller supplies -- within-Masi only on the
+    # edit path, masi + zazi on the nightly cron path (see the module docstring).
+    identity_sets = list(identities.values())
+    identity_union = set().union(*identity_sets) if identity_sets else set()
     has_whole_school = any(
         is_whole_school(programme, site_type) for programme in programmes_present
     )
 
     stats, _ = SchoolYearStats.objects.get_or_create(school=school, year=year)
     unique = unique_beneficiaries_from_identities(
-        [identities.get(p, set()) for p in COMPUTED_PROGRAMMES],
+        identity_sets,
         has_whole_school,
         stats.total_kids_in_school,
     )
@@ -399,7 +457,7 @@ def recompute_school_year_stats(school, year, now=None, identities=None,
     }
 
 
-def refresh_school_programme_grid(year):
+def refresh_school_programme_grid(year, zazi_export=None):
     """Recompute and write the system-owned grid columns for `year`.
 
     Composes the computation functions above. Writes ONLY system-owned columns
@@ -419,6 +477,8 @@ def refresh_school_programme_grid(year):
 
     now = timezone.now()
     youth = compute_youth_active()
+    zazi = resolve_zazi_export(zazi_export) if zazi_export else {"by_uid": {}, "unmapped_schools": []}
+    zazi_by_uid = zazi["by_uid"]
 
     # Invert the youth snapshot to programmes-present-per-school.
     youth_by_school = defaultdict(dict)
@@ -431,6 +491,8 @@ def refresh_school_programme_grid(year):
         "site_assigned_no_school": dict(youth["site_assigned_no_school"]),
         "unknown_site_type_tokens": set(),
         "reach_without_identities": [],
+        "unmapped_zazi_schools": list(zazi["unmapped_schools"]),
+        "unresolved_zazi_participants": 0,
     }
     rows_created = 0
     rows_updated = 0
@@ -454,6 +516,13 @@ def refresh_school_programme_grid(year):
             else {MASI_LITERACY: set(), NUMERACY: set()}
         )
 
+        # Fold in Zazi (Increment 2): resolved identities join the dedup union;
+        # the full reach is written as the zazi_izandi children_count below.
+        zazi_here = zazi_by_uid.get(school.school_uid) if school.school_uid else None
+        if zazi_here is not None:
+            identities[ZAZI_IZANDI] = zazi_here["child_uids"]
+            integrity["unresolved_zazi_participants"] += zazi_here["unresolved"]
+
         youth_here = youth_by_school.get(school.id, {})
 
         # Programmes present = seeded (site_type) + youth-derived + computed-children.
@@ -461,6 +530,8 @@ def refresh_school_programme_grid(year):
         for programme in COMPUTED_PROGRAMMES:
             if identities.get(programme):
                 programmes_present.add(programme)
+        if zazi_here is not None:
+            programmes_present.add(ZAZI_IZANDI)
 
         existing = {
             row.programme: row
@@ -474,13 +545,19 @@ def refresh_school_programme_grid(year):
             system_fields = {
                 "youth_active": youth_active,
                 "count_basis": basis,
-                "count_source": source,
                 "as_of": now,
             }
             # Cron owns children_count ONLY for computed programmes (reach =
             # distinct identities). Manual programmes' counts belong to humans.
-            if source == COUNT_SOURCE_COMPUTED:
+            if programme == ZAZI_IZANDI and zazi_here is not None:
+                # Zazi reach is the full distinct child_count from TeamPact (may
+                # exceed the resolved identity set); it's computed only when we
+                # actually have Zazi data (else zazi_izandi stays staffing-only).
+                source = COUNT_SOURCE_COMPUTED
+                system_fields["children_count"] = zazi_here["reach"]
+            elif source == COUNT_SOURCE_COMPUTED:
                 system_fields["children_count"] = len(identities.get(programme, set()))
+            system_fields["count_source"] = source
 
             row = existing.get(programme)
             if row is None:
@@ -516,16 +593,18 @@ def refresh_school_programme_grid(year):
 
 # --- rollups -> PublishedStat (section 11.8) ----------------------------------
 
-# Increment 1 writes to NEW, unpublished keys (Jim, 2026-06-18). The numbers are
-# within-Masi only (no Zazi child counts yet), so publishing them onto the live
-# hero_* donor stats would regress them; they stay internal for reconciliation
-# until Increment 2 completes them and they can be promoted.
+# Writes to NEW, unpublished keys (Jim, 2026-06-18). Zazi-inclusive as of
+# Increment 2, but still gated on the child reconciliation gap, so they stay
+# internal (NOT on the live hero_* donor stats) until that gap closes and Jim
+# promotes them.
 _ROLLUP_GROUP = "grid_internal"
 _ROLLUP_SOURCE = "School Programme Grid (api.school_programme)"
-_WITHIN_MASI_NOTE = (
-    "Within-Masi only -- excludes Zazi iZandi child counts (lands in Increment 2). "
-    "Computed nightly from the School Programme Grid; for reconciliation, not "
-    "donor-published."
+_ROLLUP_NOTE = (
+    "Zazi-inclusive: within-Masi programmes (Literacy/Numeracy, identity-deduped) "
+    "plus Zazi iZandi (reach from TeamPact; cross-programme dedup for the Zazi "
+    "children resolved to canonical, the rest pending the child reconciliation). "
+    "Computed nightly from the School Programme Grid; unpublished -- not donor-facing "
+    "until the reconciliation gap closes."
 )
 
 
@@ -540,7 +619,7 @@ def _upsert_internal_stat(key, numeric, label, population, as_of):
             label=label,
             source_system=_ROLLUP_SOURCE,
             population=population,
-            methodology_note=_WITHIN_MASI_NOTE,
+            methodology_note=_ROLLUP_NOTE,
             as_of=as_of,
             is_published=False,
             group=_ROLLUP_GROUP,
@@ -549,8 +628,8 @@ def _upsert_internal_stat(key, numeric, label, population, as_of):
 
 
 def rollup_to_published_stats(year):
-    """Roll the grid up to PublishedStat: #1 children (within-Masi), #8 schools by
-    type, #9 total sites. Writes unpublished internal keys only.
+    """Roll the grid up to PublishedStat: #1 children (Zazi-inclusive), #8 schools
+    by type, #9 total sites. Writes unpublished internal keys only.
 
     A site is "active" if it has any child beneficiary this year: unique
     beneficiaries > 0, or a programme row carrying a positive children_count
@@ -569,7 +648,7 @@ def rollup_to_published_stats(year):
         ).values_list("school_id", flat=True)
     )
 
-    children_within_masi = 0
+    children_total = 0
     schools_primary = 0
     schools_ecd = 0
     for school in School.objects.filter(is_active=True):
@@ -579,7 +658,7 @@ def rollup_to_published_stats(year):
         unique = (stats.unique_beneficiaries if stats else None) or 0
         if unique <= 0 and school.id not in schools_with_child_counts:
             continue  # not an active site this year
-        children_within_masi += unique
+        children_total += unique
         site_type = normalize_site_type(school.type)
         if site_type == PRIMARY:
             schools_primary += 1
@@ -589,23 +668,23 @@ def rollup_to_published_stats(year):
     sites_total = schools_primary + schools_ecd
     as_of = timezone.now().date()
     _upsert_internal_stat(
-        "grid_children_within_masi", children_within_masi,
-        "Children on a Masi programme (within-Masi)", f"Within-Masi, {year}", as_of,
+        "grid_children", children_total,
+        "Children on a Masi programme", f"{year}", as_of,
     )
     _upsert_internal_stat(
         "grid_schools_primary", schools_primary,
-        "Active primary schools", f"Within-Masi, {year}", as_of,
+        "Active primary schools", f"{year}", as_of,
     )
     _upsert_internal_stat(
         "grid_schools_ecd", schools_ecd,
-        "Active ECD centres", f"Within-Masi, {year}", as_of,
+        "Active ECD centres", f"{year}", as_of,
     )
     _upsert_internal_stat(
         "grid_sites_total", sites_total,
-        "Total active sites", f"Within-Masi, {year}", as_of,
+        "Total active sites", f"{year}", as_of,
     )
     return {
-        "children_within_masi": children_within_masi,
+        "children": children_total,
         "schools_primary": schools_primary,
         "schools_ecd": schools_ecd,
         "sites_total": sites_total,
