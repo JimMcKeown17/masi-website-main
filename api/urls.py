@@ -53,6 +53,12 @@ urlpatterns = [
     path('wig/zazi/', views.wig_zazi, name='wig_zazi'),
     path('wig/detail/', views.wig_detail, name='wig_detail'),
 
+    # School Programme Grid (/operations)
+    path('school-programme-grid/', views.school_programme_grid, name='school_programme_grid'),
+    path('school-programme-grid/cell/<int:pk>/', views.update_grid_cell, name='spg_update_cell'),
+    path('school-programme-grid/stats/<int:pk>/', views.update_grid_stats, name='spg_update_stats'),
+    path('school-programme-grid/rollover/', views.rollover_grid, name='spg_rollover'),
+
     # Closure calendar (authoring: ADMIN / PROJECT MANAGER; export: shared-secret)
     path('closures/', views.ClosureListCreateAPIView.as_view(), name='closures'),
     path('closures/bulk/', views.closures_bulk, name='closures_bulk'),

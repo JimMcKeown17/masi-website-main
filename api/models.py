@@ -3,6 +3,14 @@ from django.contrib.auth.models import User
 from django.utils import timezone
 from django.core.validators import MinValueValidator, MaxValueValidator
 
+from api.school_programme import (
+    PROGRAMME_CHOICES,
+    COUNT_BASIS_CHOICES,
+    COUNT_BASIS_CHILD_LEVEL,
+    COUNT_SOURCE_CHOICES,
+    COUNT_SOURCE_MANUAL,
+)
+
 # Existing choices
 SCHOOL_TYPE_CHOICES = [
     ('ECDC', 'Early Childhood Development'),
@@ -1566,3 +1574,102 @@ class PublishedStat(models.Model):
 
     def __str__(self):
         return f"{self.key} = {self.value}"
+
+
+class SchoolProgrammeYear(models.Model):
+    """One school's state in one programme for one year (grain: school x programme x year).
+
+    Replaces the staff Google Sheet's per-programme columns. Some fields are
+    system-owned (written by the nightly cron) and some human-owned (typed in the
+    grid). The nightly cron must write ONLY system-owned fields -- never overwrite
+    a human edit. See _plans/site-programme-grid.md sections 4a / 8.
+    """
+
+    school = models.ForeignKey(
+        'School', on_delete=models.CASCADE, related_name='programme_years'
+    )
+    programme = models.CharField(max_length=30, choices=PROGRAMME_CHOICES)
+    year = models.IntegerField()
+
+    # children_count owner depends on count_source (computed vs manual).
+    children_count = models.IntegerField(null=True, blank=True)
+    count_basis = models.CharField(
+        max_length=20, choices=COUNT_BASIS_CHOICES, default=COUNT_BASIS_CHILD_LEVEL
+    )
+    count_source = models.CharField(
+        max_length=10, choices=COUNT_SOURCE_CHOICES, default=COUNT_SOURCE_MANUAL
+    )
+    percent_of_school = models.DecimalField(
+        max_digits=5, decimal_places=2, null=True, blank=True,
+        help_text="Only when count_basis = percent_of_school (e.g. 1000 Stories in primaries).",
+    )
+
+    youth_planned = models.IntegerField(
+        null=True, blank=True, help_text="Human: management's staffing allocation."
+    )
+    youth_active = models.IntegerField(
+        default=0, help_text="System: active youth on this programme at this school (cron)."
+    )
+
+    as_of = models.DateTimeField(
+        null=True, blank=True, help_text="Last cron refresh of the system-owned columns."
+    )
+    updated_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+'
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = (('school', 'programme', 'year'),)
+        ordering = ['school', 'programme']
+
+    def __str__(self):
+        return f"{self.school.name} / {self.programme} / {self.year}"
+
+
+class SchoolYearStats(models.Model):
+    """School-level facts for one year (grain: school x year).
+
+    Total enrolment + demographics are school properties, not per-programme, so
+    they live here rather than duplicated across every programme row.
+    Demographics: race is a human site estimate; gender (pct_female) and
+    unique_beneficiaries are system-derived. See sections 4b / 7.
+    """
+
+    school = models.ForeignKey(
+        'School', on_delete=models.CASCADE, related_name='year_stats'
+    )
+    year = models.IntegerField()
+
+    total_kids_in_school = models.IntegerField(
+        null=True, blank=True, help_text="Human: school enrolment."
+    )
+    pct_african = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    pct_coloured = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    pct_white = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    pct_female = models.DecimalField(
+        max_digits=5, decimal_places=2, null=True, blank=True,
+        help_text="System: % female across this school's deduped children (CanonicalChild.gender).",
+    )
+    demographic_source = models.CharField(
+        max_length=200, blank=True, default="",
+        help_text="Human: e.g. 'school estimate (Astra)'.",
+    )
+    unique_beneficiaries = models.IntegerField(
+        null=True, blank=True,
+        help_text="System: distinct child identities across the school's programmes (section 7).",
+    )
+
+    as_of = models.DateTimeField(null=True, blank=True)
+    updated_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+'
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = (('school', 'year'),)
+        ordering = ['school']
+        verbose_name_plural = 'School year stats'
+
+    def __str__(self):
+        return f"{self.school.name} / {self.year} stats"
