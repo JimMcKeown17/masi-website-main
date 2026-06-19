@@ -39,6 +39,26 @@ def fetch_zazi_programme_overview(cohort=None, timeout=30):
     return resp.json()
 
 
+def fetch_zazi_programmatic_impact(timeout=30):
+    """GET the Zazi backend's funder-portal Programmatic-impact payload.
+
+    Returns the two flagship Grade-1 Headline Results (matched baseline->midline
+    benchmark movement + treatment-vs-control), already computed and stamped
+    "as of" by the Zazi backend. Recomputed fresh per call (sub-second), so unlike
+    the WIG overview this needs no out-of-band snapshot; the frontend's ISR layer
+    provides caching and stale-serve resilience.
+    """
+    base = os.environ.get('ZAZI_API_BASE_URL', '').rstrip('/')
+    secret = os.environ.get('ZAZI_INTERNAL_API_SECRET', '')
+    resp = requests.get(
+        f'{base}/api/programmatic-impact-2026/',
+        headers={'X-Internal-Auth': secret},
+        timeout=timeout,
+    )
+    resp.raise_for_status()
+    return resp.json()
+
+
 # For a cohort-scoped overview, the *other* school type must be absent. Used to
 # detect an older Zazi backend that ignores ?cohort= and returns all schools.
 _CROSS_COHORT_COUNT = {'primary': 'total_schools_ecd', 'ecd': 'total_schools_primary'}

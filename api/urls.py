@@ -32,6 +32,7 @@ urlpatterns = [
 
     # Public impact dashboard (no auth -- aggregate, hand-approved stats only)
     path('impact/published-stats/', views.published_stats, name='published_stats'),
+    path('impact/zazi-programmatic/', views.zazi_programmatic, name='zazi_programmatic'),
 
     # ETL preview
     path('etl-status/', views.etl_status, name='etl_status'),

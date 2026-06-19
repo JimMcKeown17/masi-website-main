@@ -1,8 +1,10 @@
+import requests
 from rest_framework import permissions
 from rest_framework.decorators import api_view, authentication_classes, permission_classes
 from rest_framework.response import Response
 
 from ..models import PublishedStat
+from ..zazi_client import fetch_zazi_programmatic_impact
 
 
 @api_view(['GET'])
@@ -37,3 +39,25 @@ def published_stats(request):
             verified_through = row.as_of.isoformat()
 
     return Response({'stats': stats, 'groups': groups, 'verified_through': verified_through})
+
+
+@api_view(['GET'])
+@authentication_classes([])
+@permission_classes([permissions.AllowAny])
+def zazi_programmatic(request):
+    """Public proxy for the Zazi Programmatic-impact payload (Impact Data Portal).
+
+    Calls the separate Zazi backend server-side with the shared secret (the house
+    pattern: the frontend only talks to the Masi backend) and passes the verified
+    payload through. The data is aggregate and funder-facing, so this is public;
+    the frontend's ISR layer caches it and keeps the last-good copy if Zazi is
+    briefly unreachable.
+    """
+    try:
+        payload = fetch_zazi_programmatic_impact()
+    except requests.RequestException as exc:
+        return Response(
+            {'error': 'Zazi backend unavailable', 'detail': str(exc)},
+            status=503,
+        )
+    return Response(payload)
