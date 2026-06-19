@@ -111,13 +111,19 @@ class Command(BaseCommand):
             raise
 
     def bulk_upsert(self, all_records):
-        existing = {
-            row['airtable_id']: row['id']
-            for row in School.objects.exclude(airtable_id__isnull=True).values('id', 'airtable_id')
-        }
+        # Match an incoming Airtable record to an existing row by airtable_id OR
+        # by the stable school_uid. Matching only on airtable_id (the old bug)
+        # created a duplicate whenever a school's Airtable record was new/re-created
+        # while the school already existed in PG -- and could even crash the sync on
+        # the school_uid unique constraint. school_uid is the durable business key,
+        # so falling back to it means a school already in PG is never duplicated.
+        rows = School.objects.values('id', 'airtable_id', 'school_uid')
+        by_airtable = {r['airtable_id']: r['id'] for r in rows if r['airtable_id']}
+        by_uid = {r['school_uid']: r['id'] for r in rows if r['school_uid']}
 
         new_objs = []
         update_objs = []
+        claimed_ids = set()  # a row may be the target of at most one record
         skipped = 0
 
         for record in all_records:
@@ -131,14 +137,23 @@ class Command(BaseCommand):
                 skipped += 1
                 continue
 
-            if airtable_id in existing:
-                obj = School(id=existing[airtable_id], airtable_id=airtable_id, **row_data)
-                update_objs.append(obj)
-            else:
-                new_objs.append(School(airtable_id=airtable_id, **row_data))
+            pk = by_airtable.get(airtable_id)
+            if pk is None:
+                uid = row_data.get('school_uid')
+                pk = by_uid.get(uid) if uid else None
 
+            if pk is None:
+                new_objs.append(School(airtable_id=airtable_id, **row_data))
+            elif pk not in claimed_ids:
+                claimed_ids.add(pk)
+                update_objs.append(School(id=pk, airtable_id=airtable_id, **row_data))
+            else:
+                skipped += 1  # another record already claimed this row
+
+        # airtable_id is in update_fields so a uid-matched row gets the (possibly
+        # new) airtable_id attached, converging on a single canonical row.
         update_fields = [
-            'name', 'type', 'school_uid', 'school_number', 'suburb',
+            'airtable_id', 'name', 'type', 'school_uid', 'school_number', 'suburb',
             'latitude', 'longitude',
         ]
 
