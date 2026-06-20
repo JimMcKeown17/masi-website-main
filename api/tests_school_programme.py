@@ -1562,3 +1562,232 @@ class CreateDeleteEndpointTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         cell.refresh_from_db()
         self.assertEqual(cell.children_count, 77)
+
+
+class ParsePlannedYouthTests(SimpleTestCase):
+    """parse_planned_youth: fold the staff CSV (static/data/2026_feb_youth_numbers.csv)
+    into {(name_lower, bucket): {programme: planned}}. The CSV splits three
+    programmes into Primary/ECD sub-columns that sum into one grid programme; the
+    'Total Youth' column is staff-maintained and not the row sum, so it's ignored.
+    """
+
+    def _row(self, name, ctype, **cols):
+        base = {
+            "School or ECD": name, "Center Type": ctype,
+            "YearBeyond": "", "Masi Lit Primary": "", "ZZ Primary": "",
+            "Masi Lit ECD": "", "1000 Stories": "", "ZZ ECD": "",
+            "Primary Numeracy": "", "Edu Tech": "", "ECD Numeracy": "",
+            "Total Youth": "",
+        }
+        base.update(cols)
+        return base
+
+    def test_sums_phase_split_subcolumns_into_one_programme(self):
+        from api.school_programme import parse_planned_youth
+
+        rows = [self._row("Aaron Gqadu", "Primary School",
+                          **{"Masi Lit Primary": "4", "Masi Lit ECD": "2",
+                             "Primary Numeracy": "1", "1000 Stories": "1"})]
+        out = parse_planned_youth(rows)
+        self.assertEqual(out[("aaron gqadu", "Primary")], {
+            "masi_literacy": 6, "numeracy": 1, "thousand_stories": 1,
+        })
+
+    def test_yearbeyond_maps_to_yebo(self):
+        from api.school_programme import parse_planned_youth
+
+        rows = [self._row("Astra", "Primary School",
+                          **{"YearBeyond": "8", "ZZ Primary": "4", "1000 Stories": "1"})]
+        out = parse_planned_youth(rows)
+        self.assertEqual(out[("astra", "Primary")],
+                         {"yebo": 8, "zazi_izandi": 4, "thousand_stories": 1})
+
+    def test_ignores_untrustworthy_total_youth_column(self):
+        from api.school_programme import parse_planned_youth
+
+        # Total Youth says 15 but the programme columns sum to 4.
+        rows = [self._row("Somewhere", "Primary School",
+                          **{"Masi Lit Primary": "4", "Total Youth": "15"})]
+        out = parse_planned_youth(rows)
+        self.assertEqual(out[("somewhere", "Primary")], {"masi_literacy": 4})
+
+    def test_merges_duplicate_name_bucket_rows(self):
+        from api.school_programme import parse_planned_youth
+
+        # The CSV has Lukhanyiso [ECDC] twice: ZZ ECD=1 and ECD Numeracy=2.
+        rows = [
+            self._row("Lukhanyiso", "ECDC", **{"ZZ ECD": "1"}),
+            self._row("Lukhanyiso", "ECDC", **{"ECD Numeracy": "2"}),
+        ]
+        out = parse_planned_youth(rows)
+        self.assertEqual(out[("lukhanyiso", "ECD")],
+                         {"zazi_izandi": 1, "numeracy": 2})
+
+    def test_same_name_different_bucket_stays_separate(self):
+        from api.school_programme import parse_planned_youth
+
+        rows = [
+            self._row("Msobomvu", "Primary School", **{"ZZ Primary": "5"}),
+            self._row("Msobomvu", "ECDC", **{"ZZ ECD": "1"}),
+        ]
+        out = parse_planned_youth(rows)
+        self.assertEqual(out[("msobomvu", "Primary")], {"zazi_izandi": 5})
+        self.assertEqual(out[("msobomvu", "ECD")], {"zazi_izandi": 1})
+
+    def test_skips_non_grid_center_types_and_blank_names(self):
+        from api.school_programme import parse_planned_youth
+
+        rows = [
+            self._row("WIND FARMS", "", **{"Masi Lit Primary": "3"}),
+            self._row("", "Primary School", **{"Masi Lit Primary": "3"}),
+            self._row("Some High", "Secondary School", **{"Masi Lit Primary": "3"}),
+        ]
+        self.assertEqual(parse_planned_youth(rows), {})
+
+    def test_drops_sites_with_no_planned_youth(self):
+        from api.school_programme import parse_planned_youth
+
+        # All programme columns blank/zero -> the site is omitted entirely.
+        rows = [self._row("Empty Site", "Primary School", **{"Total Youth": "0"})]
+        self.assertEqual(parse_planned_youth(rows), {})
+
+    def test_tolerates_typo_center_types(self):
+        from api.school_programme import parse_planned_youth
+
+        # Real CSV noise: "Primary Schoo" and "ECDC0".
+        rows = [
+            self._row("Fumisukoma", "Primary Schoo", **{"YearBeyond": "6"}),
+            self._row("Nomtha", "ECDC0", **{"1000 Stories": "0"}),
+        ]
+        out = parse_planned_youth(rows)
+        self.assertEqual(out[("fumisukoma", "Primary")], {"yebo": 6})
+        self.assertNotIn(("nomtha", "ECD"), out)  # zero -> dropped
+
+
+class SeedYouthPlannedCommandTests(TestCase):
+    """seed_youth_planned: load management's planned-youth allocations from the
+    Feb-2026 CSV into the human-owned youth_planned column. Names resolve through
+    a frozen, Jim-reviewed (name, bucket) -> school_uid map; cells that don't yet
+    exist are created (so a planned-but-unstaffed programme shows as a vacancy);
+    idempotent and re-runnable. Uses real frozen-map uids on test schools.
+    """
+
+    YEAR = 2026
+    HEADER = ("School or ECD,Center Type,YearBeyond,Masi Lit Primary,ZZ Primary,"
+              "Masi Lit ECD,1000 Stories,ZZ ECD,Primary Numeracy,Edu Tech,"
+              "ECD Numeracy,Total Youth")
+
+    def setUp(self):
+        from api.models import School
+
+        # uids are the real Jim-approved matches for these CSV names.
+        self.aaron = School.objects.create(
+            name="Aaron Gqadu", school_uid="SCH-00276",
+            type="Primary School", is_active=True,
+        )
+        self.astra = School.objects.create(
+            name="Astra", school_uid="SCH-00278",
+            type="Primary School", is_active=True,
+        )
+        self.lukhanyiso = School.objects.create(
+            name="Lukhanyiso", school_uid="SCH-00229",
+            type="ECDC", is_active=True,
+        )
+
+    def _csv(self, *lines):
+        import os, tempfile
+
+        fd, path = tempfile.mkstemp(suffix=".csv")
+        with os.fdopen(fd, "w") as f:
+            f.write(self.HEADER + "\n")
+            for line in lines:
+                f.write(line + "\n")
+        self.addCleanup(os.remove, path)
+        return path
+
+    def _run(self, path, **kw):
+        from io import StringIO
+        from django.core.management import call_command
+
+        out = StringIO()
+        call_command("seed_youth_planned", csv=path, year=self.YEAR,
+                     stdout=out, stderr=out, **kw)
+        return out.getvalue()
+
+    def test_creates_cells_with_summed_youth_planned(self):
+        from api.models import SchoolProgrammeYear
+
+        # Aaron Gqadu: Masi Lit Primary 4 + Masi Lit ECD 2 = 6 literacy, 1 numeracy.
+        path = self._csv("Aaron Gqadu,Primary School,,4,,2,,,1,,,15")
+        self._run(path)
+
+        lit = SchoolProgrammeYear.objects.get(
+            school=self.aaron, programme="masi_literacy", year=self.YEAR)
+        num = SchoolProgrammeYear.objects.get(
+            school=self.aaron, programme="numeracy", year=self.YEAR)
+        self.assertEqual(lit.youth_planned, 6)
+        self.assertEqual(num.youth_planned, 1)
+
+    def test_created_cell_is_an_unstaffed_vacancy(self):
+        # The whole point: a planned programme with no active youth yet still gets
+        # a cell, with youth_active 0 and the cron-consistent config.
+        from api.models import SchoolProgrammeYear
+
+        path = self._csv("Astra,Primary School,8,,,,,,,,,8")
+        self._run(path)
+
+        cell = SchoolProgrammeYear.objects.get(
+            school=self.astra, programme="yebo", year=self.YEAR)
+        self.assertEqual(cell.youth_planned, 8)
+        self.assertEqual(cell.youth_active, 0)
+        self.assertEqual(cell.count_source, "manual")
+
+    def test_sets_planned_without_touching_existing_youth_active(self):
+        # A cell the cron already wrote (active staff present) keeps its
+        # youth_active; the seed only fills the human-owned youth_planned.
+        from api.models import SchoolProgrammeYear
+
+        existing = SchoolProgrammeYear.objects.create(
+            school=self.aaron, programme="masi_literacy", year=self.YEAR,
+            count_source="computed", count_basis="child_level", youth_active=5,
+        )
+        path = self._csv("Aaron Gqadu,Primary School,,6,,,,,,,,6")
+        self._run(path)
+
+        existing.refresh_from_db()
+        self.assertEqual(existing.youth_planned, 6)
+        self.assertEqual(existing.youth_active, 5)  # untouched
+
+    def test_is_idempotent(self):
+        from api.models import SchoolProgrammeYear
+
+        path = self._csv("Lukhanyiso,ECDC,,,,,,1,,,2,3")  # zazi 1, numeracy 2
+        self._run(path)
+        self._run(path)  # second run must not duplicate or change
+
+        rows = SchoolProgrammeYear.objects.filter(
+            school=self.lukhanyiso, year=self.YEAR)
+        self.assertEqual(rows.count(), 2)
+        self.assertEqual(rows.get(programme="zazi_izandi").youth_planned, 1)
+        self.assertEqual(rows.get(programme="numeracy").youth_planned, 2)
+
+    def test_skips_unmapped_site_and_reports_it(self):
+        from api.models import SchoolProgrammeYear
+
+        # Wittekleibosch has no canonical match -> skipped, not a crash.
+        path = self._csv(
+            "Aaron Gqadu,Primary School,,4,,,,,,,,4",
+            "Wittekleibosch,ECDC,,,,,,1,,,,1",
+        )
+        output = self._run(path)
+        self.assertTrue(SchoolProgrammeYear.objects.filter(
+            school=self.aaron, programme="masi_literacy").exists())
+        self.assertIn("wittekleibosch", output.lower())
+
+    def test_dry_run_writes_nothing(self):
+        from api.models import SchoolProgrammeYear
+
+        path = self._csv("Aaron Gqadu,Primary School,,4,,,,,,,,4")
+        self._run(path, dry_run=True)
+        self.assertEqual(
+            SchoolProgrammeYear.objects.filter(year=self.YEAR).count(), 0)

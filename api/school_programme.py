@@ -919,3 +919,68 @@ def rollover_grid(from_year, to_year):
     SchoolYearStats.objects.bulk_create(new_stats)
 
     return {"rows_created": len(new_cells), "stats_created": len(new_stats)}
+
+
+# --- one-time seed: management's planned-youth CSV -> youth_planned ------------
+# The Feb-2026 staff CSV (static/data/2026_feb_youth_numbers.csv) records planned
+# youth per school x programme. It splits three programmes into Primary/ECD
+# sub-columns; those sub-columns sum into the grid's single programme column.
+_YOUTH_CSV_COLUMN_TO_PROGRAMME = {
+    "YearBeyond": YEBO,
+    "Masi Lit Primary": MASI_LITERACY,
+    "Masi Lit ECD": MASI_LITERACY,
+    "ZZ Primary": ZAZI_IZANDI,
+    "ZZ ECD": ZAZI_IZANDI,
+    "1000 Stories": THOUSAND_STORIES,
+    "Primary Numeracy": NUMERACY,
+    "ECD Numeracy": NUMERACY,
+    "Edu Tech": EDUTECH,
+}
+
+
+def _planned_csv_bucket(center_type):
+    """The CSV's free-text Center Type -> canonical bucket, or None.
+
+    Tolerant of the real data's typos ('Primary Schoo', 'ECDC0') by matching a
+    prefix rather than the exact site-type spelling. Anything that is neither
+    Primary nor ECD (e.g. a 'WIND FARMS' section header) returns None and is
+    skipped -- the grid covers Primary + ECD only.
+    """
+    token = (center_type or "").strip().lower()
+    if token.startswith("primary"):
+        return PRIMARY
+    if token.startswith("ecd"):
+        return ECD
+    return None
+
+
+def _planned_int(value):
+    value = (value or "").strip()
+    return int(value) if value.isdigit() else 0
+
+
+def parse_planned_youth(rows):
+    """Aggregate a planned-youth CSV into {(name_lower, bucket): {programme: n}}.
+
+    `rows` is an iterable of dict rows (a csv.DictReader over the staff CSV). Sums
+    the phase-split sub-columns into one programme key, ignores the untrustworthy
+    'Total Youth' column (staff-maintained, not the row sum), merges duplicate
+    (name, bucket) rows (the CSV has a few), and drops any programme -- or whole
+    site -- with no planned youth. A row whose name is blank or whose Center Type
+    is not Primary/ECD is skipped entirely.
+    """
+    aggregated = defaultdict(lambda: defaultdict(int))
+    for row in rows:
+        name = (row.get("School or ECD") or "").strip()
+        bucket = _planned_csv_bucket(row.get("Center Type"))
+        if not name or bucket is None:
+            continue
+        programmes = aggregated[(name.lower(), bucket)]
+        for column, programme in _YOUTH_CSV_COLUMN_TO_PROGRAMME.items():
+            programmes[programme] += _planned_int(row.get(column))
+
+    return {
+        key: nonzero
+        for key, progs in aggregated.items()
+        if (nonzero := {p: n for p, n in progs.items() if n > 0})
+    }
