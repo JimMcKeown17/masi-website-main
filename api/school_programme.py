@@ -984,3 +984,68 @@ def parse_planned_youth(rows):
         for key, progs in aggregated.items()
         if (nonzero := {p: n for p, n in progs.items() if n > 0})
     }
+
+
+# --- one-time seed: the 1000 Stories / EduTech children CSV -> children_count ----
+# Source: static/data/children-per-school-1000-stories-edutech.csv -- a two-block
+# matrix stacked under one header (ECD block, then a PRIMARY block). The blocks are
+# the only place site bucket is recorded: the file has no Center Type column, so
+# bucket is read from block position. The boundary is the first row whose name
+# already appeared earlier (the primaries that also sit in the ECD block), i.e. the
+# Primary block starts at the first repeat. A mis-split can only mis-bucket a row,
+# and a mis-bucketed (name, bucket) key simply fails to match the frozen seed map
+# -- it is reported as unmapped, never silently written to the wrong school.
+_CHILDREN_CSV_COLUMN_TO_PROGRAMME = (
+    (1, THOUSAND_STORIES),  # "1000 stories"
+    (2, EDUTECH),           # "EduTech"
+)
+
+
+def _children_int(value):
+    """Round a CSV cell to a positive int, or None. Primary 1000 Stories reach is a
+    percent of enrolment, so it arrives as a decimal (e.g. '153.6' -> 154); blanks
+    and non-positive values are dropped (a blank is "no manual value", not zero)."""
+    value = (value or "").strip()
+    if not value:
+        return None
+    try:
+        n = round(float(value))
+    except ValueError:
+        return None
+    return n if n > 0 else None
+
+
+def parse_children_served(rows):
+    """Aggregate the children CSV into {(name_lower, bucket): {programme: count}}.
+
+    `rows` is the ordered list of data rows (a csv.reader over the file, minus the
+    header), each [name, 1000_stories, edutech]. Bucket comes from block position
+    (ECD before the first repeated name, Primary from it on). Decimals are rounded
+    (see _children_int); blanks / non-positive values and blank-name rows are
+    dropped. Same name in both blocks yields two distinct keys (one per bucket).
+    """
+    boundary = None
+    seen = set()
+    for index, row in enumerate(rows):
+        name = (row[0] if row else "").strip()
+        if not name:
+            continue
+        if name in seen:
+            boundary = index
+            break
+        seen.add(name)
+
+    out = {}
+    for index, row in enumerate(rows):
+        name = (row[0] if row else "").strip()
+        if not name:
+            continue
+        bucket = ECD if (boundary is None or index < boundary) else PRIMARY
+        counts = {}
+        for column, programme in _CHILDREN_CSV_COLUMN_TO_PROGRAMME:
+            count = _children_int(row[column] if len(row) > column else "")
+            if count is not None:
+                counts[programme] = count
+        if counts:
+            out[(name.lower(), bucket)] = counts
+    return out

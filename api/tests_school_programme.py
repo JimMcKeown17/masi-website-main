@@ -1791,3 +1791,191 @@ class SeedYouthPlannedCommandTests(TestCase):
         self._run(path, dry_run=True)
         self.assertEqual(
             SchoolProgrammeYear.objects.filter(year=self.YEAR).count(), 0)
+
+
+class ParseChildrenServedTests(SimpleTestCase):
+    """parse_children_served: fold the 1000 Stories / EduTech children CSV into
+    {(name_lower, bucket): {programme: count}}. The file stacks an ECD block then a
+    PRIMARY block under one header (no Center Type column), so bucket is read from
+    block position -- the Primary block starts at the first repeated name. Primary
+    1000 Stories reach is a percent of enrolment, so it arrives as a decimal and is
+    rounded; blanks / non-positive values and blank-name rows are dropped.
+    """
+
+    def test_block_position_sets_bucket(self):
+        from api.school_programme import parse_children_served
+
+        rows = [
+            ["Ekhaya", "35", ""],            # ECD block
+            ["Aaron Gqadu", "33", ""],       # ECD block
+            ["Aaron Gqadu", "153.6", "81"],  # repeat -> Primary block starts here
+            ["Astra", "651", ""],            # Primary block
+        ]
+        out = parse_children_served(rows)
+        self.assertEqual(out[("ekhaya", "ECD")], {"thousand_stories": 35})
+        self.assertEqual(out[("astra", "Primary")], {"thousand_stories": 651})
+
+    def test_same_name_in_both_blocks_stays_separate(self):
+        from api.school_programme import parse_children_served
+
+        rows = [
+            ["Aaron Gqadu", "33", ""],
+            ["Aaron Gqadu", "153.6", "81"],
+        ]
+        out = parse_children_served(rows)
+        self.assertEqual(out[("aaron gqadu", "ECD")], {"thousand_stories": 33})
+        self.assertEqual(out[("aaron gqadu", "Primary")],
+                         {"thousand_stories": 154, "edutech": 81})
+
+    def test_rounds_decimal_reach_to_int(self):
+        from api.school_programme import parse_children_served
+
+        # 615.6 -> 616. The 2nd "A" repeats -> that row is the Primary block.
+        rows = [["A", "1", ""], ["A", "615.6", ""]]
+        out = parse_children_served(rows)
+        self.assertEqual(out[("a", "Primary")]["thousand_stories"], 616)
+
+    def test_blank_and_nonpositive_values_dropped(self):
+        from api.school_programme import parse_children_served
+
+        rows = [
+            ["Lukhanyiso", "", ""],  # blank -> no key
+            ["Zero Site", "0", ""],  # zero -> dropped
+        ]
+        out = parse_children_served(rows)
+        self.assertNotIn(("lukhanyiso", "ECD"), out)
+        self.assertNotIn(("zero site", "ECD"), out)
+
+    def test_blank_name_row_skipped(self):
+        from api.school_programme import parse_children_served
+
+        self.assertEqual(parse_children_served([["", "10", ""]]), {})
+
+
+class SeedChildrenServedCommandTests(TestCase):
+    """seed_children_served: load 1000 Stories + EduTech children counts into the
+    human-owned children_count column through a frozen (name, bucket) -> school_uid
+    map. Cells absent from the grid are created (the create_cell path), carrying the
+    per-programme count_basis; the cron's youth columns are never touched; the seed
+    is idempotent. Uses real frozen-map uids on test schools.
+    """
+
+    YEAR = 2026
+    HEADER = "All Sites,1000 stories,EduTech"
+
+    def setUp(self):
+        from api.models import School
+
+        # uids are the real Jim-approved matches for these CSV names.
+        self.ekhaya = School.objects.create(
+            name="Ekhaya", school_uid="SCH-00282", type="ECDC", is_active=True)
+        self.aaron = School.objects.create(
+            name="Aaron Gqadu", school_uid="SCH-00276",
+            type="Primary School", is_active=True)
+        self.charles = School.objects.create(
+            name="Charles Duna", school_uid="SCH-00281",
+            type="Primary School", is_active=True)
+        self.aaron_ecd = School.objects.create(
+            name="Aaron Gqadu ECD", school_uid="SCH-00332",
+            type="ECDC", is_active=True)
+
+    def _csv(self, *lines):
+        import os
+        import tempfile
+
+        fd, path = tempfile.mkstemp(suffix=".csv")
+        with os.fdopen(fd, "w") as f:
+            f.write(self.HEADER + "\n")
+            for line in lines:
+                f.write(line + "\n")
+        self.addCleanup(os.remove, path)
+        return path
+
+    def _run(self, path, **kw):
+        from io import StringIO
+
+        from django.core.management import call_command
+
+        out = StringIO()
+        call_command("seed_children_served", csv=path, year=self.YEAR,
+                     stdout=out, stderr=out, **kw)
+        return out.getvalue()
+
+    def test_seeds_all_buckets_including_colocated_ecd(self):
+        from api.models import SchoolProgrammeYear
+
+        path = self._csv(
+            "Ekhaya,35,",               # ECD: 1000 Stories whole-school
+            "Aaron Gqadu,33,",          # ECD block: the co-located ECD
+            "Aaron Gqadu,154,81",       # repeat -> Primary block starts here
+            "Charles Duna,615.6,1001",  # Primary: 1000 Stories (%) + EduTech
+        )
+        self._run(path)
+
+        ekhaya = SchoolProgrammeYear.objects.get(
+            school=self.ekhaya, programme="thousand_stories", year=self.YEAR)
+        self.assertEqual(ekhaya.children_count, 35)
+        self.assertEqual(ekhaya.count_basis, "whole_school")
+        self.assertEqual(ekhaya.count_source, "manual")
+
+        colocated = SchoolProgrammeYear.objects.get(
+            school=self.aaron_ecd, programme="thousand_stories", year=self.YEAR)
+        self.assertEqual(colocated.children_count, 33)
+
+        aaron_ts = SchoolProgrammeYear.objects.get(
+            school=self.aaron, programme="thousand_stories", year=self.YEAR)
+        self.assertEqual(aaron_ts.children_count, 154)
+        self.assertEqual(aaron_ts.count_basis, "percent_of_school")
+        aaron_et = SchoolProgrammeYear.objects.get(
+            school=self.aaron, programme="edutech", year=self.YEAR)
+        self.assertEqual(aaron_et.children_count, 81)
+        self.assertEqual(aaron_et.count_basis, "whole_school")
+
+        charles_ts = SchoolProgrammeYear.objects.get(
+            school=self.charles, programme="thousand_stories", year=self.YEAR)
+        self.assertEqual(charles_ts.children_count, 616)  # 615.6 rounded
+
+    def test_is_idempotent(self):
+        from api.models import SchoolProgrammeYear
+
+        path = self._csv("Ekhaya,35,")
+        self._run(path)
+        self._run(path)
+        rows = SchoolProgrammeYear.objects.filter(school=self.ekhaya, year=self.YEAR)
+        self.assertEqual(rows.count(), 1)
+        self.assertEqual(rows.get(programme="thousand_stories").children_count, 35)
+
+    def test_does_not_touch_cron_youth_columns(self):
+        from api.models import SchoolProgrammeYear
+
+        existing = SchoolProgrammeYear.objects.create(
+            school=self.aaron, programme="thousand_stories", year=self.YEAR,
+            count_source="manual", count_basis="percent_of_school",
+            youth_active=3, youth_planned=2,
+        )
+        path = self._csv(
+            "Ekhaya,1,",
+            "Aaron Gqadu,5,",      # ECD block (co-located ECD)
+            "Aaron Gqadu,154,",    # repeat -> Primary block (the existing cell)
+        )
+        self._run(path)
+
+        existing.refresh_from_db()
+        self.assertEqual(existing.children_count, 154)
+        self.assertEqual(existing.youth_active, 3)   # untouched
+        self.assertEqual(existing.youth_planned, 2)  # untouched
+
+    def test_skips_unmapped_site_and_reports_it(self):
+        from api.models import SchoolProgrammeYear
+
+        output = self._run(self._csv("Nowhere Educare,9,"))
+        self.assertEqual(
+            SchoolProgrammeYear.objects.filter(year=self.YEAR).count(), 0)
+        self.assertIn("nowhere", output.lower())
+
+    def test_dry_run_writes_nothing(self):
+        from api.models import SchoolProgrammeYear
+
+        self._run(self._csv("Ekhaya,35,"), dry_run=True)
+        self.assertEqual(
+            SchoolProgrammeYear.objects.filter(year=self.YEAR).count(), 0)
