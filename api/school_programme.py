@@ -701,6 +701,25 @@ def _iso(dt):
     return dt.isoformat() if dt else None
 
 
+def serialize_cell(row):
+    """The grid-read shape of one programme cell. Single source of truth so the
+    read pivot and the create endpoint return identical JSON. Only a manual
+    children_count is human-editable; computed cells are read-only.
+    """
+    return {
+        "id": row.id,
+        "children_count": row.children_count,
+        "count_source": row.count_source,
+        "count_basis": row.count_basis,
+        "percent_of_school": _to_float(row.percent_of_school),
+        "youth_planned": row.youth_planned,
+        "youth_active": row.youth_active,
+        "as_of": _iso(row.as_of),
+        "updated_at": _iso(row.updated_at),
+        "editable": row.count_source == COUNT_SOURCE_MANUAL,
+    }
+
+
 def serialize_year_stats(stats):
     if stats is None:
         return None
@@ -739,21 +758,10 @@ def build_grid(year):
     school_list = []
     for school_id in sorted(school_ids, key=lambda i: schools[i].name):
         school = schools[school_id]
-        cells = {}
-        for programme, row in by_school[school_id].items():
-            cells[programme] = {
-                "id": row.id,
-                "children_count": row.children_count,
-                "count_source": row.count_source,
-                "count_basis": row.count_basis,
-                "percent_of_school": _to_float(row.percent_of_school),
-                "youth_planned": row.youth_planned,
-                "youth_active": row.youth_active,
-                "as_of": _iso(row.as_of),
-                "updated_at": _iso(row.updated_at),
-                # Only manual children_count is human-editable; computed is read-only.
-                "editable": row.count_source == COUNT_SOURCE_MANUAL,
-            }
+        cells = {
+            programme: serialize_cell(row)
+            for programme, row in by_school[school_id].items()
+        }
         school_list.append({
             "school_uid": school.school_uid,
             "name": school.name,
@@ -800,6 +808,61 @@ def apply_cell_edit(cell_id, fields, user):
         row.updated_by = user
         row.save(update_fields=list(changed) + ["updated_by", "updated_at"])
     return row
+
+
+# The grid's known programme keys (the SchoolProgrammeYear.programme choices).
+_PROGRAMME_KEYS = frozenset(key for key, _label in PROGRAMME_CHOICES)
+
+
+def create_cell(school_uid, programme, year, user):
+    """Declare a programme at a school for a year (the "click to add" path).
+
+    Seeds the SAME system-owned config the nightly cron would (count_source +
+    count_basis from the per-programme policy), but never invents a children_count:
+    the human/cron fills the count later. Idempotent -- an accidental double-click
+    returns the existing row untouched rather than erroring or duplicating.
+    """
+    from api.models import School, SchoolProgrammeYear
+
+    if programme not in _PROGRAMME_KEYS:
+        raise ValueError("Unknown programme.")
+    try:
+        school = School.objects.get(school_uid=school_uid)
+    except School.DoesNotExist:
+        raise ValueError("School not found.")
+
+    existing = SchoolProgrammeYear.objects.filter(
+        school=school, programme=programme, year=year
+    ).first()
+    if existing is not None:
+        return existing
+
+    return SchoolProgrammeYear.objects.create(
+        school=school,
+        programme=programme,
+        year=year,
+        count_source=count_source_for(programme),
+        count_basis=count_basis_for(programme, normalize_site_type(school.type)),
+        youth_active=0,
+        updated_by=user,
+    )
+
+
+def delete_cell(cell_id, user):
+    """Remove an accidental empty add. Only a truly-empty cell may be deleted, so
+    a real (data-bearing) cell is never destroyed by an errant click. A row counts
+    as having data if any human/computed count is present (children_count or
+    youth_planned set, or youth_active > 0).
+    """
+    from api.models import SchoolProgrammeYear
+
+    row = SchoolProgrammeYear.objects.get(pk=cell_id)
+    if (row.children_count is not None
+            or row.youth_planned is not None
+            or row.youth_active > 0):
+        raise ValueError("Cell has data; clear it before removing.")
+    row.delete()
+    return None
 
 
 def apply_stats_edit(stats_id, fields, user):

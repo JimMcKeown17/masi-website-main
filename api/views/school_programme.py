@@ -32,12 +32,43 @@ def school_programme_grid(request):
     return Response(school_programme.build_grid(year))
 
 
-@api_view(['PATCH'])
+@api_view(['POST'])
+@authentication_classes(AUTH_CLASSES)
+@permission_classes([IsAdminOrProjectManager])
+def create_grid_cell(request):
+    """Declare a programme at a school for a year (the "click to add" path).
+    Body: {school_uid, programme, year}. Returns the new cell in the grid-read
+    shape at 201 (idempotent: an existing cell is returned 201 unchanged)."""
+    try:
+        with transaction.atomic():
+            row = school_programme.create_cell(
+                request.data.get('school_uid'),
+                request.data.get('programme'),
+                request.data.get('year'),
+                request.user,
+            )
+    except ValueError as exc:
+        return Response({'detail': str(exc)}, status=400)
+    return Response(school_programme.serialize_cell(row), status=201)
+
+
+@api_view(['PATCH', 'DELETE'])
 @authentication_classes(AUTH_CLASSES)
 @permission_classes([IsAdminOrProjectManager])
 def update_grid_cell(request, pk):
-    """Edit a manual programme cell (children_count for manual programmes,
-    percent_of_school, youth_planned). Editing a computed cell is rejected."""
+    """PATCH edits a manual programme cell (children_count for manual programmes,
+    percent_of_school, youth_planned); editing a computed cell is rejected.
+    DELETE removes an accidental empty cell (a data-bearing cell is refused)."""
+    if request.method == 'DELETE':
+        try:
+            with transaction.atomic():
+                school_programme.delete_cell(pk, request.user)
+        except SchoolProgrammeYear.DoesNotExist:
+            return Response({'detail': 'Cell not found.'}, status=404)
+        except ValueError as exc:
+            return Response({'detail': str(exc)}, status=400)
+        return Response(status=204)
+
     try:
         with transaction.atomic():
             row = school_programme.apply_cell_edit(pk, request.data, request.user)

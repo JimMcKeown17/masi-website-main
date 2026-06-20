@@ -19,7 +19,8 @@ from .youth_sessions import (
 )
 from .wig import wig_lead_measures, wig_data_quality, wig_zazi, wig_detail
 from .school_programme import (
-    school_programme_grid, update_grid_cell, update_grid_stats, rollover_grid,
+    school_programme_grid, create_grid_cell, update_grid_cell,
+    update_grid_stats, rollover_grid,
 )
 from .closures import (
     ClosureListCreateAPIView, ClosureDetailAPIView, closures_bulk, closures_export,
@@ -58,6 +59,7 @@ __all__ = [
     'wig_zazi',
     'wig_detail',
     'school_programme_grid',
+    'create_grid_cell',
     'update_grid_cell',
     'update_grid_stats',
     'rollover_grid',

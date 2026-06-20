@@ -1255,3 +1255,310 @@ class GridEndpointAuthzTests(TestCase):
     def test_unauthenticated_rejected(self):
         resp = self.client.get("/api/school-programme-grid/?year=2026")
         self.assertIn(resp.status_code, (401, 403))
+
+
+class CreateCellTests(TestCase):
+    """create_cell: management declares a programme at a school on demand. Seeds
+    the system-owned config (count_source/count_basis) the same way the cron does,
+    leaves human-owned counts blank, and is idempotent (double-click is harmless).
+    """
+
+    YEAR = 2026
+
+    def setUp(self):
+        from api.models import School
+
+        self.primary = School.objects.create(
+            name="Add Primary", school_uid="SCH-09700",
+            type="Primary School", is_active=True,
+        )
+        self.ecd = School.objects.create(
+            name="Add ECD", school_uid="SCH-09701", type="ECDC", is_active=True,
+        )
+
+    def test_creates_row_with_manual_config_and_blank_counts(self):
+        from api.school_programme import create_cell
+
+        user = _make_user("pm", "PROJECT MANAGER")
+        row = create_cell("SCH-09700", "edutech", self.YEAR, user)
+        self.assertEqual(row.school, self.primary)
+        self.assertEqual(row.programme, "edutech")
+        self.assertEqual(row.year, self.YEAR)
+        # Manual programme: count_source manual, EduTech is whole-school.
+        self.assertEqual(row.count_source, "manual")
+        self.assertEqual(row.count_basis, "whole_school")
+        # children_count is NOT invented on create; humans / cron fill it later.
+        self.assertIsNone(row.children_count)
+        self.assertIsNone(row.youth_planned)
+        self.assertIsNone(row.percent_of_school)
+        self.assertEqual(row.youth_active, 0)
+        self.assertEqual(row.updated_by, user)
+
+    def test_creates_computed_programme_config(self):
+        # A computed programme (Literacy) still seeds count_source=computed, but the
+        # count itself stays NULL until the cron computes the distinct-identity reach.
+        from api.school_programme import create_cell
+
+        user = _make_user("pm", "PROJECT MANAGER")
+        row = create_cell("SCH-09700", "masi_literacy", self.YEAR, user)
+        self.assertEqual(row.count_source, "computed")
+        self.assertEqual(row.count_basis, "child_level")
+        self.assertIsNone(row.children_count)
+
+    def test_count_basis_reflects_site_type(self):
+        # 1000 Stories is whole-school at an ECD but percent-of-school at a primary.
+        from api.school_programme import create_cell
+
+        user = _make_user("pm", "PROJECT MANAGER")
+        prim = create_cell("SCH-09700", "thousand_stories", self.YEAR, user)
+        self.assertEqual(prim.count_basis, "percent_of_school")
+        ecd = create_cell("SCH-09701", "thousand_stories", self.YEAR, user)
+        self.assertEqual(ecd.count_basis, "whole_school")
+
+    def test_idempotent_returns_existing_row_unchanged(self):
+        from api.models import SchoolProgrammeYear
+        from api.school_programme import create_cell
+
+        user = _make_user("pm", "PROJECT MANAGER")
+        first = create_cell("SCH-09700", "edutech", self.YEAR, user)
+        # Pretend a human typed a count between clicks; the 2nd add must not stomp it.
+        first.children_count = 42
+        first.save(update_fields=["children_count"])
+
+        second = create_cell("SCH-09700", "edutech", self.YEAR, user)
+        self.assertEqual(second.pk, first.pk)
+        self.assertEqual(second.children_count, 42)  # unchanged
+        self.assertEqual(
+            SchoolProgrammeYear.objects.filter(
+                school=self.primary, programme="edutech", year=self.YEAR
+            ).count(),
+            1,  # no duplicate
+        )
+
+    def test_rejects_unknown_programme(self):
+        from api.school_programme import create_cell
+
+        user = _make_user("pm", "PROJECT MANAGER")
+        with self.assertRaises(ValueError):
+            create_cell("SCH-09700", "quidditch", self.YEAR, user)
+
+    def test_rejects_missing_school(self):
+        from api.school_programme import create_cell
+
+        user = _make_user("pm", "PROJECT MANAGER")
+        with self.assertRaises(ValueError):
+            create_cell("SCH-DOES-NOT-EXIST", "edutech", self.YEAR, user)
+
+
+class DeleteCellTests(TestCase):
+    """delete_cell: undo an accidental add. Only a TRULY-empty row may be removed,
+    so a real (data-bearing) cell can never be destroyed by an errant delete.
+    """
+
+    YEAR = 2026
+
+    def setUp(self):
+        from api.models import School
+
+        self.school = School.objects.create(
+            name="Del Primary", school_uid="SCH-09800",
+            type="Primary School", is_active=True,
+        )
+
+    def _cell(self, **kw):
+        from api.models import SchoolProgrammeYear
+
+        defaults = dict(
+            school=self.school, programme="edutech", year=self.YEAR,
+            count_source="manual", count_basis="whole_school",
+        )
+        defaults.update(kw)
+        return SchoolProgrammeYear.objects.create(**defaults)
+
+    def test_deletes_truly_empty_row(self):
+        from api.models import SchoolProgrammeYear
+        from api.school_programme import delete_cell
+
+        user = _make_user("pm", "PROJECT MANAGER")
+        cell = self._cell()
+        self.assertIsNone(delete_cell(cell.id, user))
+        self.assertFalse(
+            SchoolProgrammeYear.objects.filter(pk=cell.id).exists()
+        )
+
+    def test_refuses_when_children_count_set(self):
+        from api.models import SchoolProgrammeYear
+        from api.school_programme import delete_cell
+
+        user = _make_user("pm", "PROJECT MANAGER")
+        cell = self._cell(children_count=0)  # even 0 is "has data" -> not empty
+        with self.assertRaises(ValueError):
+            delete_cell(cell.id, user)
+        self.assertTrue(SchoolProgrammeYear.objects.filter(pk=cell.id).exists())
+
+    def test_refuses_when_youth_planned_set(self):
+        from api.models import SchoolProgrammeYear
+        from api.school_programme import delete_cell
+
+        user = _make_user("pm", "PROJECT MANAGER")
+        cell = self._cell(youth_planned=3)
+        with self.assertRaises(ValueError):
+            delete_cell(cell.id, user)
+        self.assertTrue(SchoolProgrammeYear.objects.filter(pk=cell.id).exists())
+
+    def test_refuses_when_youth_active_positive(self):
+        from api.models import SchoolProgrammeYear
+        from api.school_programme import delete_cell
+
+        user = _make_user("pm", "PROJECT MANAGER")
+        cell = self._cell(youth_active=1)
+        with self.assertRaises(ValueError):
+            delete_cell(cell.id, user)
+        self.assertTrue(SchoolProgrammeYear.objects.filter(pk=cell.id).exists())
+
+
+class CreateDeleteEndpointTests(TestCase):
+    """The HTTP contract: POST collection to add, DELETE detail to remove. Writes
+    are ADMIN / PROJECT MANAGER only; the create response matches the grid-read
+    cell shape so the frontend can drop it straight into the board.
+    """
+
+    YEAR = 2026
+
+    def setUp(self):
+        from rest_framework.test import APIClient
+        from api.models import School
+
+        self.school = School.objects.create(
+            name="Ep Primary", school_uid="SCH-09900",
+            type="Primary School", is_active=True,
+        )
+        self.client = APIClient()
+
+    def _auth(self, role):
+        user = _make_user(f"u_{role.replace(' ', '_').lower()}", role)
+        self.client.force_authenticate(user=user)
+        return user
+
+    def test_admin_can_create_cell_returns_grid_shape(self):
+        from api.models import SchoolProgrammeYear
+
+        self._auth("ADMIN")
+        resp = self.client.post(
+            "/api/school-programme-grid/cell/",
+            {"school_uid": "SCH-09900", "programme": "edutech", "year": self.YEAR},
+            format="json",
+        )
+        self.assertEqual(resp.status_code, 201)
+        body = resp.json()
+        # Same cell shape the grid read returns.
+        self.assertEqual(
+            set(body.keys()),
+            {"id", "children_count", "count_source", "count_basis",
+             "percent_of_school", "youth_planned", "youth_active",
+             "as_of", "updated_at", "editable"},
+        )
+        self.assertEqual(body["count_source"], "manual")
+        self.assertEqual(body["count_basis"], "whole_school")
+        self.assertIsNone(body["children_count"])
+        self.assertEqual(body["youth_active"], 0)
+        self.assertTrue(body["editable"])  # manual cell is human-editable
+        self.assertTrue(
+            SchoolProgrammeYear.objects.filter(
+                school=self.school, programme="edutech", year=self.YEAR
+            ).exists()
+        )
+
+    def test_create_unknown_programme_is_400(self):
+        self._auth("ADMIN")
+        resp = self.client.post(
+            "/api/school-programme-grid/cell/",
+            {"school_uid": "SCH-09900", "programme": "quidditch", "year": self.YEAR},
+            format="json",
+        )
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn("detail", resp.json())
+
+    def test_create_missing_school_is_400(self):
+        self._auth("ADMIN")
+        resp = self.client.post(
+            "/api/school-programme-grid/cell/",
+            {"school_uid": "SCH-NOPE", "programme": "edutech", "year": self.YEAR},
+            format="json",
+        )
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn("detail", resp.json())
+
+    def test_non_admin_cannot_create(self):
+        from api.models import SchoolProgrammeYear
+
+        self._auth("MENTOR")
+        resp = self.client.post(
+            "/api/school-programme-grid/cell/",
+            {"school_uid": "SCH-09900", "programme": "edutech", "year": self.YEAR},
+            format="json",
+        )
+        self.assertEqual(resp.status_code, 403)
+        self.assertFalse(
+            SchoolProgrammeYear.objects.filter(
+                school=self.school, programme="edutech"
+            ).exists()
+        )
+
+    def test_admin_can_delete_empty_cell(self):
+        from api.models import SchoolProgrammeYear
+
+        cell = SchoolProgrammeYear.objects.create(
+            school=self.school, programme="edutech", year=self.YEAR,
+            count_source="manual", count_basis="whole_school",
+        )
+        self._auth("ADMIN")
+        resp = self.client.delete(f"/api/school-programme-grid/cell/{cell.id}/")
+        self.assertEqual(resp.status_code, 204)
+        self.assertFalse(SchoolProgrammeYear.objects.filter(pk=cell.id).exists())
+
+    def test_delete_cell_with_data_is_400(self):
+        from api.models import SchoolProgrammeYear
+
+        cell = SchoolProgrammeYear.objects.create(
+            school=self.school, programme="edutech", year=self.YEAR,
+            count_source="manual", count_basis="whole_school", children_count=12,
+        )
+        self._auth("ADMIN")
+        resp = self.client.delete(f"/api/school-programme-grid/cell/{cell.id}/")
+        self.assertEqual(resp.status_code, 400)
+        self.assertTrue(SchoolProgrammeYear.objects.filter(pk=cell.id).exists())
+
+    def test_delete_missing_cell_is_404(self):
+        self._auth("ADMIN")
+        resp = self.client.delete("/api/school-programme-grid/cell/99999999/")
+        self.assertEqual(resp.status_code, 404)
+
+    def test_non_admin_cannot_delete(self):
+        from api.models import SchoolProgrammeYear
+
+        cell = SchoolProgrammeYear.objects.create(
+            school=self.school, programme="edutech", year=self.YEAR,
+            count_source="manual", count_basis="whole_school",
+        )
+        self._auth("MENTOR")
+        resp = self.client.delete(f"/api/school-programme-grid/cell/{cell.id}/")
+        self.assertEqual(resp.status_code, 403)
+        self.assertTrue(SchoolProgrammeYear.objects.filter(pk=cell.id).exists())
+
+    def test_patch_still_works_on_detail_route(self):
+        # Adding DELETE to the detail route must not break the existing PATCH edit.
+        from api.models import SchoolProgrammeYear
+
+        cell = SchoolProgrammeYear.objects.create(
+            school=self.school, programme="edutech", year=self.YEAR,
+            count_source="manual", count_basis="whole_school",
+        )
+        self._auth("ADMIN")
+        resp = self.client.patch(
+            f"/api/school-programme-grid/cell/{cell.id}/",
+            {"children_count": 77}, format="json",
+        )
+        self.assertEqual(resp.status_code, 200)
+        cell.refresh_from_db()
+        self.assertEqual(cell.children_count, 77)
