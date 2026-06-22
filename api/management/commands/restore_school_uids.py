@@ -79,7 +79,9 @@ PRE_WIPE_NAME_TO_UID = {
     'joe slovo': 'SCH-00131', 'john masiza': 'SCH-00192', 'jongilanga': 'SCH-00290',
     'jongingomso ecd': 'SCH-00267', 'jubilee park': 'SCH-00171', 'kama': 'SCH-00071',
     'kamvalethu daycare': 'SCH-00214', 'kayser ngxwana': 'SCH-00065', 'khanyisa': 'SCH-00317',
-    'khanyisa hs': 'SCH-00047', 'khazimla': 'SCH-00248', 'khazimla pre-school': 'SCH-00208',
+    'khanyisa hs': 'SCH-00047', 'khazimla pre-school': 'SCH-00208',
+    # 'khazimla' (was SCH-00248) intentionally dropped: consolidated onto
+    # "Khazimla Pre-School" SCH-00208; its row is retired, not restored.
     'khulile': 'SCH-00086', 'khumbulani': 'SCH-00005', 'khwezi lomso': 'SCH-00004',
     'kideo learning centre': 'SCH-00222', 'kids college': 'SCH-00056',
     'kings and quuens': 'SCH-00237', 'kk ncwana': 'SCH-00089', 'kleinskool': 'SCH-00137',

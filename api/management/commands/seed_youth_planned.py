@@ -44,7 +44,7 @@ YOUTH_SEED_NAME_TO_UID = {
     ('jongi ingomso', 'ECD'): 'SCH-00267',
     ('jongilanga', 'ECD'): 'SCH-00290',
     ('kamvalethu', 'ECD'): 'SCH-00214',
-    ('khazimla', 'ECD'): 'SCH-00248',
+    ('khazimla', 'ECD'): 'SCH-00208',  # consolidated onto "Khazimla Pre-School" (was SCH-00248, retired)
     ('kids college', 'ECD'): 'SCH-00056',
     ('koester day care', 'ECD'): 'SCH-00106',
     ('kokkewiet', 'ECD'): 'SCH-00292',

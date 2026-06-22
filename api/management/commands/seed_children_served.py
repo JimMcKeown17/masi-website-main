@@ -66,7 +66,7 @@ CHILDREN_SEED_NAME_TO_UID = {
     ('isizwe sethu', 'ECD'): 'SCH-00265',
     ('jesus dominion', 'ECD'): 'SCH-00310',
     ('jongilanga', 'ECD'): 'SCH-00290',
-    ('khazimla', 'ECD'): 'SCH-00248',
+    ('khazimla', 'ECD'): 'SCH-00208',  # consolidated onto Airtable-canonical "Khazimla Pre-School" (was SCH-00248)
     ('kids college', 'ECD'): 'SCH-00056',
     ('kings and quuens', 'ECD'): 'SCH-00237',
     ('kokkewiet', 'ECD'): 'SCH-00292',

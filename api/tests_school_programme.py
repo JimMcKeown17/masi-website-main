@@ -2077,3 +2077,69 @@ class SyncAirtableSchoolsGuardTests(TestCase):
         Command().bulk_upsert(records)
         s.refresh_from_db()
         self.assertEqual(s.school_uid, "SCH-09099")  # a real value is still applied
+
+
+class ConsolidateKhazimlaCommandTests(TestCase):
+    """consolidate_khazimla: fold the duplicate 'Khazimla' row's human values onto
+    the canonical 'Khazimla Pre-School' (SCH-00208) and retire the duplicate,
+    without clobbering values the canonical already holds.
+    """
+
+    def setUp(self):
+        from api.models import School, SchoolProgrammeYear
+
+        self.canon = School.objects.create(
+            name="Khazimla Pre-School", school_uid="SCH-00208", type="ECDC", is_active=True)
+        self.dup = School.objects.create(name="Khazimla", type="ECDC", is_active=True)  # null uid
+        SchoolProgrammeYear.objects.create(
+            school=self.canon, programme="numeracy", year=2026,
+            count_source="computed", count_basis="child_level", children_count=33, youth_active=1)
+        SchoolProgrammeYear.objects.create(
+            school=self.canon, programme="thousand_stories", year=2026,
+            count_source="manual", count_basis="whole_school")
+        SchoolProgrammeYear.objects.create(
+            school=self.dup, programme="numeracy", year=2026,
+            count_source="computed", count_basis="child_level", youth_planned=1)
+        SchoolProgrammeYear.objects.create(
+            school=self.dup, programme="thousand_stories", year=2026,
+            count_source="manual", count_basis="whole_school", children_count=26)
+
+    def _run(self, **kw):
+        from io import StringIO
+        from django.core.management import call_command
+
+        out = StringIO()
+        call_command("consolidate_khazimla", stdout=out, stderr=out, **kw)
+        return out.getvalue()
+
+    def test_moves_human_values_and_retires_dup(self):
+        from api.models import School, SchoolProgrammeYear
+
+        self._run()
+        num = SchoolProgrammeYear.objects.get(school=self.canon, programme="numeracy", year=2026)
+        ts = SchoolProgrammeYear.objects.get(school=self.canon, programme="thousand_stories", year=2026)
+        self.assertEqual(num.youth_planned, 1)    # moved off the duplicate
+        self.assertEqual(num.children_count, 33)  # canonical's computed value preserved
+        self.assertEqual(ts.children_count, 26)   # moved off the duplicate
+        self.assertFalse(School.objects.filter(pk=self.dup.pk).exists())
+
+    def test_does_not_clobber_existing_canonical_value(self):
+        from api.models import SchoolProgrammeYear
+
+        ts = SchoolProgrammeYear.objects.get(school=self.canon, programme="thousand_stories")
+        ts.children_count = 99
+        ts.save()
+        self._run()
+        ts.refresh_from_db()
+        self.assertEqual(ts.children_count, 99)  # canonical value kept, dup's 26 ignored
+
+    def test_idempotent_after_consolidation(self):
+        self._run()
+        out = self._run()
+        self.assertIn("already consolidated", out.lower())
+
+    def test_dry_run_writes_nothing(self):
+        from api.models import School
+
+        self._run(dry_run=True)
+        self.assertTrue(School.objects.filter(name="Khazimla").exists())  # dup still present
