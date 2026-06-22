@@ -578,7 +578,11 @@ def refresh_school_programme_grid(year, zazi_export=None):
         # override) computes unique from an empty union -- surface it.
         if (not recomputed["identity_union"]
                 and not recomputed["has_whole_school"] and programmes_present):
-            integrity["reach_without_identities"].append(school.name)
+            integrity["reach_without_identities"].append({
+                "school": school.name,
+                "school_uid": school.school_uid,
+                "programmes": sorted(programmes_present),
+            })
 
     integrity["unknown_site_type_tokens"] = sorted(integrity["unknown_site_type_tokens"])
     return {
@@ -775,7 +779,89 @@ def build_grid(year):
         "programmes": [{"key": key, "label": label} for key, label in PROGRAMME_CHOICES],
         "schools": school_list,
         "roster": compute_youth_active()["roster"],
+        "health": latest_grid_health(),
     }
+
+
+# --- grid health report (persisted by the nightly refresh, served read-only) ---
+
+# Programmes with a Masi-side identity/staffing source. Zazi iZandi is excluded:
+# its sessions live in the separate Zazi backend, reaching the grid only via the
+# nightly export -- so a Zazi school absent from that export has no identities by
+# design, not by error.
+_MASI_STAFFED_PROGRAMMES = frozenset({MASI_LITERACY, NUMERACY, YEBO, HOMEWORK, SPORT_ARTS})
+
+
+def _classify_reach(programmes):
+    """Bucket a reach-without-identities school by WHY it lacks identities.
+
+    zazi_sourced  -- has Zazi iZandi: identities live in the separate Zazi backend
+                     and this school isn't in the current export. Expected.
+    masi_staffing -- a Masi coach is placed but no 2026 sessions have matched yet.
+    manual_count  -- a manual aggregate (e.g. 1000 Stories) with no child identities.
+    """
+    if ZAZI_IZANDI in programmes:
+        return "zazi_sourced"
+    if any(p in _MASI_STAFFED_PROGRAMMES for p in programmes):
+        return "masi_staffing"
+    return "manual_count"
+
+
+def build_grid_health(result, rollup, now):
+    """Assemble the persisted grid-health report from a refresh result.
+
+    Stored verbatim on the refresh's AirtableSyncLog.details and served by
+    build_grid, so the staff health panel renders the LAST refresh's flags with a
+    timestamp -- no live recompute. Classifies reach_without_identities (dominated
+    by Zazi schools whose sessions live in a separate backend) so the panel can
+    separate "expected" from "needs attention".
+    """
+    integ = result["integrity"]
+    reach = integ["reach_without_identities"]
+    buckets = {"zazi_sourced": [], "masi_staffing": [], "manual_count": []}
+    set_counts = defaultdict(int)
+    for entry in reach:
+        buckets[_classify_reach(entry["programmes"])].append(entry)
+        set_counts[tuple(entry["programmes"])] += 1
+    by_programme_set = sorted(
+        ({"programmes": list(programmes), "count": count}
+         for programmes, count in set_counts.items()),
+        key=lambda row: (-row["count"], row["programmes"]),
+    )
+
+    return {
+        "as_of": _iso(now),
+        "year": result["year"],
+        "summary": {
+            "schools_processed": result["schools_processed"],
+            "rows_created": result["rows_created"],
+            "rows_updated": result["rows_updated"],
+        },
+        "rollup": rollup,
+        "reach_without_identities": {
+            "total": len(reach),
+            "buckets": buckets,
+            "by_programme_set": by_programme_set,
+        },
+        "schools_missing_uid": integ["unmatched_schools"],
+        "site_assigned_no_school": integ["site_assigned_no_school"],
+        "unmapped_job_titles": integ["unmapped_titles"],
+        "unresolved_zazi_participants": integ["unresolved_zazi_participants"],
+        "unmapped_zazi_schools": integ["unmapped_zazi_schools"],
+        "unknown_site_type_tokens": integ["unknown_site_type_tokens"],
+        "off_grid_roster": result["roster"],
+    }
+
+
+def latest_grid_health():
+    """The most recent successful refresh's health report, or None (read-only)."""
+    from api.models import AirtableSyncLog
+
+    log = (AirtableSyncLog.objects
+           .filter(sync_type="school_programme_grid", success=True, details__isnull=False)
+           .order_by("-started_at")
+           .first())
+    return log.details if log else None
 
 
 # Human-editable fields by surface (everything else is system-owned).

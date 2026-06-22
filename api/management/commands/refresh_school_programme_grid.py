@@ -14,6 +14,7 @@ from django.utils import timezone
 
 from api.models import AirtableSyncLog
 from api.school_programme import (
+    build_grid_health,
     refresh_school_programme_grid,
     rollup_to_published_stats,
 )
@@ -53,6 +54,7 @@ class Command(BaseCommand):
             sync_log.records_processed = result["schools_processed"]
             sync_log.records_created = result["rows_created"]
             sync_log.records_updated = result["rows_updated"]
+            sync_log.details = build_grid_health(result, rollup, timezone.now())
             sync_log.mark_complete(success=True)
         except Exception as exc:
             sync_log.mark_complete(success=False, error_message=str(exc))
@@ -81,7 +83,7 @@ class Command(BaseCommand):
             ("Unmapped job titles", integ["unmapped_titles"]),
             ("Schools with no school_uid", integ["unmatched_schools"]),
             ("Unknown site_type tokens", integ["unknown_site_type_tokens"]),
-            ("Reach without identities", integ["reach_without_identities"]),
+            ("Reach without identities", len(integ["reach_without_identities"]) or None),
             ("Site-assigned youth with no school", integ["site_assigned_no_school"]),
             ("Unmapped Zazi schools", integ.get("unmapped_zazi_schools")),
             ("Unresolved Zazi participants", integ.get("unresolved_zazi_participants")),

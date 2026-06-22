@@ -533,7 +533,9 @@ class AirtableSyncLog(models.Model):
     records_skipped = models.IntegerField(default=0, verbose_name="Records Skipped")
     error_message = models.TextField(blank=True, null=True, verbose_name="Error Message")
     success = models.BooleanField(default=False, verbose_name="Success")
-    
+    details = models.JSONField(null=True, blank=True, verbose_name="Details",
+                               help_text="Structured per-sync report (e.g. the grid health/integrity flags).")
+
     def mark_complete(self, success=True, error_message=None):
         """Mark the sync as complete"""
         self.completed_at = timezone.now()
