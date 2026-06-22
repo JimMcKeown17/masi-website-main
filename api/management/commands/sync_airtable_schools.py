@@ -117,9 +117,12 @@ class Command(BaseCommand):
         # while the school already existed in PG -- and could even crash the sync on
         # the school_uid unique constraint. school_uid is the durable business key,
         # so falling back to it means a school already in PG is never duplicated.
-        rows = School.objects.values('id', 'airtable_id', 'school_uid')
+        rows = list(School.objects.values('id', 'airtable_id', 'school_uid', 'school_number'))
         by_airtable = {r['airtable_id']: r['id'] for r in rows if r['airtable_id']}
         by_uid = {r['school_uid']: r['id'] for r in rows if r['school_uid']}
+        # Current identity per row, to preserve it when Airtable returns it empty.
+        current_uid = {r['id']: r['school_uid'] for r in rows}
+        current_number = {r['id']: r['school_number'] for r in rows}
 
         new_objs = []
         update_objs = []
@@ -146,7 +149,18 @@ class Command(BaseCommand):
                 new_objs.append(School(airtable_id=airtable_id, **row_data))
             elif pk not in claimed_ids:
                 claimed_ids.add(pk)
-                update_objs.append(School(id=pk, airtable_id=airtable_id, **row_data))
+                # Never overwrite a stored school_uid/school_number with an EMPTY
+                # Airtable value. A mis-targeted base (incident 2026-06-20: Render
+                # pointed at a base whose records lack 'School UID') returns the
+                # field empty for every record; without this guard bulk_update
+                # writes NULL across the unique-but-nullable school_uid column and
+                # silently wipes the join key for the whole 2026 data layer.
+                safe = dict(row_data)
+                if not safe.get('school_uid'):
+                    safe['school_uid'] = current_uid.get(pk)
+                if not safe.get('school_number'):
+                    safe['school_number'] = current_number.get(pk)
+                update_objs.append(School(id=pk, airtable_id=airtable_id, **safe))
             else:
                 skipped += 1  # another record already claimed this row
 

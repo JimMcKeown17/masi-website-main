@@ -1979,3 +1979,101 @@ class SeedChildrenServedCommandTests(TestCase):
         self._run(self._csv("Ekhaya,35,"), dry_run=True)
         self.assertEqual(
             SchoolProgrammeYear.objects.filter(year=self.YEAR).count(), 0)
+
+
+class RestoreSchoolUidsCommandTests(TestCase):
+    """restore_school_uids: refill school_uid wiped by the wrong-base sync, from the
+    frozen pre-wipe snapshot. Resolves duplicate rows to the grid-referenced/active
+    row; never reassigns a uid already on a surviving row; idempotent.
+    """
+
+    def _run(self, **kw):
+        from io import StringIO
+        from django.core.management import call_command
+
+        out = StringIO()
+        call_command("restore_school_uids", stdout=out, stderr=out, **kw)
+        return out.getvalue()
+
+    def test_restores_null_uid_from_prewipe_name(self):
+        from api.models import School
+
+        s = School.objects.create(name="Ekhaya", type="ECDC", is_active=True)
+        self._run()
+        s.refresh_from_db()
+        self.assertEqual(s.school_uid, "SCH-00282")
+
+    def test_dry_run_writes_nothing(self):
+        from api.models import School
+
+        s = School.objects.create(name="Ekhaya", type="ECDC", is_active=True)
+        self._run(dry_run=True)
+        s.refresh_from_db()
+        self.assertIsNone(s.school_uid)
+
+    def test_skips_uid_already_on_surviving_row(self):
+        from api.models import School
+
+        School.objects.create(name="Ekhaya canonical", school_uid="SCH-00282", type="ECDC")
+        dup = School.objects.create(name="Ekhaya", type="ECDC", is_active=True)
+        self._run()
+        dup.refresh_from_db()
+        self.assertIsNone(dup.school_uid)  # uid already taken -> not reassigned
+
+    def test_resolves_duplicate_to_grid_referenced_row(self):
+        from api.models import School, SchoolProgrammeYear
+
+        legacy = School.objects.create(name="Lingelethu", type="Primary School", is_active=True)
+        canon = School.objects.create(name="Lingelethu", type="Primary School", is_active=True)
+        SchoolProgrammeYear.objects.create(
+            school=canon, programme="masi_literacy", year=2026,
+            count_source="computed", count_basis="child_level")
+        self._run()
+        canon.refresh_from_db()
+        legacy.refresh_from_db()
+        self.assertEqual(canon.school_uid, "SCH-00322")  # grid-referenced wins
+        self.assertIsNone(legacy.school_uid)
+
+    def test_idempotent(self):
+        from api.models import School
+
+        s = School.objects.create(name="Ekhaya", type="ECDC", is_active=True)
+        self._run()
+        self._run()
+        s.refresh_from_db()
+        self.assertEqual(s.school_uid, "SCH-00282")
+
+
+class SyncAirtableSchoolsGuardTests(TestCase):
+    """sync_airtable_schools must never null a stored school_uid/school_number when
+    the Airtable payload omits the field (incident 2026-06-20: Render pointed at a
+    base whose records lack 'School UID', so every record came back empty).
+    """
+
+    def test_empty_payload_preserves_existing_identity(self):
+        from api.models import School
+        from api.management.commands.sync_airtable_schools import Command
+
+        s = School.objects.create(
+            name="Foo Primary", school_uid="SCH-09001", school_number=9001,
+            type="Primary School", airtable_id="recFOO")
+        records = [{"id": "recFOO", "fields": {"School": "Foo Primary", "Type": ["Primary"]}}]
+        stats = Command().bulk_upsert(records)
+        s.refresh_from_db()
+        self.assertEqual(s.school_uid, "SCH-09001")  # preserved, not nulled
+        self.assertEqual(s.school_number, 9001)
+        self.assertEqual(stats["updated"], 1)
+
+    def test_nonempty_payload_still_updates_identity(self):
+        from api.models import School
+        from api.management.commands.sync_airtable_schools import Command
+
+        s = School.objects.create(
+            name="Bar Primary", school_uid="SCH-09002", type="Primary School",
+            airtable_id="recBAR")
+        records = [{"id": "recBAR", "fields": {
+            "School": "Bar Primary", "Type": ["Primary"],
+            "School UID": "SCH-09099", "School Number": 9099}}]
+        Command().bulk_upsert(records)
+        s.refresh_from_db()
+        self.assertEqual(s.school_uid, "SCH-09099")  # a real value is still applied
