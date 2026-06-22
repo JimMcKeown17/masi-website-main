@@ -7,6 +7,27 @@ from dotenv import load_dotenv
 from api.models import Youth, School, Mentor, AirtableSyncLog
 
 
+def _coerce_int(value):
+    """Coerce an Airtable field value to an int, or None.
+
+    Airtable formula/computed fields (e.g. Age, derived from DOB) return the
+    sentinel {'specialValue': 'NaN'} / {'specialValue': 'Infinity'} -- a dict --
+    when they can't produce a finite number (blank/invalid DOB). That dict is
+    truthy, so it slips past `if not value` and `or None` guards and then
+    explodes when written to an IntegerField. Real numbers and numeric strings
+    coerce; anything else (the sentinel dict, blank, NaN/inf, non-numeric) -> None.
+    """
+    if value is None or isinstance(value, dict):
+        return None
+    try:
+        n = float(value)
+    except (TypeError, ValueError):
+        return None
+    if n != n or n in (float("inf"), float("-inf")):  # NaN or +/-Infinity
+        return None
+    return int(n)
+
+
 class Command(BaseCommand):
     """
     Syncs youth (literacy/numeracy coaches) from Airtable into the Youth model.
@@ -103,6 +124,7 @@ class Command(BaseCommand):
                 sync_log.records_skipped = stats['skipped']
                 sync_log.mark_complete(success=True)
 
+            age_bad = stats['age_unparseable_ids']
             self.stdout.write(self.style.SUCCESS(
                 f"\nSync complete — "
                 f"Airtable records: {len(all_records)}, "
@@ -110,8 +132,14 @@ class Command(BaseCommand):
                 f"updated: {stats['updated']}, "
                 f"skipped: {stats['skipped']}, "
                 f"school unmatched: {stats['school_unmatched']}, "
-                f"mentor unmatched: {stats['mentor_unmatched']}"
+                f"mentor unmatched: {stats['mentor_unmatched']}, "
+                f"age unparseable: {len(age_bad)}"
             ))
+            if age_bad:
+                self.stdout.write(self.style.WARNING(
+                    f"Age was non-numeric (likely a blank/invalid DOB in Airtable) "
+                    f"for employee IDs {age_bad} — stored as null. Fix the DOB at source."
+                ))
 
         except Exception as e:
             if sync_log:
@@ -148,6 +176,7 @@ class Command(BaseCommand):
         skipped = 0
         school_unmatched = 0
         mentor_unmatched = 0
+        age_unparseable_ids = []
         seen_employee_ids = set()
 
         for record in all_records:
@@ -172,6 +201,8 @@ class Command(BaseCommand):
                 school_unmatched += 1
             if row_data.pop('_mentor_unmatched', False):
                 mentor_unmatched += 1
+            if row_data.pop('_age_unparseable', False):
+                age_unparseable_ids.append(emp_id)
 
             # Match by airtable_id first, then by employee_id
             existing_pk = existing_by_airtable.get(airtable_id) or existing_by_employee.get(emp_id)
@@ -203,6 +234,7 @@ class Command(BaseCommand):
             'skipped': skipped,
             'school_unmatched': school_unmatched,
             'mentor_unmatched': mentor_unmatched,
+            'age_unparseable_ids': age_unparseable_ids,
         }
 
     def extract_row(self, record, school_map, mentor_map):
@@ -214,9 +246,16 @@ class Command(BaseCommand):
                 return val[0] if val else None
             return val or None
 
-        employee_id = fields.get('Employee ID')
+        employee_id = _coerce_int(fields.get('Employee ID'))
         if not employee_id:
             return None
+
+        # Age is an Airtable formula field; a blank/invalid DOB makes it return
+        # {'specialValue': 'NaN'}. Coerce to None and flag it so the source DOB
+        # can be fixed, rather than crashing the IntegerField write.
+        raw_age = fields.get('Age')
+        age = _coerce_int(raw_age)
+        age_unparseable = raw_age is not None and age is None
 
         # School FK resolution by name (case-insensitive)
         site_name = safe_first('Site Placement')
@@ -243,7 +282,7 @@ class Command(BaseCommand):
             last_name=fields.get('Last Name') or '',
             full_name=fields.get('Full Name') or '',
             dob=parse_date(fields.get('DOB', '') or ''),
-            age=fields.get('Age'),
+            age=age,
             gender=fields.get('Gender'),
             race=fields.get('Race'),
             id_type=fields.get('ID Type'),
@@ -264,6 +303,7 @@ class Command(BaseCommand):
             mentor_id=mentor_id,
             _school_unmatched=school_unmatched,
             _mentor_unmatched=mentor_unmatched,
+            _age_unparseable=age_unparseable,
         )
 
     def fetch_from_airtable(self, base_id, table_id, token):
