@@ -13,7 +13,7 @@ from django.db.models import Count, Max, Q
 from .models import Youth, LiteracySession2026, NumeracySession2026
 from .wig_metrics import (
     COHORTS, ECD_JOB_TITLES, PRIMARY_SITE_TYPES,
-    last_completed_week, eligible_coaches,
+    lead_measure_window, eligible_coaches,
     _programme_session_qs, _visit_spec, _programme_visit_qs,
 )
 
@@ -29,6 +29,17 @@ def _week_buckets(end_sunday, weeks=WEEKS):
     return buckets
 
 
+def _week_buckets_for_window(start, end):
+    """Week buckets that cover [start, end], allowing a partial first week."""
+    buckets = []
+    d = start
+    while d <= end:
+        sunday = min(d + timedelta(days=6 - d.weekday()), end)
+        buckets.append((d, sunday))
+        d = sunday + timedelta(days=1)
+    return buckets
+
+
 def _bucket_index(d, buckets):
     for i, (mon, sun) in enumerate(buckets):
         if mon <= d <= sun:
@@ -40,18 +51,18 @@ def _week_label(monday):
     return monday.strftime('%-d %b')  # e.g. "18 May"
 
 
-def session_heatmap(programme, reference_dt, include_non_roster=True):
-    """Per-coach weekly session counts over the last 8 weeks.
+def session_heatmap(programme, reference_dt, period='week', include_non_roster=True):
+    """Per-coach weekly session counts over the selected WIG window.
 
     `include_non_roster` controls reconciliation: session-count rings (sessions
     per day/week) count every cohort session, so off-roster session-bearers are
     included; the active-coaches ring is a roster fraction, so it stays
     roster-only.
     """
-    _start, end = last_completed_week(reference_dt)
-    buckets = _week_buckets(end)
+    start, end = lead_measure_window(reference_dt, period)
+    buckets = _week_buckets_for_window(start, end)
     rows_qs = _programme_session_qs(programme, buckets[0][0], buckets[-1][1])
-    counts = defaultdict(lambda: [0] * WEEKS)
+    counts = defaultdict(lambda: [0] * len(buckets))
     for youth_id, session_date in rows_qs.values_list('youth_id', 'session_date'):
         idx = _bucket_index(session_date, buckets)
         if idx is not None:
@@ -69,7 +80,7 @@ def session_heatmap(programme, reference_dt, include_non_roster=True):
 
     rows = []
     for y in eligible + extras:
-        weekly = counts.get(y.id, [0] * WEEKS)
+        weekly = counts.get(y.id, [0] * len(buckets))
         rows.append({
             'youth_uid': y.youth_uid or f'id-{y.id}',
             'full_name': y.full_name or f'{y.first_names} {y.last_name}',
@@ -91,7 +102,7 @@ def _school_uid(school_id, school_uid):
     return school_uid or f'sch-{school_id}'
 
 
-def coverage_detail(programme, reference_dt):
+def coverage_detail(programme, reference_dt, period='week'):
     """Assigned schools split into reached vs not-reached this week.
 
     Mirrors the ring exactly: the denominator is *assigned* schools (>=1 active
@@ -99,7 +110,7 @@ def coverage_detail(programme, reference_dt):
     school is not in the ring, so it isn't shown as covered here either. Keyed by
     school_id (school_uid is nullable).
     """
-    start, end = last_completed_week(reference_dt)
+    start, end = lead_measure_window(reference_dt, period)
     assigned = list(
         eligible_coaches(programme, end).exclude(school__isnull=True)
         .values('school_id', 'school__school_uid', 'school__name', 'school__type').distinct()
@@ -156,9 +167,9 @@ _FIELD_LABELS = {
 }
 
 
-def visit_detail(programme, reference_dt):
+def visit_detail(programme, reference_dt, period='week'):
     """Observation visits in the last completed week with their tracker flags."""
-    start, end = last_completed_week(reference_dt)
+    start, end = lead_measure_window(reference_dt, period)
     _model, bundle, _site_types = _visit_spec(programme)
     qs = _programme_visit_qs(programme, start, end).select_related('mentor', 'school').order_by('-visit_date')
     visits = []
@@ -251,7 +262,7 @@ _SESSION_COUNT_SUFFIXES = {'sessions_per_day', 'sessions_per_week'}
 _VISIT_SUFFIXES = {'tracker_compliance', 'admin_compliance', 'school_visits'}
 
 
-def build_wig_detail(programme, measure, reference_dt):
+def build_wig_detail(programme, measure, reference_dt, period='week'):
     """Dispatch a (programme, measure) to the right detail builder."""
     if measure.startswith('dq.'):
         # Data-quality gauges are global accuracy, owned by the data_team page.
@@ -264,12 +275,12 @@ def build_wig_detail(programme, measure, reference_dt):
     if not suffix or prefix != programme:
         return {'kind': 'none'}
     if suffix in _SESSION_COUNT_SUFFIXES:
-        return session_heatmap(programme, reference_dt, include_non_roster=True)
+        return session_heatmap(programme, reference_dt, period=period, include_non_roster=True)
     if suffix == 'active_coaches':
         # Roster fraction -> show only the eligible roster (reconciles the ring).
-        return session_heatmap(programme, reference_dt, include_non_roster=False)
+        return session_heatmap(programme, reference_dt, period=period, include_non_roster=False)
     if suffix == 'school_coverage':
-        return coverage_detail(programme, reference_dt)
+        return coverage_detail(programme, reference_dt, period=period)
     if suffix in _VISIT_SUFFIXES:
-        return visit_detail(programme, reference_dt)
+        return visit_detail(programme, reference_dt, period=period)
     return {'kind': 'none'}

@@ -17,8 +17,11 @@ from core.models import UserProfile
 from api.wig_metrics import (
     classify_literacy_site,
     last_completed_week,
+    lead_measure_window,
+    programme_year_start,
     eligible_coaches,
     sessions_per_day,
+    sessions_per_week,
     active_coaches,
     school_coverage,
     capture_on_time,
@@ -71,6 +74,33 @@ class LastCompletedWeekTests(SimpleTestCase):
         start, end = last_completed_week(ref)
         self.assertEqual(start, date(2026, 5, 25))
         self.assertEqual(end, date(2026, 5, 31))
+
+
+class LeadMeasureWindowTests(TestCase):
+    """WIG period windows are explicit: last completed week, last four completed
+    weeks, or programme year starting from captured session data."""
+
+    REF = datetime(2026, 6, 23, 12, 0, tzinfo=dt_timezone.utc)  # Tuesday
+
+    def test_week_window_is_last_completed_mon_sun(self):
+        start, end = lead_measure_window(self.REF, 'week')
+        self.assertEqual(start, date(2026, 6, 15))
+        self.assertEqual(end, date(2026, 6, 21))
+
+    def test_month_window_is_four_completed_weeks(self):
+        start, end = lead_measure_window(self.REF, 'month')
+        self.assertEqual(start, date(2026, 5, 25))
+        self.assertEqual(end, date(2026, 6, 21))
+
+    def test_programme_year_starts_from_first_captured_session(self):
+        school = School.objects.create(name='P', type='Primary School', school_uid='SCH-P')
+        coach = Youth.objects.create(employee_id=1, first_names='A', last_name='1',
+                                     job_title='Literacy Coach', school=school)
+        LiteracySession2026.objects.create(source_airtable_id='s1', session_date=date(2026, 2, 3),
+                                            youth=coach, school=school)
+        LiteracySession2026.objects.create(source_airtable_id='s2', session_date=date(2026, 1, 22),
+                                            youth=coach, school=school)
+        self.assertEqual(programme_year_start(date(2026, 6, 21)), date(2026, 1, 22))
 
 
 class EligibleCoachesTests(TestCase):
@@ -167,6 +197,58 @@ class SessionsPerDayTests(TestCase):
         m = sessions_per_day('numeracy', self.START, self.END)
         self.assertEqual(m['eligible_entity_count'], 0)
         self.assertIsNone(m['value'])
+
+
+class SessionsPerWeekTests(TestCase):
+    """Numeracy sessions/wk stays comparable to a weekly target across longer
+    windows by dividing by coach-weeks, not just coaches."""
+
+    def setUp(self):
+        self.school = School.objects.create(name='N', type='ECDC', school_uid='SCH-N')
+        self.coach = Youth.objects.create(
+            employee_id=1, first_names='N', last_name='1', job_title='Numeracy Coach',
+            school=self.school, start_date=date(2026, 1, 1),
+        )
+
+    def _session(self, n, day, coach=None):
+        return NumeracySession2026.objects.create(
+            source_airtable_id=f'n{n}', session_date=day, youth=coach or self.coach,
+            school=self.school,
+        )
+
+    def test_one_week_matches_old_sessions_per_coach_math(self):
+        for i in range(10):
+            self._session(i, date(2026, 5, 20))
+        m = sessions_per_week('numeracy', date(2026, 5, 18), date(2026, 5, 24))
+        self.assertEqual(m['numerator'], 10)
+        self.assertEqual(m['denominator'], 1)
+        self.assertEqual(m['value'], 10)
+
+    def test_four_week_window_is_average_sessions_per_coach_week(self):
+        for i in range(80):
+            self._session(i, date(2026, 6, 1))
+        m = sessions_per_week('numeracy', date(2026, 5, 25), date(2026, 6, 21))
+        self.assertEqual(m['numerator'], 80)
+        self.assertEqual(m['denominator'], 4)
+        self.assertEqual(m['value'], 20)
+
+    def test_programme_year_can_clip_a_coach_to_first_session(self):
+        late = Youth.objects.create(
+            employee_id=2, first_names='Late', last_name='Coach',
+            job_title='Numeracy Coach', school=self.school, start_date=date(2026, 1, 1),
+        )
+        for i in range(20):
+            self._session(i, date(2026, 1, 15), coach=late)
+        m = sessions_per_week(
+            'numeracy',
+            date(2026, 1, 1),
+            date(2026, 1, 28),
+            first_session_by_coach={late.id: date(2026, 1, 15)},
+        )
+        self.assertEqual(m['numerator'], 20)
+        self.assertEqual(m['eligible_entity_count'], 2)
+        self.assertAlmostEqual(m['denominator'], 6.0)
+        self.assertAlmostEqual(m['value'], 20 / 6)
 
 
 class ActiveCoachesTests(TestCase):
@@ -410,6 +492,15 @@ class WigEndpointTests(TestCase):
         self.assertIn('window', body)
         self.assertIn('core_literacy.sessions_per_day', body['measures'])
 
+    def test_admin_can_request_month_period(self):
+        r = self._client_as('period', 'ADMIN').get('/api/wig/lead-measures/?period=month')
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.json()['window']['period'], 'month')
+
+    def test_invalid_period_is_rejected(self):
+        r = self._client_as('bad-period', 'ADMIN').get('/api/wig/lead-measures/?period=quarter')
+        self.assertEqual(r.status_code, 400)
+
     def test_admin_gets_data_quality(self):
         r = self._client_as('a2', 'ADMIN').get('/api/wig/data-quality/')
         self.assertEqual(r.status_code, 200)
@@ -581,11 +672,26 @@ class WigDetailBuilderTests(TestCase):
             self._lit(f'b{i}', date(2026, 5, 13))   # week before
         d = build_wig_detail('core_literacy', 'core_literacy.sessions_per_day', DETAIL_REF)
         self.assertEqual(d['kind'], 'session_heatmap')
-        self.assertEqual(len(d['weeks']), 8)
+        self.assertEqual(len(d['weeks']), 1)
         row = next(r for r in d['rows'] if r['youth_uid'] == 'YTH-1')
-        self.assertEqual(row['weekly_counts'][-1], 3)   # most recent week
-        self.assertEqual(row['weekly_counts'][-2], 2)
-        self.assertEqual(row['total'], 5)
+        self.assertEqual(row['weekly_counts'][-1], 3)   # selected week only
+        self.assertEqual(row['total'], 3)
+
+    def test_session_heatmap_month_period_buckets_four_weeks(self):
+        self._lit('m1', date(2026, 5, 6))
+        self._lit('m2', date(2026, 5, 13))
+        self._lit('m3', date(2026, 5, 20))
+        d = build_wig_detail(
+            'core_literacy',
+            'core_literacy.sessions_per_day',
+            DETAIL_REF,
+            period='month',
+        )
+        self.assertEqual(d['kind'], 'session_heatmap')
+        self.assertEqual(len(d['weeks']), 4)
+        row = next(r for r in d['rows'] if r['youth_uid'] == 'YTH-1')
+        self.assertEqual(row['weekly_counts'], [0, 1, 1, 1])
+        self.assertEqual(row['total'], 3)
 
     def test_coverage_splits_covered_and_uncovered(self):
         Youth.objects.create(employee_id=2, first_names='B', last_name='B', youth_uid='YTH-2',

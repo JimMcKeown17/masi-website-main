@@ -4,10 +4,10 @@ Pure-ish calculation logic for the WIG scoreboard, kept separate from the view
 layer so it can be unit-tested directly. See
 frontend `_plans/wig-dashboard/metric-contract.md` for definitions.
 """
-from datetime import timedelta
+from datetime import date, timedelta
 from zoneinfo import ZoneInfo
 
-from django.db.models import Q
+from django.db.models import Min, Q
 
 from .models import (
     Youth, LiteracySession2026, NumeracySession2026, MentorVisit, NumeracyVisit,
@@ -17,6 +17,10 @@ from .closures import open_working_days_bulk
 # Programme dates are South African; the server runs UTC, so resolve the
 # business day in SAST before deriving week boundaries.
 SAST = ZoneInfo('Africa/Johannesburg')
+WIG_PERIOD_WEEK = 'week'
+WIG_PERIOD_MONTH = 'month'
+WIG_PERIOD_PROGRAMME_YEAR = 'programme_year'
+VALID_WIG_PERIODS = {WIG_PERIOD_WEEK, WIG_PERIOD_MONTH, WIG_PERIOD_PROGRAMME_YEAR}
 
 
 def last_completed_week(reference_dt):
@@ -27,6 +31,43 @@ def last_completed_week(reference_dt):
     end = this_monday - timedelta(days=1)   # previous Sunday
     start = end - timedelta(days=6)          # previous Monday
     return start, end
+
+
+def _first_session_date(model, start, end, programme=None):
+    qs = model.objects.filter(session_date__gte=start, session_date__lte=end)
+    if programme is not None:
+        spec = COHORTS[programme]
+        qs = qs.filter(youth__job_title__in=spec['job_titles'])
+        if spec['site_types'] is not None:
+            qs = qs.filter(school__type__in=spec['site_types'])
+    return qs.aggregate(first=Min('session_date'))['first']
+
+
+def programme_year_start(end):
+    """Earliest recorded 2026-table session date on/before the window end.
+
+    The programme year is not assumed to be Jan 1. The 2026 session tables are
+    the source of truth for when this programme year began in the captured data.
+    """
+    floor = date(2000, 1, 1)
+    starts = [
+        _first_session_date(LiteracySession2026, floor, end),
+        _first_session_date(NumeracySession2026, floor, end),
+    ]
+    starts = [d for d in starts if d is not None]
+    return min(starts) if starts else date(end.year, 1, 1)
+
+
+def lead_measure_window(reference_dt, period=WIG_PERIOD_WEEK):
+    """Return the inclusive date window for a WIG period."""
+    week_start, end = last_completed_week(reference_dt)
+    if period == WIG_PERIOD_WEEK:
+        return week_start, end
+    if period == WIG_PERIOD_MONTH:
+        return end - timedelta(days=27), end  # four completed Mon-Sun weeks
+    if period == WIG_PERIOD_PROGRAMME_YEAR:
+        return programme_year_start(end), end
+    raise ValueError(f'Unsupported WIG period: {period}')
 
 
 # Site types are free-text on School.type. In prod, Masi's ECD *literacy* centres
@@ -111,7 +152,42 @@ def _programme_session_qs(programme, start, end):
     return qs
 
 
-def sessions_per_day(programme, start, end):
+def _first_session_by_coach(programme, start, end):
+    """{youth_id: first session date} in the programme/window."""
+    return dict(
+        _programme_session_qs(programme, start, end)
+        .exclude(youth_id__isnull=True)
+        .values_list('youth_id')
+        .annotate(first=Min('session_date'))
+        .values_list('youth_id', 'first')
+    )
+
+
+def _effective_since(coach, window_start, first_session_by_coach=None):
+    dates = [window_start]
+    if coach.start_date is not None:
+        dates.append(coach.start_date)
+    if first_session_by_coach:
+        first_session = first_session_by_coach.get(coach.id)
+        if first_session is not None:
+            dates.append(first_session)
+    return max(dates)
+
+
+def _window_weeks(start, end):
+    return max(((end - start).days + 1) / 7, 1)
+
+
+def _coach_weeks(coaches, start, end, first_session_by_coach=None):
+    total = 0
+    for coach in coaches:
+        since = _effective_since(coach, start, first_session_by_coach)
+        if since <= end:
+            total += _window_weeks(since, end)
+    return total
+
+
+def sessions_per_day(programme, start, end, first_session_by_coach=None):
     """Average sessions per eligible coach per *open* working day across the window.
 
     The denominator is "expected coach-days": for each eligible coach, the Mon-Fri
@@ -124,7 +200,15 @@ def sessions_per_day(programme, start, end):
     can render "no eligible coaches" rather than a misleading 0 or a crash.
     """
     coaches = list(eligible_coaches(programme, end).select_related('school'))
-    open_days = open_working_days_bulk(coaches, start, end)
+    open_days = open_working_days_bulk(
+        coaches,
+        start,
+        end,
+        since_by_id={
+            c.id: _effective_since(c, start, first_session_by_coach)
+            for c in coaches
+        } if first_session_by_coach else None,
+    )
     denominator = sum(len(open_days.get(c.id, ())) for c in coaches)
     numerator = _programme_session_qs(programme, start, end).count()
     value = (numerator / denominator) if denominator else None
@@ -225,20 +309,23 @@ def child_fk_resolution():
     return _quality_measure(resolved, slots, f'{resolved} of {slots} child slots resolved')
 
 
-def sessions_per_week(programme, start, end):
-    """Total sessions per eligible coach across the window (no per-day divisor).
+def sessions_per_week(programme, start, end, first_session_by_coach=None):
+    """Average sessions per eligible coach per week across the window.
 
     Used by numeracy, whose lead measure is "N sessions per week per coach".
     """
-    eligible = eligible_coaches(programme, end).count()
+    coaches = list(eligible_coaches(programme, end))
+    eligible = len(coaches)
     numerator = _programme_session_qs(programme, start, end).count()
-    value = (numerator / eligible) if eligible else None
+    denominator = _coach_weeks(coaches, start, end, first_session_by_coach)
+    value = (numerator / denominator) if denominator else None
     return {
         'numerator': numerator,
-        'denominator': eligible,
+        'denominator': denominator,
         'value': value,
         'eligible_entity_count': eligible,
-        'calculation_note': f'{numerator} sessions / {eligible} coaches this week',
+        'calculation_note': f'{numerator} sessions / {denominator:.1f} coach-weeks '
+                            f'({eligible} eligible coaches)',
     }
 
 
@@ -297,35 +384,46 @@ def school_visits(programme, start, end):
     qs = _programme_visit_qs(programme, start, end)
     visits = qs.count()
     mentors = qs.values('mentor_id').distinct().count()
-    value = (visits / mentors) if mentors else None
+    mentor_weeks = mentors * _window_weeks(start, end)
+    value = (visits / mentor_weeks) if mentor_weeks else None
     return {
         'numerator': visits,
-        'denominator': mentors,
+        'denominator': mentor_weeks,
         'value': value,
         'eligible_entity_count': mentors,
-        'calculation_note': f'{visits} observation visits across {mentors} mentors',
+        'calculation_note': f'{visits} observation visits / {mentor_weeks:.1f} mentor-weeks',
     }
 
 
 # --- Assembly into the API payload shapes (see metric-contract.md) ---
 
-def build_lead_measures(reference_dt):
-    """Assemble the /api/wig/lead-measures payload for the last completed week."""
-    start, end = last_completed_week(reference_dt)
+def build_lead_measures(reference_dt, period=WIG_PERIOD_WEEK):
+    """Assemble the /api/wig/lead-measures payload for the requested period."""
+    start, end = lead_measure_window(reference_dt, period)
     measures = {}
     for prog in ('core_literacy', 'ecd_literacy'):
-        measures[f'{prog}.sessions_per_day'] = sessions_per_day(prog, start, end)
+        first_by_coach = (
+            _first_session_by_coach(prog, start, end)
+            if period == WIG_PERIOD_PROGRAMME_YEAR else None
+        )
+        measures[f'{prog}.sessions_per_day'] = sessions_per_day(prog, start, end, first_by_coach)
         measures[f'{prog}.active_coaches'] = active_coaches(prog, start, end)
         measures[f'{prog}.school_coverage'] = school_coverage(prog, start, end)
         measures[f'{prog}.tracker_compliance'] = visit_compliance(prog, start, end)
         measures[f'{prog}.school_visits'] = school_visits(prog, start, end)
-    measures['numeracy.sessions_per_week'] = sessions_per_week('numeracy', start, end)
+    numeracy_first_by_coach = (
+        _first_session_by_coach('numeracy', start, end)
+        if period == WIG_PERIOD_PROGRAMME_YEAR else None
+    )
+    measures['numeracy.sessions_per_week'] = sessions_per_week(
+        'numeracy', start, end, numeracy_first_by_coach
+    )
     measures['numeracy.active_coaches'] = active_coaches('numeracy', start, end)
     measures['numeracy.school_coverage'] = school_coverage('numeracy', start, end)
     measures['numeracy.admin_compliance'] = visit_compliance('numeracy', start, end)
     return {
         'window': {
-            'period': 'last_week',
+            'period': period,
             'date_from': start.isoformat(),
             'date_to': end.isoformat(),
             'working_days': _working_days_count(start, end),

@@ -92,11 +92,12 @@ def working_days_count(school, start, end, *, since=None, youth=None):
     return len(open_working_days(school, start, end, since=since, youth=youth))
 
 
-def open_working_days_bulk(coaches, start, end):
+def open_working_days_bulk(coaches, start, end, since_by_id=None):
     """``{youth_id: set(open weekday dates)}`` for many coaches, loading closures
     and absences for the window once. Each coach is clipped to its own
-    ``start_date`` and has its own absences subtracted. Pass coaches with
-    ``select_related('school')`` to avoid per-coach school queries."""
+    ``start_date`` and has its own absences subtracted. ``since_by_id`` can
+    override that clip date per coach for derived programme-year windows. Pass
+    coaches with ``select_related('school')`` to avoid per-coach school queries."""
     coaches = list(coaches)
     weekdays = list(_weekdays(start, end))
 
@@ -117,7 +118,7 @@ def open_working_days_bulk(coaches, start, end):
     for coach in coaches:
         keys = scope_keys_for_school(coach.school)
         absent = absences.get(coach.youth_uid, set())
-        since = coach.start_date
+        since = since_by_id.get(coach.id, coach.start_date) if since_by_id else coach.start_date
         open_days = set()
         for d in weekdays:
             if since is not None and d < since:
