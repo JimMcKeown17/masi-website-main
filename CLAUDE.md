@@ -130,6 +130,10 @@ python manage.py sync_airtable_youth
 
 **Sync pattern:** All sync commands use `airtable_id` as the upsert key. Records deleted from Airtable become orphans in the DB — sync commands must auto-delete orphans before upserting, or orphans with unique-constrained fields (e.g. `employee_id`) will block new records. Identity fields (`employee_id`, `youth_uid`) should not be in `bulk_update`'s `update_fields` — they are set on creation only.
 
+**Pipeline docs (read before adding/changing a sync, model, or export):**
+- `documentation/etl_data_architecture_plan.md` — strategic roadmap: raw/canonical/reporting layers, canonical-key strategy, phased plan (assessments are Phase 4).
+- `documentation/airtable_pipeline_sync.md` — operational companion: current sync convention, the as-verified Airtable/Postgres state (base/table IDs, join keys, known data-quality traps), outbound serving (DRF, internal export, parquet snapshot to the Streamlit portal), and the 2026 midline literacy assessments pipeline. Note the verified caveats there (e.g. `2026 On The Programme.All Sessions Count v2` is not a reliable session total; canonical entities are fragmented across Airtable bases).
+
 ## Backend-First Rule
 
 - Aggregate on the backend, return summaries to the frontend
