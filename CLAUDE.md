@@ -128,7 +128,9 @@ python manage.py sync_airtable_schools
 python manage.py sync_airtable_youth
 ```
 
-**Sync pattern:** All sync commands use `airtable_id` as the upsert key. Records deleted from Airtable become orphans in the DB — sync commands must auto-delete orphans before upserting, or orphans with unique-constrained fields (e.g. `employee_id`) will block new records. Identity fields (`employee_id`, `youth_uid`) should not be in `bulk_update`'s `update_fields` — they are set on creation only.
+**Sync pattern:** All sync commands use `airtable_id` as the upsert key. Identity fields (`employee_id`, `youth_uid`) should not be in `bulk_update`'s `update_fields` — they are set on creation only. Orphan handling differs by table type:
+- **Canonical dimension syncs** (children/schools/youth): records deleted from Airtable become orphans in the DB — auto-delete orphans before upserting, or orphans with unique-constrained fields (e.g. `employee_id`) will block new records.
+- **2026 fact-table syncs** (literacy/numeracy assessments, on-the-programme roster): guarded soft-retirement instead — `is_active`/`last_seen_at`, never hard-delete, retire-delta guard with `--allow-retire`. Mirror `sync_airtable_literacy_assessments_2026.py`; the parquet export's freshness gates read the sync log's `retire_skipped`/`dup_uid_skipped` details keys and fail closed on them.
 
 **Pipeline docs (read before adding/changing a sync, model, or export):**
 - `documentation/etl_data_architecture_plan.md` — strategic roadmap: raw/canonical/reporting layers, canonical-key strategy, phased plan (assessments are Phase 4).
