@@ -1675,3 +1675,59 @@ class SchoolYearStats(models.Model):
 
     def __str__(self):
         return f"{self.school.name} / {self.year} stats"
+
+
+class LiteracyAssessment2026(models.Model):
+    """One row per literacy assessment event (child x term x year), 2026 pipeline.
+
+    Long/normalized: full cross-year history from the Airtable 'Assessments DB'.
+    Raw scores only (standardization happens in Streamlit). Upsert key:
+    source_airtable_id. Business/join key: child_uid. Lifecycle: guarded
+    full-pull soft-retirement via is_active/last_seen_at (never hard-deleted).
+    """
+    source_airtable_id = models.CharField(max_length=100, unique=True, db_index=True)
+    source_created_time = models.DateTimeField(null=True, blank=True,
+        help_text="Airtable record createdTime; recency tiebreak fallback")
+    source_modified_time = models.DateTimeField(null=True, blank=True,
+        help_text="Airtable 'Last Modified Time' field if present; preferred recency signal")
+    assessment_uid = models.CharField(max_length=100, blank=True, null=True, db_index=True)
+    child_uid = models.CharField(max_length=50, db_index=True)
+    child = models.ForeignKey(
+        "CanonicalChild", null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="literacy_assessments_2026",
+    )
+    year = models.IntegerField(db_index=True)
+    term = models.CharField(max_length=8, db_index=True, help_text="Jan / Jun / Nov")
+    grade = models.CharField(max_length=50, blank=True, null=True)
+    language = models.CharField(max_length=50, blank=True, null=True)
+
+    letter_sounds = models.FloatField(null=True, blank=True)
+    story_comprehension = models.FloatField(null=True, blank=True)
+    listen_first_sound = models.FloatField(null=True, blank=True)
+    listen_words = models.FloatField(null=True, blank=True)
+    writing_letters = models.FloatField(null=True, blank=True)
+    read_words = models.FloatField(null=True, blank=True)
+    read_sentences = models.FloatField(null=True, blank=True)
+    read_story = models.FloatField(null=True, blank=True)
+    write_cvcs = models.FloatField(null=True, blank=True)
+    write_sentences = models.FloatField(null=True, blank=True)
+    write_story = models.FloatField(null=True, blank=True)
+    total = models.FloatField(null=True, blank=True)
+
+    programme_belonging = models.JSONField(default=list, blank=True)
+    duplicate_status = models.CharField(max_length=100, blank=True, null=True)
+    capture_status = models.CharField(max_length=100, blank=True, null=True)
+
+    is_active = models.BooleanField(default=True, db_index=True)
+    last_seen_at = models.DateTimeField(null=True, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "literacy_assessments_2026"
+        indexes = [models.Index(fields=["child_uid", "term", "year"])]
+        ordering = ["child_uid", "year", "term"]
+
+    def __str__(self):
+        return f"{self.child_uid} {self.year}-{self.term}"
