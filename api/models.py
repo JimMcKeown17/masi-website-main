@@ -1731,3 +1731,31 @@ class LiteracyAssessment2026(models.Model):
 
     def __str__(self):
         return f"{self.child_uid} {self.year}-{self.term}"
+
+
+class OnTheProgramme2026(models.Model):
+    """Per-child on-programme roster (2026). Interim enrichment dimension:
+    source of Mentor / School / Grade / on-programme status for the midline
+    export. Lifecycle: guarded full-pull soft-retirement via is_active/last_seen_at.
+    """
+    source_airtable_id = models.CharField(max_length=100, unique=True, db_index=True)
+    child_uid = models.CharField(max_length=50, unique=True, db_index=True)
+    on_the_programme = models.BooleanField(default=True)
+    mentor = models.CharField(max_length=200, blank=True, null=True)
+    school = models.CharField(max_length=200, blank=True, null=True)
+    grade = models.CharField(max_length=50, blank=True, null=True)
+    all_sessions_count = models.IntegerField(null=True, blank=True)
+    valid_learning_records_count = models.IntegerField(null=True, blank=True)
+
+    is_active = models.BooleanField(default=True, db_index=True)
+    last_seen_at = models.DateTimeField(null=True, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "on_the_programme_2026"
+        ordering = ["child_uid"]
+
+    def __str__(self):
+        return f"{self.child_uid} ({self.mentor})"
