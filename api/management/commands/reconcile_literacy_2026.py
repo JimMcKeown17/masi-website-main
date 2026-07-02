@@ -47,7 +47,7 @@ def _raw_assessment(rec):
     return dict(
         child_uid=_raw_uid(f.get("Child UID")),
         term=f.get("Term"),
-        year=f.get("Year"),
+        year=_raw_num(f.get("Year")),
         scores={s: _raw_num(f.get(s)) for s in SKILLS},
         duplicate_status=_clean_status(f.get("Duplicate?") or f.get("Duplicate Status")),
         source_created_time=_dt(rec.get("createdTime")),

@@ -91,3 +91,7 @@ class AirtableAggregatesTests(TestCase):
         stats = airtable_aggregates([self._a("CH-1", "Jan", 10, year=2025)], [self._r("CH-1")])
         self.assertEqual(stats["mean_jan_letter_sounds"], 0.0)
         self.assertEqual(stats["jun_assessed_on_roster"], 0)
+
+    def test_coerces_string_year(self):   # Finding 1: Airtable may return Year as a string
+        stats = airtable_aggregates([self._a("CH-1", "Jan", 10, year="2026")], [self._r("CH-1")])
+        self.assertEqual(stats["mean_jan_letter_sounds"], 10)

@@ -191,14 +191,23 @@ class Command(BaseCommand):
         out = options["out"]
         exceptions_csv = os.path.join(os.path.dirname(out), "2026_literacy_dedupe_exceptions.csv")
         if meta["dup_exceptions"]:
-            os.makedirs(os.path.dirname(exceptions_csv), exist_ok=True)
-            with open(exceptions_csv, "w", newline="") as fh:
-                w = csv.DictWriter(fh, fieldnames=["child_uid", "term", "reason", "winner", "n"])
-                w.writeheader()
-                for e in meta["dup_exceptions"]:
-                    w.writerow({"child_uid": e["key"][0], "term": e["key"][1],
-                                "reason": e["reason"], "winner": e["winner"], "n": e["n"]})
-            self.stdout.write(self.style.WARNING(f"  wrote dedupe exceptions -> {exceptions_csv}"))
+            # Only write into a directory that already exists, or into the real Streamlit repo
+            # (R2-1) — never create a phantom directory tree at a default path that doesn't
+            # resolve on this machine, including during --dry-run.
+            if os.path.isdir(os.path.dirname(exceptions_csv)) or os.path.isdir(STREAMLIT_ROOT):
+                os.makedirs(os.path.dirname(exceptions_csv), exist_ok=True)
+                with open(exceptions_csv, "w", newline="") as fh:
+                    w = csv.DictWriter(fh, fieldnames=["child_uid", "term", "reason", "winner", "n"])
+                    w.writeheader()
+                    for e in meta["dup_exceptions"]:
+                        w.writerow({"child_uid": e["key"][0], "term": e["key"][1],
+                                    "reason": e["reason"], "winner": e["winner"], "n": e["n"]})
+                self.stdout.write(self.style.WARNING(f"  wrote dedupe exceptions -> {exceptions_csv}"))
+            else:
+                self.stdout.write(self.style.WARNING(
+                    f"  {len(meta['dup_exceptions'])} dedupe exceptions NOT written — target dir "
+                    f"{os.path.dirname(exceptions_csv)} does not exist (pass --out or create the "
+                    f"Streamlit repo at {STREAMLIT_ROOT})."))
 
         # --- Gates (skipped only in dry-run) ---
         if not options["dry_run"]:
