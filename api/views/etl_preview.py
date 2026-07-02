@@ -8,7 +8,7 @@ from api.authentication import ClerkAuthentication
 from api.models import (
     School, Youth, CanonicalChild, Staff,
     LiteracySession2026, NumeracySession2026,
-    AirtableSyncLog,
+    AirtableSyncLog, LiteracyAssessment2026, OnTheProgramme2026,
 )
 
 # Map of table names to (model, sync_type) pairs
@@ -19,6 +19,8 @@ TABLE_CONFIG = {
     'staff': (Staff, 'staff'),
     'literacy-2026': (LiteracySession2026, 'literacy_sessions_2026'),
     'numeracy-2026': (NumeracySession2026, 'numeracy_sessions_2026'),
+    'literacy-assessments-2026': (LiteracyAssessment2026, 'literacy_assessments_2026'),
+    'on-the-programme-2026': (OnTheProgramme2026, 'on_the_programme_2026'),
 }
 
 
