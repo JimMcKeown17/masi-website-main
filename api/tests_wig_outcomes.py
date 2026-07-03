@@ -293,3 +293,34 @@ class OutcomeEndpointTests(TestCase):
     def test_anonymous_denied(self):
         r = APIClient().get('/api/wig/outcomes/')
         self.assertIn(r.status_code, (401, 403))
+
+
+class ExporterParityEdgeTests(TestCase):
+    """Edges where the endpoint must match the parquet exporter exactly."""
+
+    def setUp(self):
+        make_logs()
+
+    def test_null_grade_on_latest_row_falls_back_to_prer_not_earlier_term(self):
+        # Exporter rule: (jun or jan).grade — a Jun row with a null grade wins
+        # over Jan's real grade and normalizes to PreR, counted as a fallback.
+        roster("CH-1", grade=None)
+        assess("CH-1", term="Jan", read_words=20.0, letter_sounds=20.0, grade="Grade 1")
+        assess("CH-1", term="Jun", read_words=20.0, letter_sounds=20.0, grade=None)
+        payload = build_outcomes()["outcomes"]
+        self.assertIsNone(payload["core_literacy"])
+        out = payload["ecd_literacy"]
+        self.assertEqual(out["denominator"], 1)
+        self.assertIn("1 grade fallback", out["calculation_note"])
+
+    def test_dedupe_exception_on_off_programme_child_fails_closed(self):
+        # The exporter dedupes (and blocks) over ALL active roster children,
+        # including off-programme ones; the WIG must match that gate scope.
+        roster("CH-1")
+        assess("CH-1", read_words=20.0)
+        roster("CH-2", on_programme=False)
+        assess("CH-2", read_words=10.0, duplicate_status="Single")
+        assess("CH-2", read_words=30.0, duplicate_status="Single")  # unresolved tie
+        payload = build_outcomes()
+        self.assertFalse(payload["available"])
+        self.assertIn("dedupe", payload["source_note"])

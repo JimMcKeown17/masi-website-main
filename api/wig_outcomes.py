@@ -34,7 +34,7 @@ def check_sources(now):
     """(ok, note): the exporter's _assert_synced rules + a 48h dead-cron age gate."""
     for sync_type in REQUIRED_SYNCS:
         last = (AirtableSyncLog.objects.filter(sync_type=sync_type)
-                .order_by('-started_at').first())
+                .order_by('-started_at', '-pk').first())
         if last is None or not last.success or last.completed_at is None:
             return False, f"latest '{sync_type}' sync is missing, incomplete, or failed"
         details = last.details or {}
@@ -72,10 +72,13 @@ def _child_grades(roster_grades, winners):
     for uid, roster_grade in roster_grades.items():
         raw = roster_grade
         if not raw:
+            # Exporter rule: the latest existing winner row's grade, even if
+            # None (which falls back to PreR) — never fall through to an
+            # earlier term's grade.
             for term in reversed(TERM_ORDER):
                 row = winners.get((uid, term))
-                if row and row.get('grade'):
-                    raw = row['grade']
+                if row:
+                    raw = row.get('grade')
                     break
         if grade_is_fallback(raw):
             fallbacks.add(uid)
@@ -112,18 +115,21 @@ def build_outcomes(now=None):
     if not ok:
         return unavailable(note)
 
-    roster_grades = {
-        r.child_uid: r.grade
-        for r in OnTheProgramme2026.objects.filter(is_active=True, on_the_programme=True)
-    }
+    # Dedupe over ALL active roster children (even off-programme ones), the
+    # exact set the exporter dedupes and blocks on; cohorts are then built
+    # from the on-programme subset only.
+    roster = list(OnTheProgramme2026.objects.filter(is_active=True))
     rows = [assessment_row(a) for a in LiteracyAssessment2026.objects.filter(
-        year=2026, is_active=True, term__in=TERM_ORDER, child_uid__in=roster_grades.keys())]
+        year=2026, is_active=True, term__in=TERM_ORDER,
+        child_uid__in=[r.child_uid for r in roster])]
     winners, exceptions = dedupe(rows)
     # Roster-wide scope (all grades), deliberately matching the exporter's
     # blocking scope: it too fails the whole export on any exception.
     if exceptions:
         return unavailable(
             f"{len(exceptions)} dedupe exception(s) need review before outcomes publish")
+
+    roster_grades = {r.child_uid: r.grade for r in roster if r.on_the_programme}
 
     grades, fallback_uids = _child_grades(roster_grades, winners)
     outcomes = {key: _programme_outcome(defn, grades, fallback_uids, winners)
