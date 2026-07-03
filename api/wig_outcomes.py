@@ -119,6 +119,8 @@ def build_outcomes(now=None):
     rows = [assessment_row(a) for a in LiteracyAssessment2026.objects.filter(
         year=2026, is_active=True, term__in=TERM_ORDER, child_uid__in=roster_grades.keys())]
     winners, exceptions = dedupe(rows)
+    # Roster-wide scope (all grades), deliberately matching the exporter's
+    # blocking scope: it too fails the whole export on any exception.
     if exceptions:
         return unavailable(
             f"{len(exceptions)} dedupe exception(s) need review before outcomes publish")

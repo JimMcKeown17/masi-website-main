@@ -240,3 +240,20 @@ class GradeCohortTests(TestCase):
         out = build_outcomes()["outcomes"]["ecd_literacy"]
         self.assertEqual(out["denominator"], 1)
         self.assertIn("1 grade fallback", out["calculation_note"])
+
+
+class BuildOutcomesSourceGateTests(TestCase):
+    """build_outcomes() itself fails closed when sources are unhealthy."""
+
+    def test_unavailable_with_no_sync_logs(self):
+        payload = build_outcomes()
+        self.assertFalse(payload["available"])
+        self.assertIn("literacy_assessments_2026", payload["source_note"])
+        self.assertEqual(payload["outcomes"], {})
+
+    def test_unavailable_when_one_sync_is_stale(self):
+        make_logs(hours_ago=1, only=("literacy_assessments_2026",))
+        make_logs(hours_ago=72, only=("on_the_programme_2026",))
+        payload = build_outcomes()
+        self.assertFalse(payload["available"])
+        self.assertEqual(payload["outcomes"], {})
