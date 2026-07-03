@@ -43,3 +43,88 @@ def check_sources(now):
         if last.completed_at < now - timedelta(hours=MAX_SYNC_AGE_HOURS):
             return False, f"latest '{sync_type}' sync is older than {MAX_SYNC_AGE_HOURS}h"
     return True, None
+
+
+def _term_stat(cohort_uids, winners, term, defn):
+    """Assessed-only stats for one term, or None if nobody has the skill scored.
+
+    Scores above the instrument max are data errors, treated as missing —
+    the portal's _null_out_of_range rule, so both surfaces publish the same %.
+    """
+    num = den = 0
+    for uid in cohort_uids:
+        row = winners.get((uid, term))
+        score = row['scores'].get(defn['skill']) if row else None
+        if score is None or score > defn['max']:
+            continue
+        den += 1
+        if score >= defn['threshold']:
+            num += 1
+    if den == 0:
+        return None
+    return {'value': num / den, 'numerator': num, 'denominator': den, 'term': term}
+
+
+def _child_grades(roster_grades, winners):
+    """Cohort grade per child: normalize_grade(roster grade or winner-row grade),
+    the exporter's roster-first rule. Returns (grades, fallback_uids)."""
+    grades, fallbacks = {}, set()
+    for uid, roster_grade in roster_grades.items():
+        raw = roster_grade
+        if not raw:
+            for term in reversed(TERM_ORDER):
+                row = winners.get((uid, term))
+                if row and row.get('grade'):
+                    raw = row['grade']
+                    break
+        if grade_is_fallback(raw):
+            fallbacks.add(uid)
+        grades[uid] = normalize_grade(raw)
+    return grades, fallbacks
+
+
+def _programme_outcome(defn, grades, fallback_uids, winners):
+    cohort = [uid for uid, g in grades.items() if g == defn['grade']]
+    stats = {term: _term_stat(cohort, winners, term, defn) for term in TERM_ORDER}
+    latest = None
+    for term in TERM_ORDER:
+        if stats[term] is not None:
+            latest = term
+    if latest is None:
+        return None
+    result = dict(stats[latest])
+    result['cohort_total'] = len(cohort)
+    result['baseline'] = stats['Jan'] if latest != 'Jan' else None
+    n_fallback = sum(1 for uid in cohort if uid in fallback_uids)
+    result['calculation_note'] = f"{defn['label']}; {n_fallback} grade fallback(s) in cohort"
+    return result
+
+
+def build_outcomes(now=None):
+    """The /api/wig/outcomes/ payload. Fail-closed on source health and dedupe."""
+    now = now or timezone.now()
+
+    def unavailable(note):
+        return {'available': False, 'source_note': note, 'outcomes': {},
+                'data_as_of': now.isoformat()}
+
+    ok, note = check_sources(now)
+    if not ok:
+        return unavailable(note)
+
+    roster_grades = {
+        r.child_uid: r.grade
+        for r in OnTheProgramme2026.objects.filter(is_active=True, on_the_programme=True)
+    }
+    rows = [assessment_row(a) for a in LiteracyAssessment2026.objects.filter(
+        year=2026, is_active=True, term__in=TERM_ORDER, child_uid__in=roster_grades.keys())]
+    winners, exceptions = dedupe(rows)
+    if exceptions:
+        return unavailable(
+            f"{len(exceptions)} dedupe exception(s) need review before outcomes publish")
+
+    grades, fallback_uids = _child_grades(roster_grades, winners)
+    outcomes = {key: _programme_outcome(defn, grades, fallback_uids, winners)
+                for key, defn in OUTCOME_DEFS.items()}
+    return {'available': True, 'source_note': None, 'outcomes': outcomes,
+            'data_as_of': now.isoformat()}
