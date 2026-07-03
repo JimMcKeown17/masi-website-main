@@ -133,7 +133,8 @@ class Command(BaseCommand):
             raise CommandError(f"Parquet not found: {path} — run export_literacy_2026_parquet first.")
         df = pd.read_parquet(path)
         load_dotenv()
-        token = os.getenv("AIRTABLE_TOKEN")
+        # Render's env names the token AIRTABLE_API_KEY; local .env uses AIRTABLE_TOKEN.
+        token = os.getenv("AIRTABLE_TOKEN") or os.getenv("AIRTABLE_API_KEY")
         a_base = os.getenv("AIRTABLE_LITERACY_ASSESSMENTS_2026_BASE_ID")
         a_table = os.getenv("AIRTABLE_LITERACY_ASSESSMENTS_2026_TABLE_ID")
         r_base = os.getenv("AIRTABLE_ON_THE_PROGRAMME_2026_BASE_ID")

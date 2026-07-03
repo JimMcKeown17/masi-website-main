@@ -32,9 +32,11 @@ class Command(BaseCommand):
         load_dotenv()
         base_id = os.getenv("AIRTABLE_ON_THE_PROGRAMME_2026_BASE_ID")
         table_id = os.getenv("AIRTABLE_ON_THE_PROGRAMME_2026_TABLE_ID")
-        token = os.getenv("AIRTABLE_TOKEN")
+        # Render's env names the token AIRTABLE_API_KEY; local .env uses AIRTABLE_TOKEN.
+        token = os.getenv("AIRTABLE_TOKEN") or os.getenv("AIRTABLE_API_KEY")
         if not all([base_id, table_id, token]):
-            self.stdout.write(self.style.ERROR("Missing AIRTABLE_ON_THE_PROGRAMME_2026_* / AIRTABLE_TOKEN"))
+            self.stdout.write(self.style.ERROR(
+                "Missing AIRTABLE_ON_THE_PROGRAMME_2026_* / AIRTABLE_TOKEN (or AIRTABLE_API_KEY)"))
             return
         is_dry = options["dry_run"]
         if is_dry:
