@@ -52,6 +52,7 @@ urlpatterns = [
     path('wig/data-quality/', views.wig_data_quality, name='wig_data_quality'),
     path('wig/zazi/', views.wig_zazi, name='wig_zazi'),
     path('wig/detail/', views.wig_detail, name='wig_detail'),
+    path('wig/outcomes/', views.wig_outcomes, name='wig_outcomes'),
 
     # School Programme Grid (/operations)
     path('school-programme-grid/', views.school_programme_grid, name='school_programme_grid'),

@@ -92,3 +92,12 @@ def wig_detail(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
     return Response(build_wig_detail(programme, measure, timezone.now(), period=period))
+
+
+@api_view(['GET'])
+@authentication_classes(AUTH_CLASSES)
+@permission_classes(PERM_CLASSES)
+def wig_outcomes(request):
+    """Term-keyed outcome (lag) measures behind the literacy hero WIG rings."""
+    from ..wig_outcomes import build_outcomes
+    return Response(build_outcomes(timezone.now()))

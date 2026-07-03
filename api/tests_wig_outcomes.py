@@ -1,8 +1,10 @@
 """Tests for the literacy WIG outcome measures (api/wig_outcomes.py)."""
 from datetime import timedelta
 
+from django.contrib.auth.models import User
 from django.test import TestCase
 from django.utils import timezone
+from rest_framework.test import APIClient
 
 from api.models import AirtableSyncLog, LiteracyAssessment2026, OnTheProgramme2026
 from api.wig_outcomes import REQUIRED_SYNCS, check_sources, build_outcomes
@@ -257,3 +259,37 @@ class BuildOutcomesSourceGateTests(TestCase):
         payload = build_outcomes()
         self.assertFalse(payload["available"])
         self.assertEqual(payload["outcomes"], {})
+
+
+class OutcomeEndpointTests(TestCase):
+    """/api/wig/outcomes/ is wired and role-gated (ADMIN / PROJECT MANAGER only)."""
+
+    def _client_as(self, name, role):
+        u = User.objects.create(username=name)
+        u.profile.role = role
+        u.profile.save()
+        c = APIClient()
+        c.force_authenticate(u)
+        return c
+
+    def test_admin_gets_payload_via_url(self):
+        make_logs()
+        roster("CH-1")
+        assess("CH-1", read_words=20.0)
+        r = self._client_as('a', 'ADMIN').get('/api/wig/outcomes/')
+        self.assertEqual(r.status_code, 200)
+        body = r.json()
+        self.assertTrue(body['available'])
+        self.assertEqual(body['outcomes']['core_literacy']['numerator'], 1)
+
+    def test_project_manager_allowed(self):
+        r = self._client_as('pm', 'PROJECT MANAGER').get('/api/wig/outcomes/')
+        self.assertEqual(r.status_code, 200)
+
+    def test_mentor_denied(self):
+        r = self._client_as('m', 'MENTOR').get('/api/wig/outcomes/')
+        self.assertEqual(r.status_code, 403)
+
+    def test_anonymous_denied(self):
+        r = APIClient().get('/api/wig/outcomes/')
+        self.assertIn(r.status_code, (401, 403))

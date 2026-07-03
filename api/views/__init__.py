@@ -17,7 +17,7 @@ from .youth_sessions import (
     youth_sessions_detail,
     youth_sessions_lookups,
 )
-from .wig import wig_lead_measures, wig_data_quality, wig_zazi, wig_detail
+from .wig import wig_lead_measures, wig_data_quality, wig_zazi, wig_detail, wig_outcomes
 from .school_programme import (
     school_programme_grid, create_grid_cell, update_grid_cell,
     update_grid_stats, rollover_grid,
@@ -58,6 +58,7 @@ __all__ = [
     'wig_data_quality',
     'wig_zazi',
     'wig_detail',
+    'wig_outcomes',
     'school_programme_grid',
     'create_grid_cell',
     'update_grid_cell',
