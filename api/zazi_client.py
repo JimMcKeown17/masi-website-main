@@ -79,6 +79,19 @@ def fetch_school_programme_export(year, timeout=60):
     return resp.json()
 
 
+def fetch_zazi_wig_outcomes(timeout=5):
+    """WIG outcome benchmarks (fast aggregate; fetched live, 5s timeout)."""
+    base = os.environ.get('ZAZI_API_BASE_URL', '').rstrip('/')
+    secret = os.environ.get('ZAZI_INTERNAL_API_SECRET', '')
+    resp = requests.get(
+        f'{base}/api/wig-outcomes/',
+        headers={'X-Internal-Auth': secret},
+        timeout=timeout,
+    )
+    resp.raise_for_status()
+    return resp.json()
+
+
 # For a cohort-scoped overview, the *other* school type must be absent. Used to
 # detect an older Zazi backend that ignores ?cohort= and returns all schools.
 _CROSS_COHORT_COUNT = {'primary': 'total_schools_ecd', 'ecd': 'total_schools_primary'}

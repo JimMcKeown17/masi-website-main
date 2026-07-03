@@ -9,6 +9,7 @@ from datetime import timedelta
 
 from django.utils import timezone
 
+from . import zazi_client
 from .literacy_2026_dedupe import assessment_row, dedupe
 from .literacy_2026_grades import grade_is_fallback, normalize_grade
 from .models import AirtableSyncLog, LiteracyAssessment2026, OnTheProgramme2026
@@ -28,6 +29,43 @@ OUTCOME_DEFS = {
     "ecd_literacy": {"grade": "PreR", "skill": "Letter Sounds", "threshold": 20.0, "max": 60.0,
                      "label": "PreR on-roster children with Letter Sounds >= 20"},
 }
+
+
+ZAZI_PROGRAMME_KEYS = ('zazi_izandi', 'zazi_izandi_ecd')
+
+
+def _zazi_single(prog, as_of):
+    """Flatten a one-metric Zazi programme to the single-outcome shape."""
+    m = prog['metrics'][0]
+    return {
+        'kind': 'single', 'value': m['value'], 'numerator': m['numerator'],
+        'denominator': m['denominator'], 'term': prog['term'],
+        'baseline': (dict(m['baseline'], term='baseline') if m.get('baseline') else None),
+        'target': m['target'],
+        'calculation_note': f"Zazi backend benchmark; data as of {as_of or 'unknown'}",
+    }
+
+
+def _zazi_outcomes():
+    """Per-programme Zazi entries; any failure degrades ONLY the Zazi keys."""
+    try:
+        payload = zazi_client.fetch_zazi_wig_outcomes()
+        programmes = payload['programmes']
+        as_of = payload.get('as_of')
+        result = {}
+        for key in ZAZI_PROGRAMME_KEYS:
+            prog = programmes.get(key) if isinstance(programmes, dict) else None
+            if prog is None:
+                result[key] = None
+            elif key == 'zazi_izandi':
+                result[key] = {'kind': 'multi', 'term': prog['term'],
+                               'as_of': as_of, 'metrics': prog['metrics']}
+            else:
+                result[key] = _zazi_single(prog, as_of)
+        return result
+    except Exception:
+        note = 'Zazi backend unreachable'
+        return {key: {'kind': 'unavailable', 'note': note} for key in ZAZI_PROGRAMME_KEYS}
 
 
 def check_sources(now):
@@ -96,6 +134,7 @@ def _programme_outcome(defn, grades, fallback_uids, winners):
     if latest is None:
         return None
     result = dict(stats[latest])
+    result['kind'] = 'single'
     result['cohort_total'] = len(cohort)
     result['baseline'] = stats['Jan'] if latest != 'Jan' else None
     n_fallback = sum(1 for uid in cohort if uid in fallback_uids)
@@ -108,7 +147,7 @@ def build_outcomes(now=None):
     now = now or timezone.now()
 
     def unavailable(note):
-        return {'available': False, 'source_note': note, 'outcomes': {},
+        return {'available': False, 'source_note': note, 'outcomes': _zazi_outcomes(),
                 'data_as_of': now.isoformat()}
 
     ok, note = check_sources(now)
@@ -134,5 +173,6 @@ def build_outcomes(now=None):
     grades, fallback_uids = _child_grades(roster_grades, winners)
     outcomes = {key: _programme_outcome(defn, grades, fallback_uids, winners)
                 for key, defn in OUTCOME_DEFS.items()}
+    outcomes.update(_zazi_outcomes())
     return {'available': True, 'source_note': None, 'outcomes': outcomes,
             'data_as_of': now.isoformat()}

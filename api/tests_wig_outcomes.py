@@ -1,5 +1,6 @@
 """Tests for the literacy WIG outcome measures (api/wig_outcomes.py)."""
 from datetime import timedelta
+from unittest.mock import patch
 
 from django.contrib.auth.models import User
 from django.test import TestCase
@@ -86,6 +87,10 @@ class CheckSourcesTests(TestCase):
 class OutcomeComputationTests(TestCase):
     def setUp(self):
         make_logs()
+        p = patch("api.wig_outcomes.zazi_client.fetch_zazi_wig_outcomes",
+                  side_effect=Exception("offline"))
+        p.start()
+        self.addCleanup(p.stop)
 
     def test_healthy_logs_no_rows_available_with_null_outcomes(self):
         payload = build_outcomes()
@@ -193,6 +198,10 @@ class DedupeFailClosedTests(TestCase):
     def setUp(self):
         make_logs()
         roster("CH-1")
+        p = patch("api.wig_outcomes.zazi_client.fetch_zazi_wig_outcomes",
+                  side_effect=Exception("offline"))
+        p.start()
+        self.addCleanup(p.stop)
 
     def test_duplicate_row_cannot_flip_child_to_passing(self):
         assess("CH-1", read_words=10.0, duplicate_status="Single")
@@ -218,6 +227,10 @@ class DedupeFailClosedTests(TestCase):
 class GradeCohortTests(TestCase):
     def setUp(self):
         make_logs()
+        p = patch("api.wig_outcomes.zazi_client.fetch_zazi_wig_outcomes",
+                  side_effect=Exception("offline"))
+        p.start()
+        self.addCleanup(p.stop)
 
     def test_roster_grade_wins_over_assessment_grade(self):
         roster("CH-1", grade="Grade 1")
@@ -247,22 +260,36 @@ class GradeCohortTests(TestCase):
 class BuildOutcomesSourceGateTests(TestCase):
     """build_outcomes() itself fails closed when sources are unhealthy."""
 
+    def setUp(self):
+        p = patch("api.wig_outcomes.zazi_client.fetch_zazi_wig_outcomes",
+                  side_effect=Exception("offline"))
+        p.start()
+        self.addCleanup(p.stop)
+
     def test_unavailable_with_no_sync_logs(self):
         payload = build_outcomes()
         self.assertFalse(payload["available"])
         self.assertIn("literacy_assessments_2026", payload["source_note"])
-        self.assertEqual(payload["outcomes"], {})
+        self.assertNotIn("core_literacy", payload["outcomes"])
+        self.assertNotIn("ecd_literacy", payload["outcomes"])
 
     def test_unavailable_when_one_sync_is_stale(self):
         make_logs(hours_ago=1, only=("literacy_assessments_2026",))
         make_logs(hours_ago=72, only=("on_the_programme_2026",))
         payload = build_outcomes()
         self.assertFalse(payload["available"])
-        self.assertEqual(payload["outcomes"], {})
+        self.assertNotIn("core_literacy", payload["outcomes"])
+        self.assertNotIn("ecd_literacy", payload["outcomes"])
 
 
 class OutcomeEndpointTests(TestCase):
     """/api/wig/outcomes/ is wired and role-gated (ADMIN / PROJECT MANAGER only)."""
+
+    def setUp(self):
+        p = patch("api.wig_outcomes.zazi_client.fetch_zazi_wig_outcomes",
+                  side_effect=Exception("offline"))
+        p.start()
+        self.addCleanup(p.stop)
 
     def _client_as(self, name, role):
         u = User.objects.create(username=name)
@@ -300,6 +327,10 @@ class ExporterParityEdgeTests(TestCase):
 
     def setUp(self):
         make_logs()
+        p = patch("api.wig_outcomes.zazi_client.fetch_zazi_wig_outcomes",
+                  side_effect=Exception("offline"))
+        p.start()
+        self.addCleanup(p.stop)
 
     def test_null_grade_on_latest_row_falls_back_to_prer_not_earlier_term(self):
         # Exporter rule: (jun or jan).grade — a Jun row with a null grade wins
@@ -324,3 +355,81 @@ class ExporterParityEdgeTests(TestCase):
         payload = build_outcomes()
         self.assertFalse(payload["available"])
         self.assertIn("dedupe", payload["source_note"])
+
+
+ZAZI_PAYLOAD = {
+    "generated_at": "2026-07-03T10:00:00+00:00", "as_of": "2026-07-02T22:00:00+00:00",
+    "programmes": {
+        "zazi_izandi": {"term": "midline", "metrics": [
+            {"key": "grade_1", "label": "Gr 1", "threshold": 40.0, "target": 0.67,
+             "value": 0.4, "numerator": 4, "denominator": 10,
+             "baseline": {"value": 0.1, "numerator": 1, "denominator": 10}},
+        ]},
+        "zazi_izandi_ecd": {"term": "midline", "metrics": [
+            {"key": "letter_sounds", "label": "Letter sounds", "threshold": 20.0,
+             "target": 0.75, "value": 0.25, "numerator": 5, "denominator": 20,
+             "baseline": None},
+        ]},
+    },
+}
+
+
+class ZaziMergeTests(TestCase):
+    def setUp(self):
+        make_logs()
+
+    def test_literacy_entries_carry_kind_single_with_flat_fields(self):
+        roster("CH-1")
+        assess("CH-1", read_words=20.0)
+        with patch("api.wig_outcomes.zazi_client.fetch_zazi_wig_outcomes",
+                   return_value=ZAZI_PAYLOAD):
+            out = build_outcomes()["outcomes"]["core_literacy"]
+        self.assertEqual(out["kind"], "single")
+        for field in ("value", "numerator", "denominator", "term", "cohort_total", "baseline"):
+            self.assertIn(field, out)
+
+    def test_zazi_multi_and_single_mapping(self):
+        with patch("api.wig_outcomes.zazi_client.fetch_zazi_wig_outcomes",
+                   return_value=ZAZI_PAYLOAD):
+            outcomes = build_outcomes()["outcomes"]
+        multi = outcomes["zazi_izandi"]
+        self.assertEqual(multi["kind"], "multi")
+        self.assertEqual(multi["metrics"][0]["target"], 0.67)
+        single = outcomes["zazi_izandi_ecd"]
+        self.assertEqual(single["kind"], "single")
+        self.assertEqual(single["value"], 0.25)
+        self.assertEqual(single["target"], 0.75)
+        self.assertNotIn("cohort_total", single)
+
+    def test_zazi_fetch_error_degrades_only_zazi(self):
+        roster("CH-1")
+        assess("CH-1", read_words=20.0)
+        with patch("api.wig_outcomes.zazi_client.fetch_zazi_wig_outcomes",
+                   side_effect=Exception("boom")):
+            outcomes = build_outcomes()["outcomes"]
+        self.assertEqual(outcomes["zazi_izandi"]["kind"], "unavailable")
+        self.assertEqual(outcomes["zazi_izandi_ecd"]["kind"], "unavailable")
+        self.assertEqual(outcomes["core_literacy"]["kind"], "single")
+
+    def test_zazi_malformed_payload_degrades(self):
+        with patch("api.wig_outcomes.zazi_client.fetch_zazi_wig_outcomes",
+                   return_value={"nope": True}):
+            outcomes = build_outcomes()["outcomes"]
+        self.assertEqual(outcomes["zazi_izandi"]["kind"], "unavailable")
+
+    def test_zazi_null_programme_stays_null(self):
+        payload = {"as_of": None, "programmes": {"zazi_izandi": None, "zazi_izandi_ecd": None}}
+        with patch("api.wig_outcomes.zazi_client.fetch_zazi_wig_outcomes",
+                   return_value=payload):
+            outcomes = build_outcomes()["outcomes"]
+        self.assertIsNone(outcomes["zazi_izandi"])
+
+    def test_literacy_gate_failure_still_includes_zazi(self):
+        from api.models import AirtableSyncLog
+        AirtableSyncLog.objects.all().delete()   # literacy sources unhealthy
+        with patch("api.wig_outcomes.zazi_client.fetch_zazi_wig_outcomes",
+                   return_value=ZAZI_PAYLOAD):
+            payload = build_outcomes()
+        self.assertFalse(payload["available"])
+        self.assertEqual(payload["outcomes"]["zazi_izandi"]["kind"], "multi")
+        self.assertNotIn("core_literacy", payload["outcomes"])
