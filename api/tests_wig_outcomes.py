@@ -1,14 +1,18 @@
 """Tests for the literacy WIG outcome measures (api/wig_outcomes.py)."""
+from copy import deepcopy
 from datetime import timedelta
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
+import requests
 from django.contrib.auth.models import User
 from django.test import TestCase
 from django.utils import timezone
 from rest_framework.test import APIClient
 
+from api import wig_outcomes, zazi_client
 from api.models import AirtableSyncLog, LiteracyAssessment2026, OnTheProgramme2026
 from api.wig_outcomes import REQUIRED_SYNCS, check_sources, build_outcomes
+
 
 _seq = {"n": 0}
 
@@ -37,6 +41,11 @@ def assess(uid, term="Jun", read_words=None, letter_sounds=None, grade=None,
         source_airtable_id=f"rec-a{_seq['n']}", child_uid=uid, year=year, term=term,
         grade=grade, read_words=read_words, letter_sounds=letter_sounds,
         duplicate_status=duplicate_status, is_active=active)
+
+
+def reset_zazi_cache():
+    if hasattr(wig_outcomes, "_zazi_cache"):
+        wig_outcomes._zazi_cache.update({"at": None, "entries": None})
 
 
 class CheckSourcesTests(TestCase):
@@ -87,6 +96,7 @@ class CheckSourcesTests(TestCase):
 class OutcomeComputationTests(TestCase):
     def setUp(self):
         make_logs()
+        reset_zazi_cache()
         p = patch("api.wig_outcomes.zazi_client.fetch_zazi_wig_outcomes",
                   side_effect=Exception("offline"))
         p.start()
@@ -198,6 +208,7 @@ class DedupeFailClosedTests(TestCase):
     def setUp(self):
         make_logs()
         roster("CH-1")
+        reset_zazi_cache()
         p = patch("api.wig_outcomes.zazi_client.fetch_zazi_wig_outcomes",
                   side_effect=Exception("offline"))
         p.start()
@@ -227,6 +238,7 @@ class DedupeFailClosedTests(TestCase):
 class GradeCohortTests(TestCase):
     def setUp(self):
         make_logs()
+        reset_zazi_cache()
         p = patch("api.wig_outcomes.zazi_client.fetch_zazi_wig_outcomes",
                   side_effect=Exception("offline"))
         p.start()
@@ -261,6 +273,7 @@ class BuildOutcomesSourceGateTests(TestCase):
     """build_outcomes() itself fails closed when sources are unhealthy."""
 
     def setUp(self):
+        reset_zazi_cache()
         p = patch("api.wig_outcomes.zazi_client.fetch_zazi_wig_outcomes",
                   side_effect=Exception("offline"))
         p.start()
@@ -286,6 +299,7 @@ class OutcomeEndpointTests(TestCase):
     """/api/wig/outcomes/ is wired and role-gated (ADMIN / PROJECT MANAGER only)."""
 
     def setUp(self):
+        reset_zazi_cache()
         p = patch("api.wig_outcomes.zazi_client.fetch_zazi_wig_outcomes",
                   side_effect=Exception("offline"))
         p.start()
@@ -327,6 +341,7 @@ class ExporterParityEdgeTests(TestCase):
 
     def setUp(self):
         make_logs()
+        reset_zazi_cache()
         p = patch("api.wig_outcomes.zazi_client.fetch_zazi_wig_outcomes",
                   side_effect=Exception("offline"))
         p.start()
@@ -377,6 +392,7 @@ ZAZI_PAYLOAD = {
 class ZaziMergeTests(TestCase):
     def setUp(self):
         make_logs()
+        reset_zazi_cache()
 
     def test_literacy_entries_carry_kind_single_with_flat_fields(self):
         roster("CH-1")
@@ -433,3 +449,103 @@ class ZaziMergeTests(TestCase):
         self.assertFalse(payload["available"])
         self.assertEqual(payload["outcomes"]["zazi_izandi"]["kind"], "multi")
         self.assertNotIn("core_literacy", payload["outcomes"])
+
+    def _payload(self):
+        return deepcopy(ZAZI_PAYLOAD)
+
+    def _outcomes_for(self, payload):
+        with patch("api.wig_outcomes.zazi_client.fetch_zazi_wig_outcomes",
+                   return_value=payload):
+            return build_outcomes()["outcomes"]
+
+    def assertMalformedZazi(self, outcomes):
+        for key in ("zazi_izandi", "zazi_izandi_ecd"):
+            self.assertEqual(
+                outcomes[key],
+                {"kind": "unavailable", "note": "Zazi payload malformed"},
+            )
+
+    def test_zazi_payload_missing_one_programme_key_degrades_both(self):
+        payload = self._payload()
+        del payload["programmes"]["zazi_izandi_ecd"]
+        self.assertMalformedZazi(self._outcomes_for(payload))
+
+    def test_zazi_programmes_must_be_dict(self):
+        payload = self._payload()
+        payload["programmes"] = []
+        self.assertMalformedZazi(self._outcomes_for(payload))
+
+    def test_zazi_metrics_must_be_non_empty(self):
+        payload = self._payload()
+        payload["programmes"]["zazi_izandi"]["metrics"] = []
+        self.assertMalformedZazi(self._outcomes_for(payload))
+
+    def test_zazi_metric_missing_required_key_degrades_both(self):
+        payload = self._payload()
+        del payload["programmes"]["zazi_izandi"]["metrics"][0]["target"]
+        self.assertMalformedZazi(self._outcomes_for(payload))
+
+    def test_zazi_metric_null_value_is_accepted(self):
+        payload = self._payload()
+        payload["programmes"]["zazi_izandi_ecd"]["metrics"][0]["value"] = None
+        outcomes = self._outcomes_for(payload)
+        self.assertEqual(outcomes["zazi_izandi_ecd"]["kind"], "single")
+        self.assertIsNone(outcomes["zazi_izandi_ecd"]["value"])
+
+    def test_zazi_success_cached_for_sixty_seconds(self):
+        now = timezone.now()
+        with patch("api.wig_outcomes.zazi_client.fetch_zazi_wig_outcomes",
+                   return_value=ZAZI_PAYLOAD) as fetch:
+            build_outcomes(now=now)
+            build_outcomes(now=now + timedelta(seconds=30))
+        self.assertEqual(fetch.call_count, 1)
+
+    def test_zazi_failure_cached_for_sixty_seconds(self):
+        now = timezone.now()
+        with patch("api.wig_outcomes.zazi_client.fetch_zazi_wig_outcomes",
+                   side_effect=Exception("boom")) as fetch:
+            first = build_outcomes(now=now)["outcomes"]["zazi_izandi"]
+            second = build_outcomes(now=now + timedelta(seconds=30))["outcomes"]["zazi_izandi"]
+        self.assertEqual(fetch.call_count, 1)
+        self.assertEqual(first, {"kind": "unavailable", "note": "Zazi backend unreachable"})
+        self.assertEqual(second, first)
+
+
+class ZaziClientRequestTests(TestCase):
+    @patch.dict("os.environ", {
+        "ZAZI_API_BASE_URL": "https://zazi.example.test/base/",
+        "ZAZI_INTERNAL_API_SECRET": "secret-123",
+    })
+    @patch("api.zazi_client.requests.get")
+    def test_fetch_zazi_wig_outcomes_request_contract_and_success_json(self, get):
+        response = Mock()
+        response.json.return_value = {"ok": True}
+        get.return_value = response
+
+        payload = zazi_client.fetch_zazi_wig_outcomes()
+
+        self.assertEqual(payload, {"ok": True})
+        url = get.call_args.args[0]
+        kwargs = get.call_args.kwargs
+        self.assertTrue(url.endswith("/api/wig-outcomes/"))
+        self.assertEqual(url, "https://zazi.example.test/base/api/wig-outcomes/")
+        self.assertEqual(kwargs["headers"], {"X-Internal-Auth": "secret-123"})
+        self.assertEqual(kwargs["timeout"], 5)
+        response.raise_for_status.assert_called_once_with()
+        response.json.assert_called_once_with()
+
+    @patch.dict("os.environ", {
+        "ZAZI_API_BASE_URL": "https://zazi.example.test",
+        "ZAZI_INTERNAL_API_SECRET": "secret-123",
+    })
+    @patch("api.zazi_client.requests.get")
+    def test_fetch_zazi_wig_outcomes_raises_http_errors(self, get):
+        response = Mock()
+        response.raise_for_status.side_effect = requests.HTTPError("500")
+        get.return_value = response
+
+        with self.assertRaises(requests.HTTPError):
+            zazi_client.fetch_zazi_wig_outcomes()
+
+        response.raise_for_status.assert_called_once_with()
+        response.json.assert_not_called()

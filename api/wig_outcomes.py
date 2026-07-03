@@ -34,6 +34,14 @@ OUTCOME_DEFS = {
 ZAZI_PROGRAMME_KEYS = ('zazi_izandi', 'zazi_izandi_ecd')
 
 
+# Live-fetch architecture is kept; the cache only prevents timeout storms.
+_zazi_cache = {'at': None, 'entries': None}
+
+ZAZI_REQUIRED_METRIC_KEYS = {
+    'key', 'label', 'threshold', 'target', 'value', 'numerator', 'denominator', 'baseline'
+}
+
+
 def _zazi_single(prog, as_of):
     """Flatten a one-metric Zazi programme to the single-outcome shape."""
     m = prog['metrics'][0]
@@ -46,26 +54,68 @@ def _zazi_single(prog, as_of):
     }
 
 
-def _zazi_outcomes():
+def _zazi_unavailable(note):
+    return {key: {'kind': 'unavailable', 'note': note} for key in ZAZI_PROGRAMME_KEYS}
+
+
+def _validate_zazi_programme(prog):
+    if not isinstance(prog, dict):
+        raise ValueError('programme is not a dict')
+    term = prog.get('term')
+    metrics = prog.get('metrics')
+    if not isinstance(term, str) or not isinstance(metrics, list) or not metrics:
+        raise ValueError('programme has invalid term or metrics')
+    for metric in metrics:
+        if not isinstance(metric, dict):
+            raise ValueError('metric is not a dict')
+        if not ZAZI_REQUIRED_METRIC_KEYS.issubset(metric.keys()):
+            raise ValueError('metric is missing required keys')
+
+
+def _normalize_zazi_payload(payload):
+    if not isinstance(payload, dict):
+        raise ValueError('payload is not a dict')
+    programmes = payload.get('programmes')
+    if not isinstance(programmes, dict):
+        raise ValueError('programmes is not a dict')
+    if any(key not in programmes for key in ZAZI_PROGRAMME_KEYS):
+        raise ValueError('programmes missing required key')
+
+    as_of = payload.get('as_of')
+    result = {}
+    for key in ZAZI_PROGRAMME_KEYS:
+        prog = programmes[key]
+        if prog is None:
+            result[key] = None
+            continue
+        _validate_zazi_programme(prog)
+        if key == 'zazi_izandi':
+            result[key] = {'kind': 'multi', 'term': prog['term'],
+                           'as_of': as_of, 'metrics': prog['metrics']}
+        else:
+            result[key] = _zazi_single(prog, as_of)
+    return result
+
+
+def _zazi_outcomes(now):
     """Per-programme Zazi entries; any failure degrades ONLY the Zazi keys."""
+    cached_at = _zazi_cache['at']
+    if cached_at is not None and _zazi_cache['entries'] is not None:
+        if now - cached_at < timedelta(seconds=60):
+            return _zazi_cache['entries']
+
     try:
         payload = zazi_client.fetch_zazi_wig_outcomes()
-        programmes = payload['programmes']
-        as_of = payload.get('as_of')
-        result = {}
-        for key in ZAZI_PROGRAMME_KEYS:
-            prog = programmes.get(key) if isinstance(programmes, dict) else None
-            if prog is None:
-                result[key] = None
-            elif key == 'zazi_izandi':
-                result[key] = {'kind': 'multi', 'term': prog['term'],
-                               'as_of': as_of, 'metrics': prog['metrics']}
-            else:
-                result[key] = _zazi_single(prog, as_of)
-        return result
     except Exception:
-        note = 'Zazi backend unreachable'
-        return {key: {'kind': 'unavailable', 'note': note} for key in ZAZI_PROGRAMME_KEYS}
+        entries = _zazi_unavailable('Zazi backend unreachable')
+    else:
+        try:
+            entries = _normalize_zazi_payload(payload)
+        except Exception:
+            entries = _zazi_unavailable('Zazi payload malformed')
+
+    _zazi_cache.update({'at': now, 'entries': entries})
+    return entries
 
 
 def check_sources(now):
@@ -147,7 +197,7 @@ def build_outcomes(now=None):
     now = now or timezone.now()
 
     def unavailable(note):
-        return {'available': False, 'source_note': note, 'outcomes': _zazi_outcomes(),
+        return {'available': False, 'source_note': note, 'outcomes': _zazi_outcomes(now),
                 'data_as_of': now.isoformat()}
 
     ok, note = check_sources(now)
@@ -173,6 +223,6 @@ def build_outcomes(now=None):
     grades, fallback_uids = _child_grades(roster_grades, winners)
     outcomes = {key: _programme_outcome(defn, grades, fallback_uids, winners)
                 for key, defn in OUTCOME_DEFS.items()}
-    outcomes.update(_zazi_outcomes())
+    outcomes.update(_zazi_outcomes(now))
     return {'available': True, 'source_note': None, 'outcomes': outcomes,
             'data_as_of': now.isoformat()}
