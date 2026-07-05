@@ -133,6 +133,7 @@ python manage.py sync_airtable_youth
 - **2026 fact-table syncs** (literacy/numeracy assessments, on-the-programme roster): guarded soft-retirement instead — `is_active`/`last_seen_at`, never hard-delete, retire-delta guard with `--allow-retire`. Mirror `sync_airtable_literacy_assessments_2026.py`; the parquet export's freshness gates read the sync log's `retire_skipped`/`dup_uid_skipped` details keys and fail closed on them.
 
 **Pipeline docs (read before adding/changing a sync, model, or export):**
+- `documentation/data_map.md` — the system-wide map (start here for orientation): all capture tools, both canonical Postgres stores (Masi + Zazi), every entity/event/derived table with keys and cadences, the Masi-Zazi bridge, serving channels, dashboard feeds, the ID spine, and the stewardship register. Written companion to the website's `/operations/data-map` page; verified July 2026.
 - `documentation/etl_data_architecture_plan.md` — strategic roadmap: raw/canonical/reporting layers, canonical-key strategy, phased plan (assessments are Phase 4).
 - `documentation/airtable_pipeline_sync.md` — operational companion: current sync convention, the as-verified Airtable/Postgres state (base/table IDs, join keys, known data-quality traps), outbound serving (DRF, internal export, parquet snapshot to the Streamlit portal), and the 2026 midline literacy assessments pipeline. Note the verified caveats there (e.g. `2026 On The Programme.All Sessions Count v2` is not a reliable session total; canonical entities are fragmented across Airtable bases).
 
