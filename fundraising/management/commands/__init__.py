@@ -1,0 +1,1 @@
+"""Fundraising management commands."""

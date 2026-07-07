@@ -50,6 +50,7 @@ INSTALLED_APPS = [
     'pages',
     'api',
     'dashboards',
+    'fundraising',
     'corsheaders',
 
 ]
