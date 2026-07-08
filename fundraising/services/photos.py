@@ -99,3 +99,75 @@ def downscale_jpeg(image_bytes, max_px=768, quality=80):
     out = io.BytesIO()
     img.save(out, format="JPEG", quality=quality)
     return out.getvalue()
+
+
+_RUBRIC = (
+    "Masi is a two-birds programme: women's employment and children's education. "
+    "A story's subject may be a woman, a child, or a woman together with her children. "
+    "Using the story context, pick the single strongest image that features THIS story's "
+    "subject for a donor email header: subject in sharp focus, warm, uncluttered background, "
+    "landscape framing. A woman with her children is on-message, not a group shot to reject. "
+    "Reject blurry, duplicate, cut-out-on-transparent, or incoherent crowd shots. "
+    "Return ONLY JSON: {\"chosen_index\": int, \"reason\": str, "
+    "\"rejected\": [{\"index\": int, \"why\": str}]}."
+)
+
+
+def _text_from_response(response):
+    parts = []
+    for block in getattr(response, "content", []):
+        text = getattr(block, "text", None)
+        if text:
+            parts.append(text)
+    return "\n".join(parts).strip()
+
+
+def _extract_json(raw):
+    try:
+        return json.loads(raw)
+    except (json.JSONDecodeError, TypeError):
+        s, e = raw.find("{"), raw.rfind("}")
+        if s == -1 or e <= s:
+            return None
+        try:
+            return json.loads(raw[s:e + 1])
+        except json.JSONDecodeError:
+            return None
+
+
+def _fallback(reason):
+    return {"chosen_index": 0, "reason": reason, "rejected": [], "fallback": True}
+
+
+def pick_hero(anthropic_client, candidates, story_context):
+    """One vision call to choose the hero. Single candidate or any parse
+    failure -> fallback to index 0 (never raises)."""
+    if len(candidates) == 1:
+        return _fallback("only image available")
+
+    content = [{"type": "text", "text": "Story context: " + json.dumps(story_context, default=str)}]
+    for i, c in enumerate(candidates):
+        content.append({"type": "text", "text": f"Candidate {i}: {c['name']}"})
+        content.append({
+            "type": "image",
+            "source": {"type": "base64", "media_type": "image/jpeg", "data": c["b64"]},
+        })
+    content.append({"type": "text", "text": _RUBRIC})
+
+    response = anthropic_client.messages.create(
+        model=MODEL,
+        max_tokens=800,
+        messages=[{"role": "user", "content": content}],
+    )
+    payload = _extract_json(_text_from_response(response))
+    if not isinstance(payload, dict):
+        return _fallback("model returned no parseable choice")
+    idx = payload.get("chosen_index")
+    if not isinstance(idx, int) or not (0 <= idx < len(candidates)):
+        return _fallback("model returned an out-of-range choice")
+    return {
+        "chosen_index": idx,
+        "reason": str(payload.get("reason", "")),
+        "rejected": payload.get("rejected") or [],
+        "fallback": False,
+    }

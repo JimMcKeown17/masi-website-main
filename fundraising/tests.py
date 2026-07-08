@@ -1,4 +1,5 @@
 import io
+import json
 from datetime import date
 from decimal import Decimal
 from unittest import mock
@@ -372,6 +373,49 @@ class PhotosDownscaleTests(SimpleTestCase):
         drive.files.return_value.get_media.return_value.execute.return_value = b"RAW"
         self.assertEqual(download_bytes(drive, "fid"), b"RAW")
         drive.files.return_value.get_media.assert_called_once_with(fileId="fid")
+
+
+def _resp(text):
+    block = mock.MagicMock(); block.text = text
+    r = mock.MagicMock(); r.content = [block]
+    return r
+
+
+class PickHeroTests(SimpleTestCase):
+    ctx = {"feature_name": "Nomsa", "headline": "A mother graduates", "narrative": "Nomsa...", "category": ["Youth"]}
+
+    def test_single_candidate_no_api_call(self):
+        from fundraising.services.photos import pick_hero
+        client = mock.MagicMock()
+        out = pick_hero(client, [{"name": "a.jpg", "b64": "AAAA"}], self.ctx)
+        self.assertEqual(out["chosen_index"], 0)
+        self.assertTrue(out["fallback"])
+        client.messages.create.assert_not_called()
+
+    def test_valid_json_pick(self):
+        from fundraising.services.photos import pick_hero
+        client = mock.MagicMock()
+        client.messages.create.return_value = _resp(
+            '{"chosen_index":1,"reason":"woman in focus","rejected":[{"index":0,"why":"blurry"}]}')
+        out = pick_hero(client, [{"name": "a", "b64": "AA"}, {"name": "b", "b64": "BB"}], self.ctx)
+        self.assertEqual(out["chosen_index"], 1)
+        self.assertFalse(out["fallback"])
+
+    def test_malformed_json_falls_back(self):
+        from fundraising.services.photos import pick_hero
+        client = mock.MagicMock()
+        client.messages.create.return_value = _resp("sorry, no json here")
+        out = pick_hero(client, [{"name": "a", "b64": "AA"}, {"name": "b", "b64": "BB"}], self.ctx)
+        self.assertEqual(out["chosen_index"], 0)
+        self.assertTrue(out["fallback"])
+
+    def test_out_of_range_index_falls_back(self):
+        from fundraising.services.photos import pick_hero
+        client = mock.MagicMock()
+        client.messages.create.return_value = _resp('{"chosen_index":9,"reason":"x","rejected":[]}')
+        out = pick_hero(client, [{"name": "a", "b64": "AA"}, {"name": "b", "b64": "BB"}], self.ctx)
+        self.assertEqual(out["chosen_index"], 0)
+        self.assertTrue(out["fallback"])
 
 
 class MailchimpServiceTests(TestCase):
