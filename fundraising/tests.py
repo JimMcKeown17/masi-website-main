@@ -2,7 +2,7 @@ from datetime import date
 from decimal import Decimal
 
 from django.db import IntegrityError, transaction
-from django.test import TestCase
+from django.test import SimpleTestCase, TestCase
 from django.utils import timezone
 
 from .models import (
@@ -273,6 +273,19 @@ class HeroImageFieldTests(TestCase):
         s.save(update_fields=["hero_image_url"])
         s.refresh_from_db()
         self.assertTrue(s.hero_image_url.endswith("recHERO1.jpg"))
+
+
+class PhotosParseTests(SimpleTestCase):
+    def test_parse_drive_ref_cases(self):
+        from fundraising.services.photos import parse_drive_ref
+
+        self.assertEqual(parse_drive_ref("https://drive.google.com/drive/folders/1AbC_x-y?usp=sharing"), ("folder", "1AbC_x-y"))
+        self.assertEqual(parse_drive_ref("https://drive.google.com/file/d/11u5Du6/view"), ("file", "11u5Du6"))
+        self.assertEqual(parse_drive_ref("https://drive.google.com/uc?id=99XyZ"), ("file", "99XyZ"))
+        self.assertEqual(parse_drive_ref("https://drive.google.com/open?id=42Abc"), ("file", "42Abc"))
+        self.assertEqual(parse_drive_ref("https://drive.google.com/drive/search?q=Usisipho"), (None, None))
+        self.assertEqual(parse_drive_ref(""), (None, None))
+        self.assertEqual(parse_drive_ref("not a url"), (None, None))
 
 
 class MailchimpServiceTests(TestCase):
