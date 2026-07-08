@@ -452,6 +452,31 @@ class PhotoClientBuilderTests(SimpleTestCase):
                 gcs_bucket()
 
 
+class ContactSheetTests(SimpleTestCase):
+    def _records(self):
+        return [
+            {"title": "Nomsa Dlamini", "meta": "Youth - 2026", "status": "stored", "fallback": False,
+             "chosen_index": 0, "reason": "woman in sharp focus",
+             "hero_url": "https://storage.googleapis.com/masi-website/fundraising/heroes/rec1.jpg",
+             "candidates": [{"name": "a.jpg", "b64": "AAAA", "rejected_why": None},
+                            {"name": "b.jpg", "b64": "BBBB", "rejected_why": "blurry"}],
+             "problem_reason": None},
+            {"title": "Usisipho Mehlo", "meta": "", "status": "problem", "fallback": False,
+             "chosen_index": None, "reason": "", "hero_url": None, "candidates": [],
+             "problem_reason": "no usable link (search URL)"},
+        ]
+
+    def test_renders_hero_and_problem(self):
+        from fundraising.services.photos_report import render_contact_sheet
+        html = render_contact_sheet(self._records())
+        self.assertIn("<html", html.lower())
+        self.assertIn("Nomsa Dlamini", html)
+        self.assertIn("HERO", html)
+        self.assertIn("data:image/jpeg;base64,AAAA", html)
+        self.assertIn("no usable link (search URL)", html)
+        self.assertIn("1 stored", html)  # summary chip
+
+
 class MailchimpServiceTests(TestCase):
     def test_mailchimp_server_prefix_and_urls_come_from_api_key_suffix(self):
         from fundraising.services.mailchimp import (
