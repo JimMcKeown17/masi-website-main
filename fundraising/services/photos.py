@@ -6,6 +6,8 @@ import json
 import os
 import re
 
+from googleapiclient.errors import HttpError
+
 from fundraising.services.compose import MODEL
 
 
@@ -35,3 +37,45 @@ def parse_drive_ref(url):
     if m:
         return ("file", m.group(1))
     return (None, None)
+
+
+_FOLDER_MIME = "application/vnd.google-apps.folder"
+_MAX_CANDIDATES = 15
+
+
+def _list_children(drive, parent_id):
+    req = drive.files().list(
+        q=f"'{parent_id}' in parents and trashed=false",
+        fields="files(id,name,mimeType)",
+        pageSize=200,
+    )
+    return req.execute().get("files", [])
+
+
+def _images(files):
+    return [f for f in files if f.get("mimeType", "").startswith("image/")]
+
+
+def list_candidate_images(drive, kind, ref_id):
+    """Return up to _MAX_CANDIDATES image file dicts for a folder or file ref.
+    Raises DriveAccessError on a 404/403 (link not shared / deleted)."""
+    try:
+        if kind == "file":
+            meta = drive.files().get(
+                fileId=ref_id, fields="id,name,mimeType"
+            ).execute()
+            return [meta] if meta.get("mimeType", "").startswith("image/") else []
+
+        children = _list_children(drive, ref_id)
+        imgs = _images(children)
+        if not imgs:
+            for sub in [c for c in children if c.get("mimeType") == _FOLDER_MIME]:
+                imgs.extend(_images(_list_children(drive, sub["id"])))
+                if len(imgs) >= _MAX_CANDIDATES:
+                    break
+        return imgs[:_MAX_CANDIDATES]
+    except HttpError as e:
+        status = getattr(getattr(e, "resp", None), "status", None)
+        if status in (403, 404):
+            raise DriveAccessError(str(e))
+        raise

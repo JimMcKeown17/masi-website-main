@@ -1,5 +1,6 @@
 from datetime import date
 from decimal import Decimal
+from unittest import mock
 
 from django.db import IntegrityError, transaction
 from django.test import SimpleTestCase, TestCase
@@ -286,6 +287,62 @@ class PhotosParseTests(SimpleTestCase):
         self.assertEqual(parse_drive_ref("https://drive.google.com/drive/search?q=Usisipho"), (None, None))
         self.assertEqual(parse_drive_ref(""), (None, None))
         self.assertEqual(parse_drive_ref("not a url"), (None, None))
+
+
+class PhotosListTests(SimpleTestCase):
+    def _drive_returning(self, listings):
+        """listings: dict[parent_id] -> list of file dicts."""
+        drive = mock.MagicMock()
+
+        def files_list(q, fields, pageSize=None):
+            parent = q.split("'")[1]
+            req = mock.MagicMock()
+            req.execute.return_value = {"files": listings.get(parent, [])}
+            return req
+
+        drive.files.return_value.list.side_effect = files_list
+        return drive
+
+    def test_folder_filters_non_images(self):
+        from fundraising.services.photos import list_candidate_images
+        drive = self._drive_returning({"F": [
+            {"id": "a", "name": "a.jpg", "mimeType": "image/jpeg"},
+            {"id": "v", "name": "v.mp4", "mimeType": "video/mp4"},
+        ]})
+        out = list_candidate_images(drive, "folder", "F")
+        self.assertEqual([c["id"] for c in out], ["a"])
+
+    def test_folder_recurses_one_level_when_no_images(self):
+        from fundraising.services.photos import list_candidate_images
+        drive = self._drive_returning({
+            "F": [{"id": "sub", "name": "sub", "mimeType": "application/vnd.google-apps.folder"}],
+            "sub": [{"id": "b", "name": "b.jpg", "mimeType": "image/jpeg"}],
+        })
+        out = list_candidate_images(drive, "folder", "F")
+        self.assertEqual([c["id"] for c in out], ["b"])
+
+    def test_single_image_file(self):
+        from fundraising.services.photos import list_candidate_images
+        drive = mock.MagicMock()
+        drive.files.return_value.get.return_value.execute.return_value = {
+            "id": "x", "name": "x.jpg", "mimeType": "image/jpeg"}
+        self.assertEqual(len(list_candidate_images(drive, "file", "x")), 1)
+
+    def test_single_video_file_yields_nothing(self):
+        from fundraising.services.photos import list_candidate_images
+        drive = mock.MagicMock()
+        drive.files.return_value.get.return_value.execute.return_value = {
+            "id": "x", "name": "x.mp4", "mimeType": "video/mp4"}
+        self.assertEqual(list_candidate_images(drive, "file", "x"), [])
+
+    def test_404_maps_to_drive_access_error(self):
+        from googleapiclient.errors import HttpError
+        from fundraising.services.photos import list_candidate_images, DriveAccessError
+        resp = mock.MagicMock(); resp.status = 404
+        drive = mock.MagicMock()
+        drive.files.return_value.get.return_value.execute.side_effect = HttpError(resp, b"not found")
+        with self.assertRaises(DriveAccessError):
+            list_candidate_images(drive, "file", "x")
 
 
 class MailchimpServiceTests(TestCase):
