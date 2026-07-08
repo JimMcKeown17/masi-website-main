@@ -377,6 +377,17 @@ class PhotosDownscaleTests(SimpleTestCase):
         self.assertEqual(download_bytes(drive, "fid"), b"RAW")
         drive.files.return_value.get_media.assert_called_once_with(fileId="fid")
 
+    def test_optimize_for_email_shrinks_to_email_size(self):
+        import io
+        from PIL import Image
+        from fundraising.services.photos import optimize_for_email
+        big = self._png_bytes(3000, 2200)
+        out = optimize_for_email(big)
+        img = Image.open(io.BytesIO(out))
+        self.assertEqual(img.format, "JPEG")        # PNG normalized to JPEG
+        self.assertLessEqual(max(img.size), 1600)   # capped for an email header
+        self.assertLess(len(out), 500_000)          # email-safe size, not multi-MB
+
 
 def _resp(text):
     block = mock.MagicMock(); block.text = text

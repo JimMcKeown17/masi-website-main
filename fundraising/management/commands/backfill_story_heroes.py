@@ -86,11 +86,13 @@ class Command(BaseCommand):
                 return {**base, "status": "problem",
                         "problem_reason": f"model could not pick a hero ({pick['reason']}); needs manual choice"}
             idx = pick["chosen_index"]
-            raw, mime = full[idx]
+            raw, _ = full[idx]  # mime no longer needed; hero is normalized to JPEG
 
             hero_url = None
             if not dry:
-                hero_url = photos.upload_hero(bucket, story, raw, mime)
+                # Optimize to an email-safe JPEG (~1600px) before publishing; the
+                # full-res originals are 3-11 MB, too heavy for a donor email header.
+                hero_url = photos.upload_hero(bucket, story, photos.optimize_for_email(raw), "image/jpeg")
                 story.hero_image_url = hero_url
                 story.save(update_fields=["hero_image_url", "updated_at"])
 

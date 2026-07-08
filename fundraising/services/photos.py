@@ -101,6 +101,13 @@ def downscale_jpeg(image_bytes, max_px=768, quality=80):
     return out.getvalue()
 
 
+def optimize_for_email(image_bytes):
+    """Resize the chosen hero for an email header: max ~1600px, JPEG. Keeps the
+    stored hero to a few hundred KB instead of the multi-MB full-res originals
+    (which are too heavy for donor email and get proxied/clipped by clients)."""
+    return downscale_jpeg(image_bytes, max_px=1600, quality=85)
+
+
 _RUBRIC = (
     "Masi is a two-birds programme: women's employment and children's education. "
     "A story's subject may be a woman, a child, or a woman together with her children. "
