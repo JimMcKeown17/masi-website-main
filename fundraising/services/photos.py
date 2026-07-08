@@ -7,6 +7,7 @@ import os
 import re
 
 from googleapiclient.errors import HttpError
+from PIL import Image, UnidentifiedImageError
 
 from fundraising.services.compose import MODEL
 
@@ -79,3 +80,22 @@ def list_candidate_images(drive, kind, ref_id):
         if status in (403, 404):
             raise DriveAccessError(str(e))
         raise
+
+
+def download_bytes(drive, file_id):
+    """Full file bytes. For media downloads, get_media().execute() returns the
+    raw content directly."""
+    return drive.files().get_media(fileId=file_id).execute()
+
+
+def downscale_jpeg(image_bytes, max_px=768, quality=80):
+    """Downscale to a max dimension and re-encode JPEG for the vision pass."""
+    try:
+        img = Image.open(io.BytesIO(image_bytes))
+        img = img.convert("RGB")
+    except (UnidentifiedImageError, OSError) as e:
+        raise UnreadableImage(str(e))
+    img.thumbnail((max_px, max_px))
+    out = io.BytesIO()
+    img.save(out, format="JPEG", quality=quality)
+    return out.getvalue()

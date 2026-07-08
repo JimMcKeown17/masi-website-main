@@ -1,3 +1,4 @@
+import io
 from datetime import date
 from decimal import Decimal
 from unittest import mock
@@ -343,6 +344,34 @@ class PhotosListTests(SimpleTestCase):
         drive.files.return_value.get.return_value.execute.side_effect = HttpError(resp, b"not found")
         with self.assertRaises(DriveAccessError):
             list_candidate_images(drive, "file", "x")
+
+
+class PhotosDownscaleTests(SimpleTestCase):
+    def _png_bytes(self, w, h):
+        from PIL import Image
+        buf = io.BytesIO()
+        Image.new("RGB", (w, h), (120, 80, 40)).save(buf, format="PNG")
+        return buf.getvalue()
+
+    def test_downscale_returns_jpeg_within_max(self):
+        from PIL import Image
+        from fundraising.services.photos import downscale_jpeg
+        out = downscale_jpeg(self._png_bytes(2000, 1500), max_px=768)
+        img = Image.open(io.BytesIO(out))
+        self.assertEqual(img.format, "JPEG")
+        self.assertLessEqual(max(img.size), 768)
+
+    def test_downscale_rejects_unreadable(self):
+        from fundraising.services.photos import downscale_jpeg, UnreadableImage
+        with self.assertRaises(UnreadableImage):
+            downscale_jpeg(b"not an image")
+
+    def test_download_bytes_uses_get_media(self):
+        from fundraising.services.photos import download_bytes
+        drive = mock.MagicMock()
+        drive.files.return_value.get_media.return_value.execute.return_value = b"RAW"
+        self.assertEqual(download_bytes(drive, "fid"), b"RAW")
+        drive.files.return_value.get_media.assert_called_once_with(fileId="fid")
 
 
 class MailchimpServiceTests(TestCase):
