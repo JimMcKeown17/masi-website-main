@@ -171,3 +171,43 @@ def pick_hero(anthropic_client, candidates, story_context):
         "rejected": payload.get("rejected") or [],
         "fallback": False,
     }
+
+
+_BUCKET = os.environ.get("GS_BUCKET_NAME", "masi-website").strip('"')
+_EXT = {"image/jpeg": "jpg", "image/jpg": "jpg", "image/png": "png"}
+
+
+def _credentials():
+    raw = os.environ.get("GOOGLE_CREDENTIALS", "")
+    if not raw or raw == "{}":
+        raise ValueError("GOOGLE_CREDENTIALS is not set")
+    from google.oauth2 import service_account
+    return service_account.Credentials.from_service_account_info(json.loads(raw))
+
+
+def drive_client():
+    from googleapiclient.discovery import build
+    creds = _credentials().with_scopes(["https://www.googleapis.com/auth/drive.readonly"])
+    return build("drive", "v3", credentials=creds, cache_discovery=False)
+
+
+def gcs_bucket():
+    from google.cloud import storage
+    creds = _credentials()
+    return storage.Client(project=creds.project_id, credentials=creds).bucket(_BUCKET)
+
+
+def anthropic_client():
+    key = os.environ.get("ANTHROPIC_API_KEY")
+    if not key:
+        raise ValueError("ANTHROPIC_API_KEY is not set")
+    import anthropic
+    return anthropic.Anthropic(api_key=key)
+
+
+def upload_hero(bucket, story, image_bytes, mime):
+    ext = _EXT.get(mime, "jpg")
+    key = f"fundraising/heroes/{story.source_airtable_id}.{ext}"
+    blob = bucket.blob(key)
+    blob.upload_from_string(image_bytes, content_type=mime)
+    return f"https://storage.googleapis.com/{_BUCKET}/{key}"

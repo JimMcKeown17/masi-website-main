@@ -418,6 +418,40 @@ class PickHeroTests(SimpleTestCase):
         self.assertTrue(out["fallback"])
 
 
+class UploadHeroTests(SimpleTestCase):
+    def test_upload_uses_stable_key_and_no_acl(self):
+        from fundraising.services.photos import upload_hero
+        story = mock.MagicMock(source_airtable_id="recABC")
+        bucket = mock.MagicMock()
+        blob = bucket.blob.return_value
+        url = upload_hero(bucket, story, b"JPEGDATA", "image/jpeg")
+        bucket.blob.assert_called_once_with("fundraising/heroes/recABC.jpg")
+        blob.upload_from_string.assert_called_once_with(b"JPEGDATA", content_type="image/jpeg")
+        blob.make_public.assert_not_called()
+        self.assertEqual(url, "https://storage.googleapis.com/masi-website/fundraising/heroes/recABC.jpg")
+
+    def test_upload_png_extension(self):
+        from fundraising.services.photos import upload_hero
+        story = mock.MagicMock(source_airtable_id="recP")
+        bucket = mock.MagicMock()
+        upload_hero(bucket, story, b"X", "image/png")
+        bucket.blob.assert_called_once_with("fundraising/heroes/recP.png")
+
+
+class PhotoClientBuilderTests(SimpleTestCase):
+    def test_anthropic_client_requires_key(self):
+        from fundraising.services.photos import anthropic_client
+        with mock.patch.dict("os.environ", {}, clear=True):
+            with self.assertRaises(ValueError):
+                anthropic_client()
+
+    def test_gcs_bucket_requires_credentials(self):
+        from fundraising.services.photos import gcs_bucket
+        with mock.patch.dict("os.environ", {}, clear=True):
+            with self.assertRaises(ValueError):
+                gcs_bucket()
+
+
 class MailchimpServiceTests(TestCase):
     def test_mailchimp_server_prefix_and_urls_come_from_api_key_suffix(self):
         from fundraising.services.mailchimp import (
