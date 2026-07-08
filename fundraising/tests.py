@@ -263,6 +263,18 @@ class ContentStoryTests(TestCase):
         self.assertFalse(row['has_consent'])
 
 
+class HeroImageFieldTests(TestCase):
+    def test_hero_image_url_defaults_blank_and_is_settable(self):
+        from fundraising.models import ContentStory
+
+        s = ContentStory.objects.create(source_airtable_id="recHERO1")
+        self.assertEqual(s.hero_image_url, "")
+        s.hero_image_url = "https://storage.googleapis.com/masi-website/fundraising/heroes/recHERO1.jpg"
+        s.save(update_fields=["hero_image_url"])
+        s.refresh_from_db()
+        self.assertTrue(s.hero_image_url.endswith("recHERO1.jpg"))
+
+
 class MailchimpServiceTests(TestCase):
     def test_mailchimp_server_prefix_and_urls_come_from_api_key_suffix(self):
         from fundraising.services.mailchimp import (

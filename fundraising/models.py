@@ -327,6 +327,7 @@ class ContentStory(models.Model):
     photo_urls = models.JSONField(null=True, blank=True)
     has_consent = models.BooleanField(default=False)
     drive_link = models.CharField(max_length=500, blank=True, default="")
+    hero_image_url = models.URLField(max_length=500, blank=True, default="")
     social_published = models.CharField(max_length=50, blank=True, default="")
     is_active = models.BooleanField(default=True)
     last_seen_at = models.DateTimeField(null=True, blank=True)

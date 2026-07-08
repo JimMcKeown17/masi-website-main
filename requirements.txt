@@ -61,3 +61,4 @@ whitenoise==6.9.0
 drf-spectacular
 holidays==0.98
 pyarrow==18.0.0
+google-api-python-client

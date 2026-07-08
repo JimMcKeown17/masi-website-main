@@ -65,9 +65,13 @@ class CampaignAdmin(admin.ModelAdmin):
 
 @admin.register(ContentStory)
 class ContentStoryAdmin(admin.ModelAdmin):
-    list_display = ('title', 'feature_name', 'date_published', 'has_consent', 'is_active')
+    list_display = ('title', 'feature_name', 'date_published', 'has_hero', 'has_consent', 'is_active')
     list_filter = ('has_consent', 'is_active', 'social_published')
     search_fields = ('title', 'feature_name', 'headline')
+
+    def has_hero(self, obj):
+        return bool(obj.hero_image_url)
+    has_hero.boolean = True
 
 
 @admin.register(Draft)
