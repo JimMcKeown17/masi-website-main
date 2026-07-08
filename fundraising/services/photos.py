@@ -163,7 +163,9 @@ def pick_hero(anthropic_client, candidates, story_context):
 
     response = anthropic_client.messages.create(
         model=MODEL,
-        max_tokens=800,
+        # Headroom for the per-candidate "rejected" list: a 15-image folder's JSON
+        # overflows 800 tokens and truncates (stop_reason=max_tokens -> unparseable).
+        max_tokens=2000,
         messages=[{"role": "user", "content": content}],
     )
     payload = _extract_json(_text_from_response(response))
