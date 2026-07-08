@@ -1,9 +1,12 @@
 import io
 import json
+import os
+import tempfile
 from datetime import date
 from decimal import Decimal
 from unittest import mock
 
+from django.core.management import call_command
 from django.db import IntegrityError, transaction
 from django.test import SimpleTestCase, TestCase
 from django.utils import timezone
@@ -475,6 +478,76 @@ class ContactSheetTests(SimpleTestCase):
         self.assertIn("data:image/jpeg;base64,AAAA", html)
         self.assertIn("no usable link (search URL)", html)
         self.assertIn("1 stored", html)  # summary chip
+
+
+class BackfillCommandTests(TestCase):
+    def setUp(self):
+        self.report = os.path.join(tempfile.mkdtemp(), "sheet.html")
+
+    def _run(self, **kw):
+        call_command("backfill_story_heroes", report=self.report, **kw)
+
+    @mock.patch("fundraising.services.photos.upload_hero", return_value="https://storage.googleapis.com/masi-website/fundraising/heroes/recF.jpg")
+    @mock.patch("fundraising.services.photos.pick_hero", return_value={"chosen_index": 0, "reason": "ok", "rejected": [], "fallback": False})
+    @mock.patch("fundraising.services.photos.downscale_jpeg", return_value=b"THUMB")
+    @mock.patch("fundraising.services.photos.download_bytes", return_value=b"RAW")
+    @mock.patch("fundraising.services.photos.list_candidate_images", return_value=[{"id": "a", "name": "a.jpg", "mimeType": "image/jpeg"}])
+    @mock.patch("fundraising.services.photos.gcs_bucket")
+    @mock.patch("fundraising.services.photos.anthropic_client")
+    @mock.patch("fundraising.services.photos.drive_client")
+    def test_folder_story_gets_hero(self, *_):
+        s = ContentStory.objects.create(source_airtable_id="recF", title="Nomsa",
+            drive_link="https://drive.google.com/drive/folders/FID")
+        self._run()
+        s.refresh_from_db()
+        self.assertTrue(s.hero_image_url.endswith("recF.jpg"))
+        self.assertTrue(os.path.exists(self.report))
+
+    @mock.patch("fundraising.services.photos.gcs_bucket")
+    @mock.patch("fundraising.services.photos.anthropic_client")
+    @mock.patch("fundraising.services.photos.drive_client")
+    def test_search_url_is_a_problem_not_a_crash(self, *_):
+        s = ContentStory.objects.create(source_airtable_id="recS", title="Usisipho",
+            drive_link="https://drive.google.com/drive/search?q=Usisipho")
+        self._run()
+        s.refresh_from_db()
+        self.assertEqual(s.hero_image_url, "")
+
+    @mock.patch("fundraising.services.photos.upload_hero", return_value="https://x/recF.jpg")
+    @mock.patch("fundraising.services.photos.pick_hero", return_value={"chosen_index": 0, "reason": "ok", "rejected": [], "fallback": False})
+    @mock.patch("fundraising.services.photos.downscale_jpeg", return_value=b"T")
+    @mock.patch("fundraising.services.photos.download_bytes", return_value=b"R")
+    @mock.patch("fundraising.services.photos.list_candidate_images", return_value=[{"id": "a", "name": "a.jpg", "mimeType": "image/jpeg"}])
+    @mock.patch("fundraising.services.photos.gcs_bucket")
+    @mock.patch("fundraising.services.photos.anthropic_client")
+    @mock.patch("fundraising.services.photos.drive_client")
+    def test_dry_run_does_not_save(self, *_):
+        s = ContentStory.objects.create(source_airtable_id="recF", title="Nomsa",
+            drive_link="https://drive.google.com/drive/folders/FID")
+        self._run(dry_run=True)
+        s.refresh_from_db()
+        self.assertEqual(s.hero_image_url, "")
+        self.assertTrue(os.path.exists(self.report))
+
+    @mock.patch("fundraising.services.photos.upload_hero")
+    @mock.patch("fundraising.services.photos.pick_hero", return_value={"chosen_index": 0, "reason": "no parseable choice", "rejected": [], "fallback": True})
+    @mock.patch("fundraising.services.photos.downscale_jpeg", return_value=b"T")
+    @mock.patch("fundraising.services.photos.download_bytes", return_value=b"R")
+    @mock.patch("fundraising.services.photos.list_candidate_images", return_value=[
+        {"id": "a", "name": "a.jpg", "mimeType": "image/jpeg"},
+        {"id": "b", "name": "b.jpg", "mimeType": "image/jpeg"}])
+    @mock.patch("fundraising.services.photos.gcs_bucket")
+    @mock.patch("fundraising.services.photos.anthropic_client")
+    @mock.patch("fundraising.services.photos.drive_client")
+    def test_multi_candidate_model_failure_is_problem_not_published(
+            self, m_drive, m_anthropic, m_bucket, m_list, m_download, m_downscale, m_pick, m_upload):
+        # Two images + a fallback pick means the model could not choose -> no upload, no save.
+        s = ContentStory.objects.create(source_airtable_id="recM", title="Two Photos",
+            drive_link="https://drive.google.com/drive/folders/FID")
+        self._run()
+        s.refresh_from_db()
+        self.assertEqual(s.hero_image_url, "")
+        m_upload.assert_not_called()
 
 
 class MailchimpServiceTests(TestCase):
