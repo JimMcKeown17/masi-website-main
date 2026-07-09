@@ -18,6 +18,8 @@ class Command(BaseCommand):
         parser.add_argument('--stat-key', help='PublishedStat key to include')
         parser.add_argument('--dry-run', action='store_true', help='Create Draft rows but skip Mailchimp')
         parser.add_argument('--n', type=int, default=1, help='Number of drafts to create')
+        parser.add_argument('--cta-text', help='Donate button text (defaults to "Donate")')
+        parser.add_argument('--cta-url', help='Donate button URL (defaults to the donate page)')
 
     def handle(self, *args, **options):
         load_dotenv()
@@ -62,7 +64,11 @@ class Command(BaseCommand):
         guide_text = voice_guide.read()
 
         for index, stories in enumerate(story_windows, start=1):
-            result = compose_newsletter(stories, stat, guide_text)
+            result = compose_newsletter(
+                stories, stat, guide_text,
+                cta_text=options.get('cta_text'),
+                cta_url=options.get('cta_url'),
+            )
             subject = result['subject']
             html = result['html']
             draft = Draft.objects.create(

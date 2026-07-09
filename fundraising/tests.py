@@ -577,3 +577,111 @@ class MailchimpServiceTests(TestCase):
             campaign_edit_url(prefix, 123456),
             'https://us21.admin.mailchimp.com/campaigns/edit?id=123456',
         )
+
+
+class EmailTemplateTests(SimpleTestCase):
+    def test_render_email_has_logo_lead_body_cta_and_socials(self):
+        from fundraising.services.email_template import render_email, LOGO_URL, SOCIAL_LINKS
+        html = render_email(
+            body_html="<p>Dear Masi Friends</p>",
+            lead_hero_url="https://storage.googleapis.com/masi-website/fundraising/heroes/recX.jpg",
+            cta_text="Holiday Match",
+            cta_url="https://masinyusane.org/donate",
+        )
+        self.assertIn(LOGO_URL, html)                          # logo header
+        self.assertIn("/heroes/recX.jpg", html)               # lead hero image
+        self.assertIn("Dear Masi Friends", html)              # model-written body
+        self.assertIn("Holiday Match", html)                  # CTA button text
+        self.assertIn("https://masinyusane.org/donate", html)  # CTA target
+        for _name, url in SOCIAL_LINKS:                        # social footer
+            self.assertIn(url, html)
+
+    def test_render_email_without_lead_hero_omits_hero_image(self):
+        from fundraising.services.email_template import render_email, LOGO_URL
+        html = render_email("<p>Body text</p>", lead_hero_url="", cta_text="Donate",
+                            cta_url="https://masinyusane.org/donate")
+        self.assertIn(LOGO_URL, html)
+        self.assertIn("Body text", html)
+        self.assertIn("Donate", html)
+        self.assertNotIn("/heroes/", html)  # no lead hero when none provided
+
+
+def _story(hero=""):
+    from types import SimpleNamespace
+    return SimpleNamespace(headline="h", title="t", narrative="n", quote="q",
+                           feature_name="f", school=[], category=[], hero_image_url=hero)
+
+
+class ComposePayloadTests(SimpleTestCase):
+    def test_story_payload_includes_hero_image_url_and_lead_flag(self):
+        from fundraising.services.compose import _story_payload
+        p = _story_payload(_story("https://x/heroes/rec1.jpg"), is_lead=True)
+        self.assertEqual(p["hero_image_url"], "https://x/heroes/rec1.jpg")
+        self.assertTrue(p["is_lead"])
+
+
+class ComposeSystemPromptTests(SimpleTestCase):
+    def test_prompt_forbids_surnames_and_requests_inline_images(self):
+        from fundraising.services.compose import _system_prompt
+        p = _system_prompt("VOICE GUIDE TEXT").lower()
+        self.assertIn("voice guide text", p)
+        self.assertIn("first name", p)
+        self.assertTrue("surname" in p or "last name" in p)
+        self.assertIn("inline", p)
+
+
+class LeadHeroTests(SimpleTestCase):
+    def test_lead_is_first_story_with_a_photo(self):
+        from fundraising.services.compose import _lead_hero_url
+        self.assertEqual(_lead_hero_url([_story(""), _story("https://x/heroes/rec2.jpg")]),
+                         "https://x/heroes/rec2.jpg")
+        self.assertEqual(_lead_hero_url([_story("")]), "")
+
+
+class MissingInlineImagesTests(SimpleTestCase):
+    def test_flags_dropped_non_lead_photos_only(self):
+        from fundraising.services.compose import _missing_inline_images
+        lead = "https://x/heroes/rec1.jpg"
+        stories = [_story(lead), _story("https://x/heroes/rec2.jpg"), _story("")]
+        present = "<p>body https://x/heroes/rec2.jpg</p>"
+        self.assertEqual(_missing_inline_images(present, stories, lead), [])
+        self.assertEqual(_missing_inline_images("<p>no imgs</p>", stories, lead),
+                         ["https://x/heroes/rec2.jpg"])
+
+
+class ComposeNewsletterWrapTests(SimpleTestCase):
+    @mock.patch("fundraising.services.compose.anthropic.Anthropic")
+    def test_wraps_body_with_chrome_and_lead_hero(self, m_anthropic):
+        import os
+        from fundraising.services.compose import compose_newsletter
+        from fundraising.services.email_template import LOGO_URL
+        block = mock.MagicMock()
+        block.text = '{"subject":"Hello","html":"<p>Dear Masi Friends https://x/heroes/rec2.jpg</p>"}'
+        resp = mock.MagicMock(); resp.content = [block]
+        m_anthropic.return_value.messages.create.return_value = resp
+        stories = [_story("https://x/heroes/rec1.jpg"), _story("https://x/heroes/rec2.jpg")]
+        with mock.patch.dict(os.environ, {"ANTHROPIC_API_KEY": "sk-test"}):
+            result = compose_newsletter(stories, None, "GUIDE",
+                                        cta_text="Give Now", cta_url="https://x/donate")
+        self.assertEqual(result["subject"], "Hello")
+        html = result["html"]
+        self.assertIn(LOGO_URL, html)              # deterministic chrome
+        self.assertIn("/heroes/rec1.jpg", html)    # lead hero = first story
+        self.assertIn("Dear Masi Friends", html)   # model body preserved
+        self.assertIn("Give Now", html)            # CTA text
+        self.assertIn("https://x/donate", html)
+
+
+class DraftNewsletterCtaTests(TestCase):
+    @mock.patch("fundraising.management.commands.draft_newsletter.compose_newsletter",
+                return_value={"subject": "S", "html": "<p>body</p>"})
+    def test_cta_args_are_passed_to_compose(self, m_compose):
+        from django.core.management import call_command
+        from fundraising.models import ContentStory
+        ContentStory.objects.create(source_airtable_id="recD1", title="t",
+                                    narrative="n", is_active=True)
+        call_command("draft_newsletter", "--count", "1", "--n", "1", "--dry-run",
+                     "--cta-text", "Holiday Match", "--cta-url", "https://x/give")
+        _args, kwargs = m_compose.call_args
+        self.assertEqual(kwargs.get("cta_text"), "Holiday Match")
+        self.assertEqual(kwargs.get("cta_url"), "https://x/give")

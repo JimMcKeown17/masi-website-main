@@ -78,6 +78,9 @@ unlocking together", earning purpose and income while changing children's lives.
   some past designed newsletters used them.)
 - **Never use emoji.** Not one. Emoji read as AI-generated to many recipients; these must
   feel personally written. (Jim's rule, even though his own past emails used them.)
+- **First names only for children and youth.** Never print a child's or youth's surname or
+  last name, even if the source story includes it. "Olungaka" and "Iyana", never their
+  surnames. (Jim's rule, child privacy.)
 - Favour Jim's concrete style over abstract buzzwords: "Olungaka started the year not knowing
   her letter sounds; now she's reading, two years ahead of schedule" beats "transformative
   empowerment interventions."
