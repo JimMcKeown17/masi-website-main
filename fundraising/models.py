@@ -371,6 +371,7 @@ class Draft(models.Model):
     draft_body = models.TextField()
     final_body = models.TextField(blank=True, default="")
     edit_classification = models.JSONField(null=True, blank=True)
+    source_meta = models.JSONField(null=True, blank=True)
     external_ref = models.CharField(max_length=200, blank=True, default="", db_index=True)
     sent_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)

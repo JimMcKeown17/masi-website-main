@@ -605,6 +605,44 @@ class EmailTemplateTests(SimpleTestCase):
         self.assertIn("Donate", html)
         self.assertNotIn("/heroes/", html)  # no lead hero when none provided
 
+    def test_render_email_replaces_first_mid_cta_marker_and_strips_extras(self):
+        from fundraising.services.email_template import _cta, render_email
+
+        cta = _cta("Give Now", "https://example.org/give")
+        html = render_email(
+            "<p>Before</p><!--MID_CTA--><p>After</p><!--MID_CTA-->",
+            lead_hero_url="",
+            cta_text="Give Now",
+            cta_url="https://example.org/give",
+        )
+
+        self.assertEqual(html.count(cta), 2)
+        self.assertNotIn("<!--MID_CTA-->", html)
+
+    def test_render_email_without_mid_cta_marker_has_one_cta(self):
+        from fundraising.services.email_template import _cta, render_email
+
+        cta = _cta("Give Now", "https://example.org/give")
+        html = render_email(
+            "<p>Body</p>",
+            lead_hero_url="",
+            cta_text="Give Now",
+            cta_url="https://example.org/give",
+        )
+
+        self.assertEqual(html.count(cta), 1)
+
+    def test_render_email_uses_compact_header_and_480px_hero(self):
+        from fundraising.services.email_template import render_email
+
+        html = render_email("<p>Body</p>", "https://example.org/hero.jpg")
+
+        self.assertIn('padding:4px 0;', html)
+        self.assertIn('margin:0 auto;max-width:200px', html)
+        self.assertIn('width="480"', html)
+        self.assertIn('max-width:480px', html)
+        self.assertIn('margin:12px auto', html)
+
 
 def _story(hero=""):
     from types import SimpleNamespace
@@ -621,13 +659,26 @@ class ComposePayloadTests(SimpleTestCase):
 
 
 class ComposeSystemPromptTests(SimpleTestCase):
-    def test_prompt_forbids_surnames_and_requests_inline_images(self):
-        from fundraising.services.compose import _system_prompt
-        p = _system_prompt("VOICE GUIDE TEXT").lower()
-        self.assertIn("voice guide text", p)
-        self.assertIn("first name", p)
-        self.assertTrue("surname" in p or "last name" in p)
-        self.assertIn("inline", p)
+    def test_prompt_includes_voice_guide_and_story_structure_files(self):
+        from fundraising.services.compose import _load_structure, _system_prompt, voice_guide
+
+        guide_text = voice_guide.read()
+        structure_text = _load_structure("story")
+        prompt = _system_prompt(guide_text, structure_text)
+
+        self.assertIn("Masinyusane Voice Guide", prompt)
+        self.assertIn("Structure: child/youth story issue", prompt)
+
+    def test_contract_contains_only_mechanical_prompt_rules(self):
+        from fundraising.services.compose import CONTRACT, _system_prompt
+
+        prompt = _system_prompt("VOICE", "STRUCTURE")
+
+        self.assertNotIn("FIRST NAME ONLY", prompt)
+        self.assertNotIn("em dash", prompt.lower())
+        self.assertIn('<!--MID_CTA-->', CONTRACT)
+        self.assertIn('width="420"', CONTRACT)
+        self.assertIn('max-width:420px', CONTRACT)
 
 
 class LeadHeroTests(SimpleTestCase):
@@ -672,6 +723,91 @@ class ComposeNewsletterWrapTests(SimpleTestCase):
         self.assertIn("https://x/donate", html)
 
 
+class RecordAndDraftServiceTests(TestCase):
+    @mock.patch.dict(os.environ, {"MAILCHIMP_AUDIENCE_ID_ALL_DONORS": "audience-1"})
+    @mock.patch("fundraising.services.record.mailchimp.create_draft_campaign")
+    def test_creates_spine_row_and_records_mailchimp_campaign(self, m_create):
+        from fundraising.services.record import record_and_draft
+
+        m_create.return_value = {
+            "campaign_id": "campaign-123",
+            "edit_url": "https://example.org/edit",
+        }
+        result = record_and_draft(
+            "A story",
+            "<p>Body</p>",
+            shell="studio",
+            source_type="airtable",
+            story_ids=[7, 9],
+        )
+
+        draft = result["draft"]
+        draft.refresh_from_db()
+        self.assertEqual(
+            draft.source_meta,
+            {"shell": "studio", "source_type": "airtable", "story_ids": [7, 9]},
+        )
+        self.assertEqual(draft.external_ref, "campaign-123")
+        self.assertEqual(result["campaign"], m_create.return_value)
+        m_create.assert_called_once_with(
+            "A story",
+            "<p>Body</p>",
+            "audience-1",
+            title="[AI draft] A story",
+        )
+
+    @mock.patch("fundraising.services.record.mailchimp.create_draft_campaign")
+    def test_mailchimp_exception_rolls_back_spine_row(self, m_create):
+        from fundraising.services.record import record_and_draft
+
+        m_create.side_effect = RuntimeError("Mailchimp unavailable")
+
+        with self.assertRaisesRegex(RuntimeError, "Mailchimp unavailable"):
+            record_and_draft("A story", "<p>Body</p>", audience_id="audience-1")
+
+        self.assertFalse(Draft.objects.exists())
+
+    @mock.patch("fundraising.services.record.mailchimp.create_draft_campaign")
+    def test_no_mailchimp_persists_local_draft_only(self, m_create):
+        from fundraising.services.record import record_and_draft
+
+        result = record_and_draft(
+            "A story",
+            "<p>Body</p>",
+            create_mailchimp=False,
+        )
+
+        draft = result["draft"]
+        self.assertTrue(Draft.objects.filter(pk=draft.pk).exists())
+        self.assertEqual(draft.external_ref, "")
+        self.assertIsNone(result["campaign"])
+        m_create.assert_not_called()
+
+
+class RecordAndDraftCommandTests(TestCase):
+    def test_no_mailchimp_smoke_test_reads_body_file(self):
+        stdout = io.StringIO()
+        with tempfile.NamedTemporaryFile("w", suffix=".html") as body_file:
+            body_file.write("<html><body>Composed issue</body></html>")
+            body_file.flush()
+            call_command(
+                "record_and_draft",
+                "--subject", "A composed issue",
+                "--body-file", body_file.name,
+                "--source-type", "manual",
+                "--story-ids", "4", "8",
+                "--no-mailchimp",
+                stdout=stdout,
+            )
+
+        draft = Draft.objects.get()
+        self.assertEqual(draft.draft_body, "<html><body>Composed issue</body></html>")
+        self.assertEqual(draft.created_by_agent, "studio")
+        self.assertEqual(draft.source_meta["source_type"], "manual")
+        self.assertEqual(draft.source_meta["story_ids"], [4, 8])
+        self.assertIn(f"Draft id {draft.id}", stdout.getvalue())
+
+
 class DraftNewsletterCtaTests(TestCase):
     @mock.patch("fundraising.management.commands.draft_newsletter.compose_newsletter",
                 return_value={"subject": "S", "html": "<p>body</p>"})
@@ -685,3 +821,28 @@ class DraftNewsletterCtaTests(TestCase):
         _args, kwargs = m_compose.call_args
         self.assertEqual(kwargs.get("cta_text"), "Holiday Match")
         self.assertEqual(kwargs.get("cta_url"), "https://x/give")
+        draft = Draft.objects.get()
+        self.assertEqual(draft.created_by_agent, "cron")
+        self.assertEqual(draft.source_meta["source_type"], "airtable")
+        self.assertEqual(draft.source_meta["story_ids"], [ContentStory.objects.get().id])
+
+    @mock.patch("fundraising.management.commands.draft_newsletter.compose_newsletter",
+                return_value={"subject": "S", "html": "<p>body</p>"})
+    def test_default_issue_shape_composes_one_story(self, m_compose):
+        ContentStory.objects.create(
+            source_airtable_id="recNewest",
+            title="newest",
+            narrative="n",
+            date_published=date(2026, 7, 2),
+        )
+        ContentStory.objects.create(
+            source_airtable_id="recOlder",
+            title="older",
+            narrative="n",
+            date_published=date(2026, 7, 1),
+        )
+
+        call_command("draft_newsletter", "--dry-run")
+
+        stories = m_compose.call_args.args[0]
+        self.assertEqual(len(stories), 1)

@@ -10,9 +10,18 @@ from fundraising.services.email_template import render_email
 
 
 MODEL = "claude-sonnet-5"
-_INLINE_IMG_STYLE = ("display:block;width:100%;max-width:560px;height:auto;"
-                     "margin:12px 0;border-radius:8px;")
+_INLINE_IMG_STYLE = ("display:block;width:100%;max-width:420px;height:auto;"
+                     "margin:12px auto;border-radius:8px;")
 VOICE_GUIDE_PATH = Path(__file__).resolve().parents[1] / "voice" / "voice_guide.md"
+STRUCTURE_DIR = VOICE_GUIDE_PATH.parent
+CONTRACT = (
+    "Mechanical contract:\n"
+    '- Write the BODY html of the email only; return only a JSON object with keys "subject" and "html".\n'
+    "- Never include logo, donate button, social links, or the lead story's photo; the template adds those around the body.\n"
+    '- For each story whose "is_lead" is false AND "hero_image_url" is set, embed that photo inline under its paragraph as: '
+    f'<img src="THE_URL" alt="" width="420" style="{_INLINE_IMG_STYLE}">. Never embed the is_lead story\'s photo.\n'
+    "- Where the structure file calls for the mid-email ask, emit exactly <!--MID_CTA--> on its own line; the template replaces it with the donate button."
+)
 
 
 class VoiceGuide:
@@ -21,6 +30,10 @@ class VoiceGuide:
 
 
 voice_guide = VoiceGuide()
+
+
+def _load_structure(name):
+    return (STRUCTURE_DIR / f"structure-{name}.md").read_text(encoding="utf-8")
 
 
 def _story_payload(story, is_lead=False):
@@ -52,19 +65,8 @@ def _missing_inline_images(html, stories, lead_url):
     return [url for url in expected if url not in html]
 
 
-def _system_prompt(guide_text):
-    return (
-        f"{guide_text}\n\n"
-        "Write the BODY of a warm, donor-facing Masinyusane newsletter in this voice.\n"
-        "Hard rules:\n"
-        "- Use ONLY the facts in the provided stories and the single provided stat; never invent numbers, names, or outcomes.\n"
-        "- Refer to every child or youth by FIRST NAME ONLY. Never use a surname or last name, even if the source text includes one.\n"
-        "- Never use an em dash; never use an emoji.\n"
-        "- Output clean inline-styled HTML for the BODY only: a greeting, one section per story (headline, short paragraphs, the coach quote as a blockquote), a brief donate ask, and a thank-you close with a monthly-donor P.S.\n"
-        "- Do NOT add a logo, a donate button, social links, or the lead story's photo; those are added around your body automatically.\n"
-        f'- For each story whose "is_lead" is false AND "hero_image_url" is set, embed that photo INLINE under its headline as: <img src="THE_URL" alt="" width="600" style="{_INLINE_IMG_STYLE}">. Do NOT embed the is_lead story\'s photo.\n'
-        '- Return only a JSON object with keys "subject" and "html".'
-    )
+def _system_prompt(guide_text, structure_text):
+    return f"{guide_text}\n\n{structure_text}\n\n{CONTRACT}"
 
 
 def _stat_payload(stat):
@@ -128,13 +130,20 @@ def _parse_json_result(raw_text):
     return {"subject": str(subject), "html": str(html)}
 
 
-def compose_newsletter(stories, stat, voice_guide, cta_text=None, cta_url=None):
+def compose_newsletter(
+    stories,
+    stat,
+    voice_guide,
+    cta_text=None,
+    cta_url=None,
+    structure="story",
+):
     api_key = os.getenv('ANTHROPIC_API_KEY')
     if not api_key:
         raise ValueError("ANTHROPIC_API_KEY is required")
 
     guide_text = voice_guide.read() if hasattr(voice_guide, 'read') else str(voice_guide)
-    system_prompt = _system_prompt(guide_text)
+    system_prompt = _system_prompt(guide_text, _load_structure(structure))
 
     lead_index = next((i for i, s in enumerate(stories) if getattr(s, "hero_image_url", "")), None)
     lead_url = stories[lead_index].hero_image_url if lead_index is not None else ""

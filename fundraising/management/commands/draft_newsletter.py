@@ -1,20 +1,18 @@
-import os
-
 from django.core.management.base import BaseCommand, CommandError
 from django.db.models import F
 from dotenv import load_dotenv
 
 from api.models import PublishedStat
-from fundraising.models import ContentStory, Draft
-from fundraising.services import mailchimp
+from fundraising.models import ContentStory
 from fundraising.services.compose import compose_newsletter, voice_guide
+from fundraising.services.record import record_and_draft
 
 
 class Command(BaseCommand):
     help = "Compose donor newsletter drafts from consented stories and create Mailchimp draft campaigns"
 
     def add_arguments(self, parser):
-        parser.add_argument('--count', type=int, default=3, help='Number of stories per draft')
+        parser.add_argument('--count', type=int, default=1, help='Number of stories per draft')
         parser.add_argument('--stat-key', help='PublishedStat key to include')
         parser.add_argument('--dry-run', action='store_true', help='Create Draft rows but skip Mailchimp')
         parser.add_argument('--n', type=int, default=1, help='Number of drafts to create')
@@ -71,13 +69,19 @@ class Command(BaseCommand):
             )
             subject = result['subject']
             html = result['html']
-            draft = Draft.objects.create(
-                kind='newsletter_broadcast',
-                status='draft',
-                created_by_agent='newsletter_assembler',
-                subject=subject,
-                draft_body=html,
-            )
+            try:
+                recorded = record_and_draft(
+                    subject,
+                    html,
+                    shell='cron',
+                    source_type='airtable',
+                    story_ids=[story.id for story in stories],
+                    create_mailchimp=not is_dry_run,
+                )
+            except Exception as exc:
+                raise CommandError(f"Mailchimp draft creation failed: {exc}") from exc
+
+            draft = recorded['draft']
 
             if is_dry_run:
                 self.stdout.write(self.style.SUCCESS(
@@ -85,19 +89,7 @@ class Command(BaseCommand):
                 ))
                 continue
 
-            audience_id = os.getenv('MAILCHIMP_AUDIENCE_ID_ALL_DONORS')
-            try:
-                campaign = mailchimp.create_draft_campaign(
-                    subject,
-                    html,
-                    audience_id,
-                    title=f"[AI draft] {subject}",
-                )
-            except Exception as exc:
-                raise CommandError(f"Mailchimp draft creation failed for Draft {draft.id}: {exc}")
-
-            draft.external_ref = campaign['campaign_id']
-            draft.save(update_fields=['external_ref', 'updated_at'])
+            campaign = recorded['campaign']
 
             self.stdout.write(self.style.SUCCESS(
                 f"Draft {index}/{draft_count}: Draft id {draft.id}; Mailchimp edit_url: {campaign['edit_url']}"

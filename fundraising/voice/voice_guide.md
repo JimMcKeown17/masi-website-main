@@ -71,9 +71,15 @@ unlocking together", earning purpose and income while changing children's lives.
 - Concrete over abstract. Name the child, the school, the number.
 
 ## Hard rules (non-negotiable)
-- Use ONLY the facts in the provided stories and the single provided stat. Never invent a
+- Use ONLY the facts in the provided stories and the provided stats. Never invent a
   number, a name, a school, a quote, or an outcome. If a detail is missing, leave it out.
-- Do not state statistics beyond the one stat supplied plus what a story itself contains.
+- Do not state statistics beyond the stats supplied plus what a story itself contains.
+- Progress claims must be grounded in the source, never in assumed curriculum facts.
+  Safe: "a strong grasp of the letter sounds she's learned so far." Not safe: "mastered
+  the first three letter sounds introduced" (assumes how the curriculum sequences sounds).
+- A distinct, personal detail about a child is gold, but ONLY if it is in the source
+  story. If the source narrative is thin, keep the story short. Never pad with an
+  invented detail, however plausible.
 - **Never use an em dash.** Use a comma, a colon, or a full stop. (Jim's rule, even though
   some past designed newsletters used them.)
 - **Never use emoji.** Not one. Emoji read as AI-generated to many recipients; these must
@@ -84,6 +90,20 @@ unlocking together", earning purpose and income while changing children's lives.
 - Favour Jim's concrete style over abstract buzzwords: "Olungaka started the year not knowing
   her letter sounds; now she's reading, two years ahead of schedule" beats "transformative
   empowerment interventions."
+
+## Learned rules (from Jim's red pen; self-improving loop, ADR 0007)
+- The donor "you" must appear within the first ~150 words. Connect the reader to the
+  child's story early, not only in the gratitude close.
+- A quote must ADD new information, never restate the paragraph around it. One to two
+  sentences, in words a real coach would actually say.
+- ONE direct ask per issue (the monthly-donor ask). The P.S. reinforces the SAME idea;
+  it never introduces a second, different ask.
+- Tighter openings: get to the child within the first two or three sentences. Cut warm-up
+  sentences that delay the story.
+- US-donor phrasing: "learning with Masinyusane", not "on programme". "At just five years
+  old", "new to the MasiLit programme". Avoid SA programme jargon a US reader would trip on.
+- Weave a stat into the story as a sentence, never as a dashboard or a chart. Example
+  register: "She is one of 19,444 children learning with Masinyusane this year."
 
 ## Do / Don't
 - DO: "In January, little Iyana scored zero on all 12 reading metrics. After 122 sessions

@@ -23,9 +23,9 @@ def _lead_hero(lead_hero_url):
     if not lead_hero_url:
         return ""
     return (
-        f'<img src="{lead_hero_url}" alt="" width="600" '
-        'style="display:block;width:100%;max-width:600px;height:auto;'
-        'margin:16px auto;border-radius:8px;">'
+        f'<img src="{lead_hero_url}" alt="" width="480" '
+        'style="display:block;width:100%;max-width:480px;height:auto;'
+        'margin:12px auto;border-radius:8px;">'
     )
 
 
@@ -55,16 +55,20 @@ def render_email(body_html, lead_hero_url, cta_text=None, cta_url=None):
     return a full, email-safe HTML document."""
     cta_text = cta_text or DEFAULT_CTA_TEXT
     cta_url = cta_url or DEFAULT_CTA_URL
+    cta = _cta(cta_text, cta_url)
+    marker = "<!--MID_CTA-->"
+    if marker in body_html:
+        body_html = body_html.replace(marker, cta, 1).replace(marker, "")
     return (
         '<div style="font-family:Arial,Helvetica,sans-serif;color:#14181f;'
         'line-height:1.5;max-width:640px;margin:0 auto;padding:0 16px;">'
-        '<div style="text-align:center;font-size:12px;color:#9aa3b0;padding:8px 0;">'
+        '<div style="text-align:center;font-size:12px;color:#9aa3b0;padding:4px 0;">'
         '<a href="*|ARCHIVE|*" style="color:#9aa3b0;">View this email in your browser</a></div>'
         f'<img src="{LOGO_URL}" alt="Masinyusane" width="200" '
-        'style="display:block;margin:6px auto 0;max-width:200px;height:auto;">'
+        'style="display:block;margin:0 auto;max-width:200px;height:auto;">'
         f'{_lead_hero(lead_hero_url)}'
         f'<div>{body_html}</div>'
-        f'{_cta(cta_text, cta_url)}'
+        f'{cta}'
         f'{_social_footer()}'
         '</div>'
     )
