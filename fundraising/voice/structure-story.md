@@ -20,9 +20,10 @@ added around the body automatically; never write them):
    source has a good one, prefer letting it carry the moment over writing the same
    thing ourselves. Trim long quotes to the best one or two sentences (verbatim
    excerpt, magazine practice). Quote and surrounding copy must not repeat each other.
-5. **Mid-email ask**: emit the marker `<!--MID_CTA-->` on its own line here, after the
-   arc resolves and before the story broadens. Exactly one marker, nowhere else. The
-   template turns it into the donate button.
+5. **Mid-email ask (longer issues only)**: a short issue (one story, a handful of
+   paragraphs) gets NO marker; the single bottom button is enough. Only when the issue
+   runs long (roughly 450+ words or multiple sections) emit `<!--MID_CTA-->` on its own
+   line here, after the arc resolves. Never more than one marker.
 6. **Broaden**: the child is not alone. This is where a programme stat belongs, woven as
    a sentence (see below). Then gratitude that credits the reader for the real outcome.
 7. **Close**: sincere thanks, sign-off per the voice guide, then a **P.S.** that
@@ -34,7 +35,16 @@ added around the body automatically; never write them):
 - For a donor audience, prefer story-adjacent numbers: scale ("one of 19,444 children
   learning with Masinyusane this year") and programme-level gains. Avoid financial,
   operational, or methodology-heavy numbers; they belong in funder-facing artifacts.
-- A stat is one sentence inside the broadening paragraph, never a list, table, or chart.
+- A stat is one sentence inside the broadening paragraph, never a list or a table.
+
+## Charts (from the chart library only)
+
+One good chart can outpunch a paragraph of numbers. If the chart library
+(`chart-library.json` in this folder) has an entry relevant to the story's programme,
+embed AT MOST ONE in the broadening section: the entry's exact `image_url` full-width
+like a photo, followed by its exact `caption` as a small gray line. Never build,
+screenshot, or restyle a new chart for an issue; only curated library entries are
+email-safe and fact-checked.
 
 ## Extra photos
 

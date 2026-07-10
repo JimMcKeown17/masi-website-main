@@ -10,7 +10,7 @@ from fundraising.services.email_template import render_email
 
 
 MODEL = "claude-sonnet-5"
-_INLINE_IMG_STYLE = ("display:block;width:100%;max-width:420px;height:auto;"
+_INLINE_IMG_STYLE = ("display:block;width:100%;max-width:600px;height:auto;"
                      "margin:12px auto;border-radius:8px;")
 VOICE_GUIDE_PATH = Path(__file__).resolve().parents[1] / "voice" / "voice_guide.md"
 STRUCTURE_DIR = VOICE_GUIDE_PATH.parent
@@ -19,7 +19,11 @@ CONTRACT = (
     '- Write the BODY html of the email only; return only a JSON object with keys "subject" and "html".\n'
     "- Never include logo, donate button, social links, or the lead story's photo; the template adds those around the body.\n"
     '- For each story whose "is_lead" is false AND "hero_image_url" is set, embed that photo inline under its paragraph as: '
-    f'<img src="THE_URL" alt="" width="420" style="{_INLINE_IMG_STYLE}">. Never embed the is_lead story\'s photo.\n'
+    f'<img src="THE_URL" alt="" width="600" style="{_INLINE_IMG_STYLE}">. Never embed the is_lead story\'s photo.\n'
+    '- If a "chart" object is provided, you MAY embed it exactly once, in the broadening section, as:\n'
+    f'<img src="IMAGE_URL" alt="ALT" width="600" style="{_INLINE_IMG_STYLE}">\n'
+    '<p style="font-size:13px;color:#6b7482;text-align:center;margin:4px 0 16px;">CAPTION</p>\n'
+    "Use the exact caption text; never restyle or rewrite it. Whether to include it is governed by the structure file.\n"
     "- Where the structure file calls for the mid-email ask, emit exactly <!--MID_CTA--> on its own line; the template replaces it with the donate button."
 )
 
@@ -109,6 +113,11 @@ def _fallback_result(raw_text):
 
 
 def _parse_json_result(raw_text):
+    # Models sometimes wrap the JSON in a markdown code fence; strip it first.
+    raw_text = raw_text.strip()
+    if raw_text.startswith("```"):
+        raw_text = re.sub(r'^```[a-zA-Z]*\s*', '', raw_text)
+        raw_text = re.sub(r'\s*```$', '', raw_text)
     try:
         payload = json.loads(raw_text)
     except json.JSONDecodeError:
@@ -137,6 +146,7 @@ def compose_newsletter(
     cta_text=None,
     cta_url=None,
     structure="story",
+    chart=None,
 ):
     api_key = os.getenv('ANTHROPIC_API_KEY')
     if not api_key:
@@ -147,21 +157,30 @@ def compose_newsletter(
 
     lead_index = next((i for i, s in enumerate(stories) if getattr(s, "hero_image_url", "")), None)
     lead_url = stories[lead_index].hero_image_url if lead_index is not None else ""
-    user_content = json.dumps(
-        {
-            "stories": [_story_payload(s, is_lead=(i == lead_index)) for i, s in enumerate(stories)],
-            "stat": _stat_payload(stat),
-        },
-        default=str,
-    )
+    stats = stat if isinstance(stat, list) else ([] if stat is None else [stat])
+    payload = {
+        "stories": [_story_payload(s, is_lead=(i == lead_index)) for i, s in enumerate(stories)],
+        "stats": [_stat_payload(item) for item in stats],
+    }
+    if chart is not None:
+        payload["chart"] = {
+            "image_url": chart["image_url"],
+            "caption": chart["caption"],
+            "alt": chart["alt"],
+        }
+    user_content = json.dumps(payload, default=str)
 
     client = anthropic.Anthropic(api_key=api_key)
+    # Thinking tokens count toward max_tokens; 2500 truncated a real run (Draft 7).
     response = client.messages.create(
         model=MODEL,
-        max_tokens=2500,
+        max_tokens=6000,
         system=system_prompt,
         messages=[{"role": "user", "content": user_content}],
     )
+    if response.stop_reason != "end_turn":
+        print(f"[compose_newsletter] stop_reason={response.stop_reason} "
+              f"output_tokens={response.usage.output_tokens}")
     parsed = _parse_json_result(_response_text(response))
     body_html = parsed["html"]
 

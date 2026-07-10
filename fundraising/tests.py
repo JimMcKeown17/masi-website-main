@@ -632,15 +632,15 @@ class EmailTemplateTests(SimpleTestCase):
 
         self.assertEqual(html.count(cta), 1)
 
-    def test_render_email_uses_compact_header_and_480px_hero(self):
+    def test_render_email_uses_compact_header_and_full_width_hero(self):
         from fundraising.services.email_template import render_email
 
         html = render_email("<p>Body</p>", "https://example.org/hero.jpg")
 
         self.assertIn('padding:4px 0;', html)
         self.assertIn('margin:0 auto;max-width:200px', html)
-        self.assertIn('width="480"', html)
-        self.assertIn('max-width:480px', html)
+        self.assertIn('width="600"', html)
+        self.assertIn('max-width:600px', html)
         self.assertIn('margin:12px auto', html)
 
 
@@ -650,12 +650,99 @@ def _story(hero=""):
                            feature_name="f", school=[], category=[], hero_image_url=hero)
 
 
+class ComposeFenceParseTests(SimpleTestCase):
+    def test_parse_json_result_strips_markdown_fence(self):
+        from fundraising.services.compose import _parse_json_result
+        raw = '```json\n{"subject": "Hi", "html": "<p>Body</p>"}\n```'
+        self.assertEqual(_parse_json_result(raw),
+                         {"subject": "Hi", "html": "<p>Body</p>"})
+
+
 class ComposePayloadTests(SimpleTestCase):
     def test_story_payload_includes_hero_image_url_and_lead_flag(self):
         from fundraising.services.compose import _story_payload
         p = _story_payload(_story("https://x/heroes/rec1.jpg"), is_lead=True)
         self.assertEqual(p["hero_image_url"], "https://x/heroes/rec1.jpg")
         self.assertTrue(p["is_lead"])
+
+    @mock.patch("fundraising.services.compose.anthropic.Anthropic")
+    def test_payload_normalizes_zero_one_and_two_stats_to_a_list(self, m_anthropic):
+        from types import SimpleNamespace
+        from fundraising.services.compose import compose_newsletter
+
+        block = mock.MagicMock()
+        block.text = '{"subject":"Hello","html":"<p>Body</p>"}'
+        m_anthropic.return_value.messages.create.return_value.content = [block]
+        first = SimpleNamespace(
+            value="10", label="First", source_system="Source", as_of=date(2026, 6, 1),
+        )
+        second = SimpleNamespace(
+            value="20", label="Second", source_system="Source", as_of=None,
+        )
+
+        for supplied, expected_count in ((None, 0), (first, 1), ([first, second], 2)):
+            with self.subTest(expected_count=expected_count):
+                with mock.patch.dict(os.environ, {"ANTHROPIC_API_KEY": "sk-test"}):
+                    compose_newsletter([_story()], supplied, "GUIDE")
+                content = m_anthropic.return_value.messages.create.call_args.kwargs["messages"][0]["content"]
+                payload = json.loads(content)
+                self.assertNotIn("stat", payload)
+                self.assertEqual(len(payload["stats"]), expected_count)
+
+    @mock.patch("fundraising.services.compose.anthropic.Anthropic")
+    def test_payload_includes_chart_when_provided(self, m_anthropic):
+        from fundraising.services.compose import compose_newsletter
+
+        block = mock.MagicMock()
+        block.text = '{"subject":"Hello","html":"<p>Body</p>"}'
+        m_anthropic.return_value.messages.create.return_value.content = [block]
+        chart = {
+            "image_url": "https://example.org/chart.png",
+            "caption": "Exact caption.",
+            "alt": "Chart description",
+            "ignored": "not sent",
+        }
+
+        with mock.patch.dict(os.environ, {"ANTHROPIC_API_KEY": "sk-test"}):
+            compose_newsletter([_story()], None, "GUIDE", chart=chart)
+
+        content = m_anthropic.return_value.messages.create.call_args.kwargs["messages"][0]["content"]
+        payload = json.loads(content)
+        self.assertEqual(payload["chart"], {
+            "image_url": "https://example.org/chart.png",
+            "caption": "Exact caption.",
+            "alt": "Chart description",
+        })
+
+
+class ChartLibraryTests(SimpleTestCase):
+    def test_loads_chart_library(self):
+        from fundraising.services.charts import load_chart_library
+
+        charts = load_chart_library()
+
+        self.assertEqual(charts[0]["key"], "ecd-letters-2yrs-ahead")
+
+    def test_missing_chart_library_returns_empty_list(self):
+        from pathlib import Path
+        from fundraising.services import charts
+
+        with mock.patch.object(charts, "CHART_LIBRARY_PATH", Path("/missing/chart-library.json")):
+            self.assertEqual(charts.load_chart_library(), [])
+
+    def test_pick_chart_matches_early_child_category_in_list_and_string_forms(self):
+        from fundraising.services.charts import pick_chart
+
+        for category in (["Early Child Development"], "Early Child Development"):
+            with self.subTest(category=category):
+                self.assertEqual(pick_chart(category)["key"], "ecd-letters-2yrs-ahead")
+
+    def test_pick_chart_returns_none_for_youth_and_empty_categories(self):
+        from fundraising.services.charts import pick_chart
+
+        for category in ("Youth Employment", "", [], None):
+            with self.subTest(category=category):
+                self.assertIsNone(pick_chart(category))
 
 
 class ComposeSystemPromptTests(SimpleTestCase):
@@ -677,8 +764,13 @@ class ComposeSystemPromptTests(SimpleTestCase):
         self.assertNotIn("FIRST NAME ONLY", prompt)
         self.assertNotIn("em dash", prompt.lower())
         self.assertIn('<!--MID_CTA-->', CONTRACT)
-        self.assertIn('width="420"', CONTRACT)
-        self.assertIn('max-width:420px', CONTRACT)
+        self.assertIn('width="600"', CONTRACT)
+        self.assertIn('max-width:600px', CONTRACT)
+        self.assertIn('<img src="IMAGE_URL" alt="ALT" width="600"', CONTRACT)
+        self.assertIn(
+            '<p style="font-size:13px;color:#6b7482;text-align:center;margin:4px 0 16px;">CAPTION</p>',
+            CONTRACT,
+        )
 
 
 class LeadHeroTests(SimpleTestCase):
@@ -846,3 +938,148 @@ class DraftNewsletterCtaTests(TestCase):
 
         stories = m_compose.call_args.args[0]
         self.assertEqual(len(stories), 1)
+
+
+class DraftNewsletterStatSelectionTests(TestCase):
+    def _make_stat(self, key, is_published=True):
+        from api.models import PublishedStat
+
+        return PublishedStat.objects.create(
+            key=key,
+            value="42%",
+            label=f"Label for {key}",
+            source_system="Test source",
+            as_of=date(2026, 6, 1),
+            is_published=is_published,
+        )
+
+    def _select(self, category, stat_key=None):
+        from types import SimpleNamespace
+        from fundraising.management.commands.draft_newsletter import Command
+
+        return Command().select_stats(stat_key, [SimpleNamespace(category=category)])
+
+    def test_category_mapping_selects_stats_in_configured_order(self):
+        keys = [
+            "more_zero_letters", "more_growth", "ecd_masi_lcpm", "hero_children",
+            "more_stories", "hero_youth", "grads_women", "grads_count", "hero_schools",
+        ]
+        for key in keys:
+            self._make_stat(key)
+
+        cases = [
+            (["Early Child Development"], ["more_zero_letters", "more_growth", "ecd_masi_lcpm"]),
+            ("Youth Employment", ["hero_youth", "grads_women", "hero_children"]),
+            ("Top Learner", ["grads_count", "hero_children"]),
+            ("Special Announcement", ["hero_children", "hero_schools", "hero_youth"]),
+        ]
+        for category, expected in cases:
+            with self.subTest(category=category):
+                self.assertEqual([stat.key for stat in self._select(category)], expected)
+
+    def test_rotation_shifts_with_draft_count(self):
+        for key in ["hero_youth", "grads_women", "hero_children"]:
+            self._make_stat(key)
+        Draft.objects.create(kind="newsletter_broadcast", draft_body="existing")
+
+        stats = self._select("Youth Employment")
+
+        self.assertEqual(
+            [stat.key for stat in stats],
+            ["grads_women", "hero_children", "hero_youth"],
+        )
+
+    def test_explicit_stat_is_first_and_deduplicated(self):
+        for key in ["hero_youth", "grads_women", "hero_children"]:
+            self._make_stat(key)
+
+        stats = self._select("Youth Employment", stat_key="hero_children")
+
+        self.assertEqual(
+            [stat.key for stat in stats],
+            ["hero_children", "hero_youth", "grads_women"],
+        )
+
+    def test_missing_explicit_stat_warns_and_continues_with_mapped_stats(self):
+        from types import SimpleNamespace
+        from fundraising.management.commands.draft_newsletter import Command
+
+        self._make_stat("hero_youth")
+        stdout = io.StringIO()
+        command = Command(stdout=stdout)
+
+        stats = command.select_stats(
+            "missing_key",
+            [SimpleNamespace(category="Youth Employment")],
+        )
+
+        self.assertEqual([stat.key for stat in stats], ["hero_youth"])
+        self.assertIn(
+            "No published PublishedStat found for --stat-key=missing_key",
+            stdout.getvalue(),
+        )
+
+    def test_missing_and_unpublished_keys_are_dropped_and_result_is_capped_at_three(self):
+        self._make_stat("more_zero_letters")
+        self._make_stat("more_growth", is_published=False)
+        self._make_stat("ecd_masi_lcpm")
+        self._make_stat("hero_children")
+        self._make_stat("more_stories")
+
+        stats = self._select("Early Child Development")
+
+        self.assertEqual(
+            [stat.key for stat in stats],
+            ["more_zero_letters", "ecd_masi_lcpm", "hero_children"],
+        )
+
+
+class DraftNewsletterChartTests(TestCase):
+    def _make_stat(self, key):
+        from api.models import PublishedStat
+
+        return PublishedStat.objects.create(
+            key=key,
+            value="42%",
+            label=f"Label for {key}",
+            source_system="Test source",
+            as_of=date(2026, 6, 1),
+            is_published=True,
+        )
+
+    @mock.patch("fundraising.management.commands.draft_newsletter.charts.pick_chart")
+    @mock.patch("fundraising.management.commands.draft_newsletter.compose_newsletter",
+                return_value={"subject": "S", "html": "<p>body</p>"})
+    def test_passes_stats_list_and_chart_to_compose(self, m_compose, m_pick_chart):
+        chart = {"image_url": "https://example.org/chart.png", "caption": "Caption", "alt": "Alt"}
+        m_pick_chart.return_value = chart
+        first_stat = self._make_stat("more_zero_letters")
+        ContentStory.objects.create(
+            source_airtable_id="recChart",
+            title="ECD story",
+            narrative="n",
+            category=["Early Child Development"],
+        )
+
+        call_command("draft_newsletter", "--dry-run")
+
+        stats = m_compose.call_args.args[1]
+        self.assertEqual(stats, [first_stat])
+        self.assertEqual(m_compose.call_args.kwargs["chart"], chart)
+        m_pick_chart.assert_called_once_with(["Early Child Development"])
+
+    @mock.patch("fundraising.management.commands.draft_newsletter.charts.pick_chart")
+    @mock.patch("fundraising.management.commands.draft_newsletter.compose_newsletter",
+                return_value={"subject": "S", "html": "<p>body</p>"})
+    def test_no_chart_flag_passes_none_without_picking(self, m_compose, m_pick_chart):
+        ContentStory.objects.create(
+            source_airtable_id="recNoChart",
+            title="ECD story",
+            narrative="n",
+            category="Early Child Development",
+        )
+
+        call_command("draft_newsletter", "--dry-run", "--no-chart")
+
+        self.assertIsNone(m_compose.call_args.kwargs["chart"])
+        m_pick_chart.assert_not_called()

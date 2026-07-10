@@ -23,8 +23,8 @@ def _lead_hero(lead_hero_url):
     if not lead_hero_url:
         return ""
     return (
-        f'<img src="{lead_hero_url}" alt="" width="480" '
-        'style="display:block;width:100%;max-width:480px;height:auto;'
+        f'<img src="{lead_hero_url}" alt="" width="600" '
+        'style="display:block;width:100%;max-width:600px;height:auto;'
         'margin:12px auto;border-radius:8px;">'
     )
 

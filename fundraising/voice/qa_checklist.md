@@ -12,7 +12,9 @@
 
 ## Craft
 - [ ] The child sounds distinct, not like a template with a name swapped in.
-- [ ] The donor "you" appears within the first ~150 words.
+- [ ] The donor "you" appears early AND reads natural, never bolted-on to satisfy a rule.
+- [ ] No announcing ("we cannot wait to tell you"); the draft just tells them.
+- [ ] Long names: full name once, then the natural short form (Zeniqhame, then Zeni).
 - [ ] The quote (if any) does not repeat the surrounding copy; long quotes are trimmed
       to the best one or two sentences, excerpted verbatim, never reworded.
 - [ ] Exactly ONE direct ask; the P.S. reinforces the same idea.
@@ -21,7 +23,8 @@
 
 ## Mechanics
 - [ ] No em dash anywhere. No emoji anywhere.
-- [ ] Exactly one `<!--MID_CTA-->` marker, placed after the arc resolves.
+- [ ] Short issue: NO `<!--MID_CTA-->` marker (one bottom button). Longer issue: at most one.
+- [ ] Any chart is a chart-library entry with its exact caption; at most one per issue.
 - [ ] No logo, donate button, social links, or lead photo in the body (chrome adds them).
 - [ ] Inline photos (non-lead only) use the contract img markup, correct child, correct spot.
 - [ ] Subject line: first name only, concrete, no clickbait.

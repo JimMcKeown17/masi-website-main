@@ -92,8 +92,15 @@ unlocking together", earning purpose and income while changing children's lives.
   empowerment interventions."
 
 ## Learned rules (from Jim's red pen; self-improving loop, ADR 0007)
-- The donor "you" must appear within the first ~150 words. Connect the reader to the
-  child's story early, not only in the gratitude close.
+- The donor "you" belongs early (first ~150 words) but must be woven into a concrete
+  sentence, in the register of: "You make it possible for children like Zeni (above)
+  and thousands of others to learn to read." If the early "you" reads bolted-on,
+  move it to where it fits; natural beats early.
+- Never announce what you are about to say ("we cannot wait to tell you about him").
+  Just tell them.
+- Long first names: use the full name once at introduction, then a natural shortened
+  form (Zeniqhame becomes Zeni). Never invent an unrelated nickname; if the short form
+  is uncertain, ask Jim.
 - Quotes are powerful. When the source has a real quote, often let the quote carry the
   moment rather than writing it ourselves. The rule: quote and surrounding copy must not
   repeat each other; if they overlap, cut from the copy or the quote.

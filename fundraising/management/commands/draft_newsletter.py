@@ -3,9 +3,28 @@ from django.db.models import F
 from dotenv import load_dotenv
 
 from api.models import PublishedStat
-from fundraising.models import ContentStory
+from fundraising.models import ContentStory, Draft
+from fundraising.services import charts
 from fundraising.services.compose import compose_newsletter, voice_guide
 from fundraising.services.record import record_and_draft
+
+
+CATEGORY_STAT_KEYS = {
+    'early child': [
+        'more_zero_letters', 'more_growth', 'ecd_masi_lcpm', 'hero_children', 'more_stories',
+    ],
+    'youth': ['hero_youth', 'grads_women', 'hero_children'],
+    'top learner': ['grads_count', 'hero_children'],
+}
+FALLBACK_STAT_KEYS = ['hero_children', 'hero_schools', 'hero_youth']
+
+
+def _normalize_category(category):
+    if isinstance(category, list):
+        category = ' '.join(str(value) for value in category if value)
+    if not isinstance(category, str):
+        return ''
+    return category.strip().lower()
 
 
 class Command(BaseCommand):
@@ -18,6 +37,7 @@ class Command(BaseCommand):
         parser.add_argument('--n', type=int, default=1, help='Number of drafts to create')
         parser.add_argument('--cta-text', help='Donate button text (defaults to "Donate")')
         parser.add_argument('--cta-url', help='Donate button URL (defaults to the donate page)')
+        parser.add_argument('--no-chart', action='store_true', help='Do not include a curated chart')
 
     def handle(self, *args, **options):
         load_dotenv()
@@ -58,14 +78,18 @@ class Command(BaseCommand):
                 f"No active ContentStory rows available for newsletter draft window {empty_window}."
             )
 
-        stat = self.select_stat(options.get('stat_key'))
         guide_text = voice_guide.read()
 
         for index, stories in enumerate(story_windows, start=1):
+            stats = self.select_stats(options.get('stat_key'), stories)
+            chart = None
+            if not options.get('no_chart'):
+                chart = charts.pick_chart(stories[0].category)
             result = compose_newsletter(
-                stories, stat, guide_text,
+                stories, stats, guide_text,
                 cta_text=options.get('cta_text'),
                 cta_url=options.get('cta_url'),
+                chart=chart,
             )
             subject = result['subject']
             html = result['html']
@@ -95,13 +119,34 @@ class Command(BaseCommand):
                 f"Draft {index}/{draft_count}: Draft id {draft.id}; Mailchimp edit_url: {campaign['edit_url']}"
             ))
 
-    def select_stat(self, stat_key):
+    def select_stats(self, stat_key, stories):
         qs = PublishedStat.objects.filter(is_published=True)
+        category = _normalize_category(stories[0].category) if stories else ''
+        keys = next(
+            (stat_keys for keyword, stat_keys in CATEGORY_STAT_KEYS.items() if keyword in category),
+            FALLBACK_STAT_KEYS,
+        )
+        offset = Draft.objects.count() % len(keys)
+        rotated_keys = keys[offset:] + keys[:offset]
+
+        stats = []
         if stat_key:
             stat = qs.filter(key=stat_key).first()
             if not stat:
                 self.stdout.write(self.style.WARNING(
                     f"No published PublishedStat found for --stat-key={stat_key}; composing without a stat."
                 ))
-            return stat
-        return qs.order_by('sort_order', 'id').first()
+            else:
+                stats.append(stat)
+
+        available = {
+            stat.key: stat
+            for stat in qs.filter(key__in=rotated_keys)
+        }
+        for key in rotated_keys:
+            stat = available.get(key)
+            if stat and stat not in stats:
+                stats.append(stat)
+            if len(stats) == 3:
+                break
+        return stats
