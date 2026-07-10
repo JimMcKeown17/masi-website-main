@@ -13,7 +13,8 @@
 ## Craft
 - [ ] The child sounds distinct, not like a template with a name swapped in.
 - [ ] The donor "you" appears within the first ~150 words.
-- [ ] The quote (if any) adds new information and sounds like a real coach.
+- [ ] The quote (if any) does not repeat the surrounding copy; long quotes are trimmed
+      to the best one or two sentences, excerpted verbatim, never reworded.
 - [ ] Exactly ONE direct ask; the P.S. reinforces the same idea.
 - [ ] Opening reaches the child within two or three sentences.
 - [ ] US-donor phrasing throughout ("learning with Masinyusane", not "on programme").

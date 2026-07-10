@@ -94,8 +94,12 @@ unlocking together", earning purpose and income while changing children's lives.
 ## Learned rules (from Jim's red pen; self-improving loop, ADR 0007)
 - The donor "you" must appear within the first ~150 words. Connect the reader to the
   child's story early, not only in the gratitude close.
-- A quote must ADD new information, never restate the paragraph around it. One to two
-  sentences, in words a real coach would actually say.
+- Quotes are powerful. When the source has a real quote, often let the quote carry the
+  moment rather than writing it ourselves. The rule: quote and surrounding copy must not
+  repeat each other; if they overlap, cut from the copy or the quote.
+- Trim long quotes magazine-style: excerpt the best one or two sentences, VERBATIM.
+  Youth and coaches give long quotes; a magazine prints one sentence. Never reword,
+  paraphrase, or splice inside quote marks; excerpting is the only allowed edit.
 - ONE direct ask per issue (the monthly-donor ask). The P.S. reinforces the SAME idea;
   it never introduces a second, different ask.
 - Tighter openings: get to the child within the first two or three sentences. Cut warm-up

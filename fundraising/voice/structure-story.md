@@ -16,9 +16,10 @@ added around the body automatically; never write them):
    within the first ~150 words.
 3. **The arc**: where the child started, what happened (the sessions, the coach by first
    name), where they are now. Ground every progress claim in the source story.
-4. **The coach's voice**: one quote as a blockquote, only if the source has one that adds
-   new information. If the source quote merely restates the narrative, use it for color in
-   prose or leave it out.
+4. **The coach's voice**: one quote as a blockquote. Quotes are powerful; when the
+   source has a good one, prefer letting it carry the moment over writing the same
+   thing ourselves. Trim long quotes to the best one or two sentences (verbatim
+   excerpt, magazine practice). Quote and surrounding copy must not repeat each other.
 5. **Mid-email ask**: emit the marker `<!--MID_CTA-->` on its own line here, after the
    arc resolves and before the story broadens. Exactly one marker, nowhere else. The
    template turns it into the donate button.
