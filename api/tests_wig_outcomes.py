@@ -49,7 +49,7 @@ def reset_zazi_cache():
 
 
 class CheckSourcesTests(TestCase):
-    """Fail-closed source gate: exporter's _assert_synced rules + 48h dead-cron age."""
+    """Fail-closed source gate: exporter's _assert_synced rules."""
 
     def test_no_logs_fails(self):
         ok, note = check_sources(timezone.now())
@@ -74,17 +74,18 @@ class CheckSourcesTests(TestCase):
         self.assertFalse(ok)
         self.assertIn("flagged", note)
 
-    def test_stale_sync_fails(self):
+    def test_old_successful_sync_passes(self):
         make_logs(hours_ago=72)
         ok, note = check_sources(timezone.now())
-        self.assertFalse(ok)
-        self.assertIn("48", note)
+        self.assertTrue(ok)
+        self.assertIsNone(note)
 
-    def test_one_fresh_one_stale_fails(self):
+    def test_one_fresh_one_old_successful_sync_passes(self):
         make_logs(hours_ago=1, only=("literacy_assessments_2026",))
         make_logs(hours_ago=72, only=("on_the_programme_2026",))
-        ok, _ = check_sources(timezone.now())
-        self.assertFalse(ok)
+        ok, note = check_sources(timezone.now())
+        self.assertTrue(ok)
+        self.assertIsNone(note)
 
     def test_healthy_logs_pass(self):
         make_logs(hours_ago=1)
@@ -286,13 +287,13 @@ class BuildOutcomesSourceGateTests(TestCase):
         self.assertNotIn("core_literacy", payload["outcomes"])
         self.assertNotIn("ecd_literacy", payload["outcomes"])
 
-    def test_unavailable_when_one_sync_is_stale(self):
+    def test_available_when_one_successful_sync_is_old(self):
         make_logs(hours_ago=1, only=("literacy_assessments_2026",))
         make_logs(hours_ago=72, only=("on_the_programme_2026",))
         payload = build_outcomes()
-        self.assertFalse(payload["available"])
-        self.assertNotIn("core_literacy", payload["outcomes"])
-        self.assertNotIn("ecd_literacy", payload["outcomes"])
+        self.assertTrue(payload["available"])
+        self.assertIsNone(payload["outcomes"]["core_literacy"])
+        self.assertIsNone(payload["outcomes"]["ecd_literacy"])
 
 
 class OutcomeEndpointTests(TestCase):

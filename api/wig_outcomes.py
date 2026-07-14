@@ -2,8 +2,8 @@
 
 Term-keyed (Jan/Jun/Nov) over literacy_assessments_2026 + on_the_programme_2026,
 unlike the weekly lead measures in wig_metrics.py. Fail-closed: any source-health,
-staleness, or dedupe-exception problem returns available=False rather than a
-number the parquet export (export_literacy_2026_parquet) would refuse to ship.
+sync integrity, or dedupe-exception problem returns available=False rather than
+a number the parquet export (export_literacy_2026_parquet) would refuse to ship.
 """
 from datetime import timedelta
 
@@ -15,7 +15,6 @@ from .literacy_2026_grades import grade_is_fallback, normalize_grade
 from .models import AirtableSyncLog, LiteracyAssessment2026, OnTheProgramme2026
 
 REQUIRED_SYNCS = ("literacy_assessments_2026", "on_the_programme_2026")
-MAX_SYNC_AGE_HOURS = 48  # two missed nightly runs = dead cron
 # Nov endline: append "Nov" here ONLY together with the exporter's TERM_TO_PREFIX
 # and the Streamlit processor's MONTHS, so the parity surfaces can cross-check.
 TERM_ORDER = ("Jan", "Jun")
@@ -119,7 +118,7 @@ def _zazi_outcomes(now):
 
 
 def check_sources(now):
-    """(ok, note): the exporter's _assert_synced rules + a 48h dead-cron age gate."""
+    """(ok, note): the exporter's _assert_synced rules."""
     for sync_type in REQUIRED_SYNCS:
         last = (AirtableSyncLog.objects.filter(sync_type=sync_type)
                 .order_by('-started_at', '-pk').first())
@@ -128,8 +127,6 @@ def check_sources(now):
         details = last.details or {}
         if details.get('retire_skipped') or details.get('dup_uid_skipped'):
             return False, f"latest '{sync_type}' sync flagged retire/duplicate skips"
-        if last.completed_at < now - timedelta(hours=MAX_SYNC_AGE_HOURS):
-            return False, f"latest '{sync_type}' sync is older than {MAX_SYNC_AGE_HOURS}h"
     return True, None
 
 
