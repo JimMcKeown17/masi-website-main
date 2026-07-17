@@ -139,3 +139,62 @@ independent Airtable-vs-parquet reconciliation script + golden-row hand-traces.
 
 **Open items (owner: data/ops):** provenance of `2026 On The Programme`; the true literacy
 session-events table so Total Sessions can be *derived*, not ingested from the unreliable rollup.
+
+---
+
+## 7. 2026 numeracy assessments pipeline
+
+The numeracy pipeline uses the same long-fact plus roster-projection architecture, but it does not
+reuse the 2025 name-based merge. All identity resolution and analysis use `child_uid`.
+
+### Source configuration
+
+- Assessments: `AIRTABLE_NUMERACY_2026_ASSESSMENTS_BASE_ID` and
+  `AIRTABLE_NUMERACY_2026_ASSESSMENTS_TABLE_ID`
+- Roster: `AIRTABLE_NUMERACY_ON_THE_PROGRAMME_2026_BASE_ID` and
+  `AIRTABLE_NUMERACY_ON_THE_PROGRAMME_2026_TABLE_ID`
+- Authentication: `AIRTABLE_TOKEN`, with `AIRTABLE_API_KEY` as the fallback
+
+`NumeracyAssessment2026` preserves every raw source event, including missing child UIDs and duplicate
+business groups. `NumeracyOnTheProgramme2026` is a separate one-row-per-child roster. Assessment
+upserts use Airtable record ID. Roster upserts resolve Airtable record ID first and child UID second,
+which safely adopts a recreated source record.
+
+Publication is fail closed for operational integrity failures: failed or incomplete latest syncs,
+guarded retirement failures, duplicate roster UIDs, a truncated pull, an invalid output shape, or
+reconciliation drift. Record-level data quality does not make the whole dashboard unavailable.
+Instead, missing H1 UIDs, unresolved canonical identities, conflicting duplicates, and invalid
+component scores are written to a correction report and the affected assessment group is
+quarantined. Its roster row remains in the parquet, its affected term scores remain null, and its
+exclusion flag and reason are explicit. Scores are never clipped or averaged. Identical duplicates
+are the only duplicate class resolved automatically, using the lexicographically smallest Airtable
+record ID for deterministic selection.
+
+The export writes three sibling artifacts atomically where applicable:
+
+- `2026_numeracy_midline.parquet`: roster-shaped results with quality flags
+- `2026_numeracy_quality_exceptions.csv`: name-free source correction queue
+- `2026_numeracy_quality_summary.json`: aggregate counts for Streamlit
+
+Streamlit presents the aggregate quarantine count on the results page and exposes the correction
+queue only on the internal `2026 Numeracy Data Quality` page. After correcting Airtable, rerun both
+sync commands, export, and reconciliation locally. Do not run the exporter on Render because its
+output target is the sibling local Streamlit repository.
+
+Run against the configured local Postgres database only:
+
+```bash
+venv/bin/python manage.py sync_airtable_numeracy_assessments_2026 --dry-run --verbose
+venv/bin/python manage.py sync_airtable_numeracy_on_programme_2026 --dry-run --verbose
+venv/bin/python manage.py sync_airtable_numeracy_assessments_2026
+venv/bin/python manage.py sync_airtable_numeracy_on_programme_2026
+venv/bin/python manage.py export_numeracy_2026_parquet --dry-run
+venv/bin/python manage.py export_numeracy_2026_parquet
+venv/bin/python manage.py reconcile_numeracy_2026 \
+  --golden-uid CH-EXAMPLE1 --golden-uid CH-EXAMPLE2 --golden-uid CH-EXAMPLE3
+```
+
+For local diagnosis when an operational sync gate blocks the ordinary dry run, use
+`export_numeracy_2026_parquet --dry-run --force`. This produces the name-free source-correction CSV
+but cannot publish a parquet. There is no numeracy assessment cron because assessment collection is
+window-based.
