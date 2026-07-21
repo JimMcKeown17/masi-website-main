@@ -15,6 +15,7 @@ from rest_framework.response import Response
 from ..authentication import ClerkAuthentication
 from ..permissions import IsAdminOrProjectManager, IsInternalService
 from ..models import SchoolClosure, StaffAbsence, School, Youth
+from ..school_programme import PROGRAMME_CHOICES, _PROGRAMME_KEYS
 from ..serializers import SchoolClosureSerializer, StaffAbsenceSerializer
 from .. import closures as closures_svc
 
@@ -114,6 +115,7 @@ def closures_lookups(request):
             {'value': 'secondary', 'label': 'Secondary'},
             {'value': 'other', 'label': 'Other'},
         ],
+        'programmes': [{'value': k, 'label': l} for k, l in PROGRAMME_CHOICES],
         'youth': youth_rows,
     })
 
@@ -164,6 +166,10 @@ def closures_bulk(request):
     values = data.get('scope_values') or [None]
     is_open = bool(data.get('is_open', False))
     reason = data.get('reason', '') or ''
+    programmes = data.get('applies_to_programmes') or []
+    bad = set(programmes) - _PROGRAMME_KEYS
+    if bad:
+        return Response({'detail': f'unknown programmes: {sorted(bad)}'}, status=status.HTTP_400_BAD_REQUEST)
     user = _request_user(request)
 
     # Resolve every scope target up front so a bad value fails before any write.
@@ -180,6 +186,7 @@ def closures_bulk(request):
                     date=day, scope_key=scope_key,
                     defaults={'scope_type': scope_type, 'is_open': is_open,
                               'reason': reason, 'source': 'manual', 'created_by': user,
+                              'applies_to_programmes': programmes,
                               **fields},
                 )
                 created += int(was_created)
@@ -212,6 +219,7 @@ def closures_export(request):
         'is_open': c.is_open,
         'source': c.source,
         'reason': c.reason,
+        'applies_to_programmes': c.applies_to_programmes,
         'updated_at': c.updated_at,
     } for c in qs]
     return Response(rows)

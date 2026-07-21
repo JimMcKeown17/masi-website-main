@@ -68,6 +68,22 @@ class ClosureBulkTests(TestCase):
         self.assertEqual(resp.data['updated'], 5)
         self.assertEqual(SchoolClosure.objects.filter(scope_key='global').count(), 5)
 
+    def test_bulk_stores_and_exports_programmes(self):
+        resp = self.client.post('/api/closures/bulk/', {
+            'date_from': '2026-06-01', 'date_to': '2026-06-01',
+            'scope_type': 'global', 'applies_to_programmes': ['masi_literacy'],
+        }, format='json')
+        self.assertEqual(resp.status_code, 201, resp.content)
+        row = SchoolClosure.objects.get(scope_key='global', date='2026-06-01')
+        self.assertEqual(row.applies_to_programmes, ['masi_literacy'])
+
+    def test_bulk_rejects_unknown_programme(self):
+        resp = self.client.post('/api/closures/bulk/', {
+            'date_from': '2026-06-01', 'date_to': '2026-06-01',
+            'scope_type': 'global', 'applies_to_programmes': ['not_a_programme'],
+        }, format='json')
+        self.assertEqual(resp.status_code, 400)
+
 
 @override_settings(MASI_INTERNAL_API_SECRET='test-secret')
 class ClosureExportAuthTests(TestCase):
@@ -87,6 +103,12 @@ class ClosureExportAuthTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(len(resp.data), 1)
         self.assertEqual(resp.data[0]['scope_key'], 'global')
+
+    def test_export_includes_applies_to_programmes(self):
+        SchoolClosure.objects.filter(scope_key='global').update(applies_to_programmes=['masi_literacy'])
+        resp = self.client.get('/api/closures/export/', HTTP_X_INTERNAL_AUTH='test-secret')
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.data[0]['applies_to_programmes'], ['masi_literacy'])
 
     def test_staff_crud_still_requires_user_auth(self):
         # The shared secret must not open the authoring endpoints.

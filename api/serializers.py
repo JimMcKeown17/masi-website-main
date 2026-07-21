@@ -206,9 +206,16 @@ class SchoolClosureSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'date', 'scope_type', 'scope_school', 'scope_school_type',
             'scope_region', 'scope_key', 'scope_display', 'is_open', 'source',
-            'reason', 'created_by', 'created_at', 'updated_at',
+            'reason', 'applies_to_programmes', 'created_by', 'created_at', 'updated_at',
         ]
         read_only_fields = ['scope_key', 'source', 'created_by', 'created_at', 'updated_at']
+
+    def validate_applies_to_programmes(self, value):
+        from api.school_programme import _PROGRAMME_KEYS
+        bad = set(value or []) - _PROGRAMME_KEYS
+        if bad:
+            raise serializers.ValidationError(f'Unknown programmes: {sorted(bad)}')
+        return value or []
 
     def get_scope_display(self, obj):
         if obj.scope_type == 'global':
