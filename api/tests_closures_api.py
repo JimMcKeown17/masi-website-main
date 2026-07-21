@@ -85,6 +85,110 @@ class ClosureBulkTests(TestCase):
         self.assertEqual(resp.status_code, 400)
 
 
+class ClosureBulkSetTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.client.force_authenticate(make_user('admin', 'ADMIN'))
+        self.c1 = SchoolClosure.objects.create(date=date(2026, 6, 2), scope_type='global', is_open=True)
+        self.c2 = SchoolClosure.objects.create(date=date(2026, 6, 3), scope_type='global', is_open=True)
+
+    def _preview(self, body):
+        return self.client.post('/api/closures/bulk-set/', {**body, 'dry_run': True}, format='json')
+
+    def test_preview_by_filter_returns_ids_and_digest(self):
+        r = self._preview({'date_from': '2026-06-01', 'date_to': '2026-06-30', 'scope_type': 'global'})
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(set(r.data['ids']), {self.c1.id, self.c2.id})
+        self.assertTrue(r.data['digest'])
+
+    def test_prune_then_commit_sets_both_fields_and_leaves_dropped_row(self):
+        broad = self._preview({'date_from': '2026-06-01', 'date_to': '2026-06-30', 'scope_type': 'global'})
+        pruned = self._preview({'ids': [self.c1.id]})           # drop c2
+        resp = self.client.post('/api/closures/bulk-set/', {
+            'ids': [self.c1.id], 'digest': pruned.data['digest'],
+            'applies_to_programmes': ['masi_literacy'], 'is_open': False,
+        }, format='json')
+        self.assertEqual(resp.status_code, 200, resp.content)
+        self.assertEqual(resp.data['updated'], 1)
+        self.c1.refresh_from_db(); self.c2.refresh_from_db()
+        self.assertEqual(self.c1.applies_to_programmes, ['masi_literacy'])
+        self.assertFalse(self.c1.is_open)
+        self.assertEqual(self.c2.applies_to_programmes, [])     # untouched
+        self.assertTrue(self.c2.is_open)
+
+    def test_status_stale_digest_aborts(self):
+        p = self._preview({'ids': [self.c1.id]})
+        SchoolClosure.objects.filter(id=self.c1.id).update(is_open=False)  # change after preview
+        resp = self.client.post('/api/closures/bulk-set/', {
+            'ids': [self.c1.id], 'digest': p.data['digest'], 'applies_to_programmes': ['numeracy'],
+        }, format='json')
+        self.assertEqual(resp.status_code, 409)
+        self.c1.refresh_from_db()
+        self.assertEqual(self.c1.applies_to_programmes, [])     # not changed
+
+    def test_date_change_stale_aborts(self):
+        # Row moved to another date after preview -> same id/is_open/programmes, but the
+        # semantic digest (which includes date) must catch it.
+        p = self._preview({'ids': [self.c1.id]})
+        SchoolClosure.objects.filter(id=self.c1.id).update(date=date(2026, 7, 1))
+        resp = self.client.post('/api/closures/bulk-set/', {
+            'ids': [self.c1.id], 'digest': p.data['digest'], 'applies_to_programmes': ['masi_literacy'],
+        }, format='json')
+        self.assertEqual(resp.status_code, 409)
+
+    def test_commit_without_ids_is_rejected(self):
+        resp = self.client.post('/api/closures/bulk-set/', {
+            'date_from': '2026-06-01', 'date_to': '2026-06-30', 'scope_type': 'global',
+            'digest': 'whatever', 'applies_to_programmes': ['masi_literacy'],
+        }, format='json')
+        self.assertEqual(resp.status_code, 400)  # filter-only commit forbidden
+
+    def test_commit_with_nonexistent_id_aborts(self):
+        p = self._preview({'ids': [self.c1.id]})
+        resp = self.client.post('/api/closures/bulk-set/', {
+            'ids': [self.c1.id, 999999], 'digest': p.data['digest'], 'applies_to_programmes': ['masi_literacy'],
+        }, format='json')
+        self.assertEqual(resp.status_code, 409)  # locked id-set != requested id-set
+
+    def test_filter_preview_requires_bounds(self):
+        resp = self.client.post('/api/closures/bulk-set/', {'dry_run': True}, format='json')
+        self.assertEqual(resp.status_code, 400)
+
+    def test_programme_only_commit_leaves_is_open(self):
+        # Omitting is_open must NOT change status.
+        p = self._preview({'ids': [self.c1.id]})
+        self.client.post('/api/closures/bulk-set/', {
+            'ids': [self.c1.id], 'digest': p.data['digest'], 'applies_to_programmes': ['masi_literacy'],
+        }, format='json')
+        self.c1.refresh_from_db()
+        self.assertEqual(self.c1.applies_to_programmes, ['masi_literacy'])
+        self.assertTrue(self.c1.is_open)  # unchanged
+
+    def test_status_only_commit_leaves_programmes(self):
+        # Omitting applies_to_programmes must NOT change programme scope.
+        SchoolClosure.objects.filter(id=self.c1.id).update(applies_to_programmes=['masi_literacy'])
+        p = self._preview({'ids': [self.c1.id]})
+        self.client.post('/api/closures/bulk-set/', {
+            'ids': [self.c1.id], 'digest': p.data['digest'], 'is_open': False,
+        }, format='json')
+        self.c1.refresh_from_db()
+        self.assertEqual(self.c1.applies_to_programmes, ['masi_literacy'])  # unchanged
+        self.assertFalse(self.c1.is_open)
+
+    def test_preview_row_metadata_stays_with_its_id(self):
+        # Two rows created in ascending-date order (so id-order != model's -date order),
+        # with distinct reasons: each preview row must carry ITS OWN reason.
+        a = SchoolClosure.objects.create(date=date(2026, 6, 4), scope_type='global', reason='AAA')
+        b = SchoolClosure.objects.create(date=date(2026, 6, 5), scope_type='type',
+                                         scope_school_type='primary', reason='BBB')
+        r = self._preview({'ids': [a.id, b.id]})
+        by_id = {row['id']: row for row in r.data['rows']}
+        self.assertEqual(by_id[a.id]['reason'], 'AAA')
+        self.assertEqual(by_id[a.id]['scope_type'], 'global')
+        self.assertEqual(by_id[b.id]['reason'], 'BBB')
+        self.assertEqual(by_id[b.id]['scope_type'], 'type')
+
+
 @override_settings(MASI_INTERNAL_API_SECRET='test-secret')
 class ClosureExportAuthTests(TestCase):
     def setUp(self):

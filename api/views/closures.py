@@ -4,6 +4,9 @@ Authoring CRUD and bulk fan-out are gated to ADMIN / PROJECT MANAGER. The export
 endpoints carry no user identity -- they are gated only by the X-Internal-Auth
 shared secret, which the Zazi backend sends when pulling the calendar.
 """
+import hashlib
+import json
+
 from datetime import date as date_cls, timedelta
 
 from django.db import transaction
@@ -142,6 +145,105 @@ def _closure_scope_kwargs(scope_type, value):
         return ({'scope_school': school},
                 closures_svc.build_scope_key('school', school_uid=school.school_uid))
     raise ValueError(f'unknown scope_type: {scope_type!r}')
+
+
+# Display fields (a superset of the digest fields). ONE deterministically-ordered
+# query yields both the digest and the response rows, so metadata can never get
+# zipped against the wrong identity.
+_DISPLAY_FIELDS = ('id', 'date', 'scope_key', 'scope_type', 'is_open',
+                   'applies_to_programmes', 'source', 'reason', 'updated_at')
+
+
+def _closure_records(qs):
+    """List of dicts, ALWAYS ordered by id (deterministic), one query."""
+    return list(qs.order_by('id').values(*_DISPLAY_FIELDS))
+
+
+def _closure_digest(records):
+    """Digest over each record's semantic identity + version (id, date, scope_key,
+    is_open, sorted programmes, updated_at)."""
+    canon = [
+        [r['id'], str(r['date']), r['scope_key'], bool(r['is_open']),
+         sorted(r['applies_to_programmes'] or []),
+         r['updated_at'].isoformat() if r['updated_at'] else None]
+        for r in sorted(records, key=lambda r: r['id'])
+    ]
+    return hashlib.sha256(json.dumps(canon, separators=(',', ':')).encode()).hexdigest()
+
+
+def _closure_row_json(r):
+    return {
+        'id': r['id'], 'date': str(r['date']), 'scope_key': r['scope_key'],
+        'scope_type': r['scope_type'], 'is_open': r['is_open'],
+        'applies_to_programmes': r['applies_to_programmes'] or [],
+        'source': r['source'], 'reason': r['reason'],
+        'updated_at': r['updated_at'].isoformat() if r['updated_at'] else None,
+    }
+
+
+@api_view(['POST'])
+@authentication_classes(AUTH)
+@permission_classes(PERM)
+def closures_bulk_set(request):
+    """Identity-exact bulk set of applies_to_programmes and/or is_open on EXISTING
+    closures.
+      Preview (dry_run=true): by explicit `ids`, OR by a bounded filter
+        {date_from, date_to, scope_type?} -> {ids, rows, digest, count}.
+      Commit: requires non-empty integer `ids` + `digest` + fields to set;
+        re-verifies the exact rows' semantic digest under select_for_update,
+        aborts 409 on any change, and only writes the fields provided."""
+    data = request.data
+    dry_run = bool(data.get('dry_run'))
+
+    if dry_run:
+        if data.get('ids') is not None:
+            ids = data['ids']
+            if not isinstance(ids, list) or not all(isinstance(i, int) for i in ids):
+                return Response({'detail': 'ids must be a list of integers.'}, status=status.HTTP_400_BAD_REQUEST)
+            qs = SchoolClosure.objects.filter(id__in=ids)
+        else:
+            df, dt = _parse_date(data.get('date_from')), _parse_date(data.get('date_to'))
+            if not df or not dt or dt < df:
+                return Response({'detail': 'a valid date_from..date_to (or ids) is required.'},
+                                status=status.HTTP_400_BAD_REQUEST)
+            qs = SchoolClosure.objects.filter(date__gte=df, date__lte=dt)
+            if data.get('scope_type'):
+                if data['scope_type'] not in {'global', 'type', 'region', 'school'}:
+                    return Response({'detail': 'invalid scope_type.'}, status=status.HTTP_400_BAD_REQUEST)
+                qs = qs.filter(scope_type=data['scope_type'])
+        records = _closure_records(qs)
+        return Response({
+            'ids': [r['id'] for r in records],
+            'rows': [_closure_row_json(r) for r in records],
+            'digest': _closure_digest(records),
+            'count': len(records),
+        })
+
+    # Commit: explicit ids only.
+    ids = data.get('ids')
+    if not isinstance(ids, list) or not ids or not all(isinstance(i, int) for i in ids):
+        return Response({'detail': 'commit requires a non-empty list of integer ids.'},
+                        status=status.HTTP_400_BAD_REQUEST)
+    ids = sorted(set(ids))
+
+    updates = {}
+    if data.get('applies_to_programmes') is not None:
+        progs = data['applies_to_programmes'] or []
+        bad = set(progs) - _PROGRAMME_KEYS
+        if bad:
+            return Response({'detail': f'unknown programmes: {sorted(bad)}'}, status=status.HTTP_400_BAD_REQUEST)
+        updates['applies_to_programmes'] = progs
+    if 'is_open' in data:
+        updates['is_open'] = bool(data['is_open'])
+    if not updates:
+        return Response({'detail': 'nothing to set.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    with transaction.atomic():
+        locked = _closure_records(SchoolClosure.objects.select_for_update().filter(id__in=ids))
+        if {r['id'] for r in locked} != set(ids) or _closure_digest(locked) != data.get('digest'):
+            return Response({'detail': 'rows changed since preview; re-preview.'}, status=status.HTTP_409_CONFLICT)
+        n = SchoolClosure.objects.filter(id__in=ids).update(**updates)
+    return Response({'updated': n})
 
 
 @api_view(['POST'])
