@@ -7,7 +7,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('api', '0038_ontheprogramme2026'),
+        ('api', '0039_schoolclosure_applies_to_programmes'),
     ]
 
     operations = [
