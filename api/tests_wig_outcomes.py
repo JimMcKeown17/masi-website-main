@@ -1,4 +1,4 @@
-"""Tests for the literacy WIG outcome measures (api/wig_outcomes.py)."""
+"""Tests for the WIG outcome measures (api/wig_outcomes.py)."""
 from copy import deepcopy
 from datetime import timedelta
 from unittest.mock import Mock, patch
@@ -10,7 +10,15 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 
 from api import wig_outcomes, zazi_client
-from api.models import AirtableSyncLog, LiteracyAssessment2026, OnTheProgramme2026
+from api.models import (
+    AirtableSyncLog,
+    CanonicalChild,
+    LiteracyAssessment2026,
+    NumeracyAssessment2026,
+    NumeracyOnTheProgramme2026,
+    OnTheProgramme2026,
+)
+from api.numeracy_2026 import COMPONENTS as NUMERACY_COMPONENTS
 from api.wig_outcomes import REQUIRED_SYNCS, check_sources, build_outcomes
 
 
@@ -41,6 +49,59 @@ def assess(uid, term="Jun", read_words=None, letter_sounds=None, grade=None,
         source_airtable_id=f"rec-a{_seq['n']}", child_uid=uid, year=year, term=term,
         grade=grade, read_words=read_words, letter_sounds=letter_sounds,
         duplicate_status=duplicate_status, is_active=active)
+
+
+def make_numeracy_logs(success=True, details_by_sync=None):
+    details_by_sync = details_by_sync or {}
+    for sync_type in (
+        "numeracy_assessments_2026",
+        "numeracy_on_the_programme_2026",
+    ):
+        AirtableSyncLog.objects.create(
+            sync_type=sync_type,
+            success=success,
+            completed_at=timezone.now(),
+            details=details_by_sync.get(sync_type, {}),
+        )
+
+
+def numeracy_roster(uid, resolved=True, active=True):
+    _seq["n"] += 1
+    child = None
+    if resolved:
+        child = CanonicalChild.objects.create(
+            source_airtable_id=f"rec-c{_seq['n']}",
+            child_uid=uid,
+            mcode=_seq["n"],
+            full_name=f"Child {uid}",
+        )
+    _seq["n"] += 1
+    return NumeracyOnTheProgramme2026.objects.create(
+        source_airtable_id=f"rec-nr{_seq['n']}",
+        child_uid=uid,
+        child=child,
+        programme_status="Yes",
+        is_active=active,
+    )
+
+
+def numeracy_assess(uid, term="Jun", counting_aloud=30, complete=True, active=True):
+    _seq["n"] += 1
+    values = {
+        component.model_field: 1
+        for component in NUMERACY_COMPONENTS
+    }
+    values["counting_aloud"] = counting_aloud
+    if not complete:
+        values["number_recognition"] = None
+    return NumeracyAssessment2026.objects.create(
+        source_airtable_id=f"rec-na{_seq['n']}",
+        child_uid=uid,
+        year=2026,
+        term=term,
+        is_active=active,
+        **values,
+    )
 
 
 def reset_zazi_cache():
@@ -371,6 +432,109 @@ class ExporterParityEdgeTests(TestCase):
         payload = build_outcomes()
         self.assertFalse(payload["available"])
         self.assertIn("dedupe", payload["source_note"])
+
+
+class NumeracyOutcomeTests(TestCase):
+    """Numeracy WIG mirrors the portal's complete-assessment status estimand."""
+
+    def setUp(self):
+        make_logs()
+        make_numeracy_logs()
+        reset_zazi_cache()
+        p = patch(
+            "api.wig_outcomes.zazi_client.fetch_zazi_wig_outcomes",
+            side_effect=Exception("offline"),
+        )
+        p.start()
+        self.addCleanup(p.stop)
+
+    def test_latest_complete_status_uses_all_june_assessments_and_january_baseline(self):
+        numeracy_roster("CH-N1")
+        numeracy_roster("CH-N2")
+        numeracy_roster("CH-N3")
+        numeracy_assess("CH-N1", term="Jan", counting_aloud=10)
+        numeracy_assess("CH-N2", term="Jan", counting_aloud=30)
+        numeracy_assess("CH-N1", term="Jun", counting_aloud=30)
+        numeracy_assess("CH-N2", term="Jun", counting_aloud=29)
+        numeracy_assess("CH-N3", term="Jun", counting_aloud=30)
+
+        out = build_outcomes()["outcomes"]["numeracy"]
+
+        self.assertEqual(out["kind"], "single")
+        self.assertEqual(out["term"], "Jun")
+        self.assertEqual((out["numerator"], out["denominator"]), (2, 3))
+        self.assertAlmostEqual(out["value"], 2 / 3)
+        self.assertEqual(out["cohort_total"], 3)
+        self.assertEqual(out["baseline"]["term"], "Jan")
+        self.assertEqual((out["baseline"]["numerator"], out["baseline"]["denominator"]), (1, 2))
+
+    def test_incomplete_assessment_is_excluded_from_status_denominator(self):
+        numeracy_roster("CH-N1")
+        numeracy_roster("CH-N2")
+        numeracy_assess("CH-N1", counting_aloud=30)
+        numeracy_assess("CH-N2", counting_aloud=30, complete=False)
+
+        out = build_outcomes()["outcomes"]["numeracy"]
+
+        self.assertEqual((out["numerator"], out["denominator"]), (1, 1))
+        self.assertEqual(out["cohort_total"], 2)
+
+    def test_threshold_boundary_30_passes_and_inactive_rows_do_not_count(self):
+        numeracy_roster("CH-N1")
+        numeracy_roster("CH-N2", active=False)
+        numeracy_assess("CH-N1", counting_aloud=30)
+        numeracy_assess("CH-N2", counting_aloud=100)
+        numeracy_assess("CH-N1", counting_aloud=100, active=False)
+
+        out = build_outcomes()["outcomes"]["numeracy"]
+
+        self.assertEqual((out["numerator"], out["denominator"]), (1, 1))
+        self.assertEqual(out["cohort_total"], 1)
+
+    def test_conflicting_duplicate_is_quarantined_without_hiding_other_children(self):
+        numeracy_roster("CH-N1")
+        numeracy_roster("CH-N2")
+        numeracy_assess("CH-N1", counting_aloud=10)
+        numeracy_assess("CH-N1", counting_aloud=40)
+        numeracy_assess("CH-N2", counting_aloud=30)
+
+        out = build_outcomes()["outcomes"]["numeracy"]
+
+        self.assertEqual(out["kind"], "single")
+        self.assertEqual((out["numerator"], out["denominator"]), (1, 1))
+
+    def test_unresolved_roster_identity_matches_portal_quarantine(self):
+        numeracy_roster("CH-N1", resolved=False)
+        numeracy_roster("CH-N2")
+        numeracy_assess("CH-N1", counting_aloud=30)
+        numeracy_assess("CH-N2", counting_aloud=20)
+
+        out = build_outcomes()["outcomes"]["numeracy"]
+
+        self.assertEqual((out["numerator"], out["denominator"]), (0, 1))
+        self.assertEqual(out["cohort_total"], 2)
+
+    def test_numeracy_source_failure_degrades_only_numeracy(self):
+        roster("CH-L1")
+        assess("CH-L1", read_words=20)
+        AirtableSyncLog.objects.filter(sync_type="numeracy_assessments_2026").delete()
+
+        outcomes = build_outcomes()["outcomes"]
+
+        self.assertEqual(outcomes["core_literacy"]["kind"], "single")
+        self.assertEqual(outcomes["numeracy"]["kind"], "unavailable")
+        self.assertIn("numeracy_assessments_2026", outcomes["numeracy"]["note"])
+
+    def test_literacy_source_failure_does_not_hide_healthy_numeracy(self):
+        numeracy_roster("CH-N1")
+        numeracy_assess("CH-N1", counting_aloud=30)
+        AirtableSyncLog.objects.filter(sync_type__in=REQUIRED_SYNCS).delete()
+
+        payload = build_outcomes()
+
+        self.assertFalse(payload["available"])
+        self.assertEqual(payload["outcomes"]["numeracy"]["kind"], "single")
+        self.assertEqual(payload["outcomes"]["numeracy"]["value"], 1.0)
 
 
 ZAZI_PAYLOAD = {

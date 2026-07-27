@@ -1,9 +1,8 @@
-"""Outcome (lag) measures for the WIG hero rings: Core Literacy + ECD Literacy.
+"""Outcome (lag) measures for the WIG hero rings.
 
-Term-keyed (Jan/Jun/Nov) over literacy_assessments_2026 + on_the_programme_2026,
-unlike the weekly lead measures in wig_metrics.py. Fail-closed: any source-health,
-sync integrity, or dedupe-exception problem returns available=False rather than
-a number the parquet export (export_literacy_2026_parquet) would refuse to ship.
+Term-keyed assessment results, unlike the weekly lead measures in wig_metrics.py.
+Each backend-owned programme follows the same population and quality rules as its
+parquet export so the WIG board and data portal cannot publish different answers.
 """
 from datetime import timedelta
 
@@ -12,9 +11,21 @@ from django.utils import timezone
 from . import zazi_client
 from .literacy_2026_dedupe import assessment_row, dedupe
 from .literacy_2026_grades import grade_is_fallback, normalize_grade
-from .models import AirtableSyncLog, LiteracyAssessment2026, OnTheProgramme2026
+from .models import (
+    AirtableSyncLog,
+    CanonicalChild,
+    LiteracyAssessment2026,
+    NumeracyAssessment2026,
+    NumeracyOnTheProgramme2026,
+    OnTheProgramme2026,
+)
+from .numeracy_2026 import COMPONENTS as NUMERACY_COMPONENTS, evaluate_quality
 
 REQUIRED_SYNCS = ("literacy_assessments_2026", "on_the_programme_2026")
+NUMERACY_REQUIRED_SYNCS = (
+    "numeracy_assessments_2026",
+    "numeracy_on_the_programme_2026",
+)
 # Nov endline: append "Nov" here ONLY together with the exporter's TERM_TO_PREFIX
 # and the Streamlit processor's MONTHS, so the parity surfaces can cross-check.
 TERM_ORDER = ("Jan", "Jun")
@@ -130,6 +141,26 @@ def check_sources(now):
     return True, None
 
 
+def check_numeracy_sources(now):
+    """Apply the numeracy exporter's sync-integrity gate."""
+    blocking_keys = {
+        "numeracy_assessments_2026": ("retire_skipped",),
+        "numeracy_on_the_programme_2026": (
+            "retire_skipped",
+            "duplicate_child_uids",
+        ),
+    }
+    for sync_type in NUMERACY_REQUIRED_SYNCS:
+        last = (AirtableSyncLog.objects.filter(sync_type=sync_type)
+                .order_by('-started_at', '-pk').first())
+        if last is None or not last.success or last.completed_at is None:
+            return False, f"latest '{sync_type}' sync is missing, incomplete, or failed"
+        details = last.details or {}
+        if any(details.get(key) for key in blocking_keys[sync_type]):
+            return False, f"latest '{sync_type}' sync flagged publication blockers"
+    return True, None
+
+
 def _term_stat(cohort_uids, winners, term, defn):
     """Assessed-only stats for one term, or None if nobody has the skill scored.
 
@@ -189,12 +220,96 @@ def _programme_outcome(defn, grades, fallback_uids, winners):
     return result
 
 
+def _numeracy_term_stat(cohort_uids, winners, term):
+    """Count-to-30 status among complete, accepted assessments for one term."""
+    numerator = denominator = 0
+    for uid in cohort_uids:
+        row = winners.get((uid, 2026, term))
+        if row is None or any(
+            row.get(component.model_field) is None
+            for component in NUMERACY_COMPONENTS
+        ):
+            continue
+        denominator += 1
+        if row["counting_aloud"] >= 30:
+            numerator += 1
+    if denominator == 0:
+        return None
+    return {
+        "value": numerator / denominator,
+        "numerator": numerator,
+        "denominator": denominator,
+        "term": term,
+    }
+
+
+def _numeracy_outcome(now):
+    """Build the portal-parity count-to-30 result, independently of literacy."""
+    ok, note = check_numeracy_sources(now)
+    if not ok:
+        return {"kind": "unavailable", "note": note}
+
+    roster_uids = list(
+        NumeracyOnTheProgramme2026.objects.filter(is_active=True)
+        .values_list("child_uid", flat=True)
+    )
+    if not roster_uids:
+        return None
+
+    resolved_uids = set(
+        CanonicalChild.objects.filter(child_uid__in=roster_uids)
+        .exclude(full_name__isnull=True)
+        .exclude(full_name="")
+        .values_list("child_uid", flat=True)
+    )
+    fields = [
+        "source_airtable_id",
+        "child_uid",
+        "year",
+        "term",
+        *(component.model_field for component in NUMERACY_COMPONENTS),
+    ]
+    rows = list(
+        NumeracyAssessment2026.objects.filter(
+            is_active=True,
+            year=2026,
+            term__in=("Jan", "Jun"),
+            child_uid__in=roster_uids,
+        ).values(*fields)
+    )
+    winners, _issues = evaluate_quality(rows)
+    stats = {
+        term: _numeracy_term_stat(resolved_uids, winners, term)
+        for term in ("Jan", "Jun")
+    }
+    latest = "Jun" if stats["Jun"] is not None else "Jan"
+    if stats[latest] is None:
+        return None
+
+    result = dict(stats[latest])
+    result.update({
+        "kind": "single",
+        "cohort_total": len(roster_uids),
+        "baseline": stats["Jan"] if latest != "Jan" else None,
+        "calculation_note": (
+            "Active 2026 numeracy roster children with complete, accepted "
+            "assessments and Counting Aloud >= 30; "
+            f"{len(roster_uids) - len(resolved_uids)} unresolved roster "
+            "identity row(s) excluded"
+        ),
+    })
+    return result
+
+
 def build_outcomes(now=None):
     """The /api/wig/outcomes/ payload. Fail-closed on source health and dedupe."""
     now = now or timezone.now()
 
+    outcomes = _zazi_outcomes(now)
+    outcomes["numeracy"] = _numeracy_outcome(now)
+
     def unavailable(note):
-        return {'available': False, 'source_note': note, 'outcomes': _zazi_outcomes(now),
+        return {'available': False, 'source_note': note, 'outcomes': outcomes,
                 'data_as_of': now.isoformat()}
 
     ok, note = check_sources(now)
@@ -218,8 +333,7 @@ def build_outcomes(now=None):
     roster_grades = {r.child_uid: r.grade for r in roster if r.on_the_programme}
 
     grades, fallback_uids = _child_grades(roster_grades, winners)
-    outcomes = {key: _programme_outcome(defn, grades, fallback_uids, winners)
-                for key, defn in OUTCOME_DEFS.items()}
-    outcomes.update(_zazi_outcomes(now))
+    outcomes.update({key: _programme_outcome(defn, grades, fallback_uids, winners)
+                     for key, defn in OUTCOME_DEFS.items()})
     return {'available': True, 'source_note': None, 'outcomes': outcomes,
             'data_as_of': now.isoformat()}

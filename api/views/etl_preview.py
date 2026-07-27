@@ -1,4 +1,4 @@
-from django.db.models import Max
+from django.db.models import Count, Max, Q
 from rest_framework.authentication import SessionAuthentication
 from rest_framework.decorators import api_view, permission_classes, authentication_classes
 from rest_framework.permissions import IsAuthenticated
@@ -9,7 +9,9 @@ from api.models import (
     School, Youth, CanonicalChild, Staff,
     LiteracySession2026, NumeracySession2026,
     AirtableSyncLog, LiteracyAssessment2026, OnTheProgramme2026,
+    NumeracyAssessment2026, NumeracyOnTheProgramme2026,
 )
+from api.numeracy_2026 import COMPONENTS
 
 # Map of table names to (model, sync_type) pairs
 TABLE_CONFIG = {
@@ -21,6 +23,8 @@ TABLE_CONFIG = {
     'numeracy-2026': (NumeracySession2026, 'numeracy_sessions_2026'),
     'literacy-assessments-2026': (LiteracyAssessment2026, 'literacy_assessments_2026'),
     'on-the-programme-2026': (OnTheProgramme2026, 'on_the_programme_2026'),
+    'numeracy-assessments-2026': (NumeracyAssessment2026, 'numeracy_assessments_2026'),
+    'numeracy-on-the-programme-2026': (NumeracyOnTheProgramme2026, 'numeracy_on_the_programme_2026'),
 }
 
 
@@ -70,6 +74,10 @@ def etl_preview(request, table_name):
     elif table_name == 'numeracy-2026':
         result['orphan_stats'] = _numeracy_orphan_stats()
         result['sample_rows'] = _numeracy_sample_rows()
+    elif table_name == 'numeracy-assessments-2026':
+        result['quality_stats'] = _numeracy_assessment_quality_stats()
+    elif table_name == 'numeracy-on-the-programme-2026':
+        result['quality_stats'] = _numeracy_roster_quality_stats()
     elif table_name == 'schools':
         result['sample_rows'] = _school_sample_rows()
     elif table_name == 'youth':
@@ -80,6 +88,36 @@ def etl_preview(request, table_name):
         result['sample_rows'] = _staff_sample_rows()
 
     return Response(result)
+
+
+def _numeracy_assessment_quality_stats():
+    active = NumeracyAssessment2026.objects.filter(is_active=True)
+    duplicate_groups = (
+        active.exclude(child_uid__isnull=True)
+        .values('child_uid', 'year', 'term')
+        .annotate(row_count=Count('id'))
+        .filter(row_count__gt=1)
+        .count()
+    )
+    range_filter = Q(pk__in=[])
+    for component in COMPONENTS:
+        range_filter |= Q(**{f'{component.model_field}__lt': 0})
+        range_filter |= Q(**{f'{component.model_field}__gt': component.maximum})
+    return {
+        'active_rows': active.count(),
+        'missing_child_uids': active.filter(child_uid__isnull=True).count(),
+        'canonical_orphans': active.exclude(child_uid__isnull=True).filter(child__isnull=True).count(),
+        'duplicate_business_groups': duplicate_groups,
+        'rows_with_out_of_range_scores': active.filter(range_filter).count(),
+    }
+
+
+def _numeracy_roster_quality_stats():
+    active = NumeracyOnTheProgramme2026.objects.filter(is_active=True)
+    return {
+        'active_rows': active.count(),
+        'canonical_orphans': active.filter(child__isnull=True).count(),
+    }
 
 
 def _literacy_orphan_stats():

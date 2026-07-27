@@ -1760,3 +1760,92 @@ class OnTheProgramme2026(models.Model):
 
     def __str__(self):
         return f"{self.child_uid} ({self.mentor})"
+
+
+class NumeracyAssessment2026(models.Model):
+    """Raw numeracy assessment events at Airtable's natural grain.
+
+    Source duplicates are intentional rows here. Publication resolves only
+    identical duplicates and rejects conflicts, so no business-key uniqueness
+    constraint belongs on this table.
+    """
+
+    source_airtable_id = models.CharField(max_length=100, unique=True, db_index=True)
+    source_created_time = models.DateTimeField(null=True, blank=True)
+    assessment_uid = models.CharField(max_length=100, blank=True, null=True, db_index=True)
+    child_uid = models.CharField(max_length=50, blank=True, null=True, db_index=True)
+    child = models.ForeignKey(
+        "CanonicalChild",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="numeracy_assessments_2026",
+    )
+    year = models.IntegerField(db_index=True)
+    term = models.CharField(max_length=20, db_index=True)
+    grade = models.CharField(max_length=50, blank=True, null=True)
+
+    counting_aloud = models.FloatField(null=True, blank=True)
+    number_recognition = models.FloatField(null=True, blank=True)
+    counting_matching = models.FloatField(null=True, blank=True)
+    write_numbers = models.FloatField(null=True, blank=True)
+    identification = models.FloatField(null=True, blank=True)
+    missing_numbers = models.FloatField(null=True, blank=True)
+    sum_10 = models.FloatField(null=True, blank=True)
+    word_problems = models.FloatField(null=True, blank=True)
+    addition_subtraction = models.FloatField(null=True, blank=True)
+    total_raw = models.FloatField(null=True, blank=True)
+    assessment_percent = models.FloatField(null=True, blank=True)
+
+    programme_belonging = models.JSONField(default=list, blank=True)
+    source_child_ids = models.JSONField(default=list, blank=True)
+    source_school_ids = models.JSONField(default=list, blank=True)
+    source_assessor_ids = models.JSONField(default=list, blank=True)
+
+    is_active = models.BooleanField(default=True, db_index=True)
+    last_seen_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "numeracy_assessments_2026"
+        indexes = [models.Index(fields=["child_uid", "year", "term"])]
+        ordering = ["child_uid", "year", "term", "source_airtable_id"]
+
+    def __str__(self):
+        return f"{self.child_uid or 'missing-uid'} {self.year}-{self.term}"
+
+
+class NumeracyOnTheProgramme2026(models.Model):
+    """One row per child in the active 2026 numeracy programme roster."""
+
+    source_airtable_id = models.CharField(max_length=100, unique=True, db_index=True)
+    child_uid = models.CharField(max_length=50, unique=True, db_index=True)
+    child = models.ForeignKey(
+        "CanonicalChild",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="numeracy_roster_2026",
+    )
+    programme_status = models.CharField(max_length=100, blank=True, null=True)
+    programme_belonging = models.JSONField(default=list, blank=True)
+    grade = models.CharField(max_length=50, blank=True, null=True)
+    school = models.CharField(max_length=255, blank=True, null=True)
+    mentor = models.CharField(max_length=255, blank=True, null=True)
+    numeracy_coach = models.CharField(max_length=255, blank=True, null=True)
+    total_sessions = models.IntegerField(null=True, blank=True)
+    session_school_count = models.IntegerField(null=True, blank=True)
+    source_session_ids = models.JSONField(default=list, blank=True)
+
+    is_active = models.BooleanField(default=True, db_index=True)
+    last_seen_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "numeracy_on_the_programme_2026"
+        ordering = ["child_uid"]
+
+    def __str__(self):
+        return f"{self.child_uid} ({self.programme_status or 'unknown'})"
