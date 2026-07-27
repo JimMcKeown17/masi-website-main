@@ -23,7 +23,7 @@ from .school_programme import (
     update_grid_stats, rollover_grid,
 )
 from .closures import (
-    ClosureListCreateAPIView, ClosureDetailAPIView, closures_bulk, closures_export,
+    ClosureListCreateAPIView, ClosureDetailAPIView, closures_bulk, closures_bulk_set, closures_export,
     closures_lookups, identity_export,
     AbsenceListCreateAPIView, AbsenceDetailAPIView, absences_bulk, absences_export,
 )
@@ -67,6 +67,7 @@ __all__ = [
     'ClosureListCreateAPIView',
     'ClosureDetailAPIView',
     'closures_bulk',
+    'closures_bulk_set',
     'closures_export',
     'closures_lookups',
     'identity_export',

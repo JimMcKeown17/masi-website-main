@@ -1419,6 +1419,7 @@ class SchoolClosure(models.Model):
         max_length=10, choices=CANONICAL_TYPE_CHOICES, blank=True, null=True,
     )
     scope_region = models.CharField(max_length=100, blank=True, null=True)
+    applies_to_programmes = models.JSONField(default=list, blank=True)
 
     is_open = models.BooleanField(
         default=False,

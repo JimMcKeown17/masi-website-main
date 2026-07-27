@@ -96,3 +96,21 @@ class GridHealthServeTests(TestCase):
         AirtableSyncLog.objects.create(
             sync_type="school_programme_grid", success=False, details={"as_of": "failed"})
         self.assertIsNone(sp.build_grid(2026)["health"])
+
+
+class YouthOnNongridSchoolsPassthroughTests(TestCase):
+    """The stranded-youth flag (2026-07-27 legacy school-row bug) must survive
+    into the persisted health report, and old reports without the key must not
+    crash the builder."""
+
+    def test_flag_passes_through(self):
+        result = _result()
+        result["integrity"]["youth_on_nongrid_schools"] = [
+            {"school": "Lingelethu", "school_id": 1, "school_is_active": False, "youth": 7},
+        ]
+        health = sp.build_grid_health(result, ROLLUP, NOW)
+        self.assertEqual(health["youth_on_nongrid_schools"][0]["youth"], 7)
+
+    def test_missing_key_defaults_to_empty(self):
+        health = sp.build_grid_health(_result(), ROLLUP, NOW)
+        self.assertEqual(health["youth_on_nongrid_schools"], [])
