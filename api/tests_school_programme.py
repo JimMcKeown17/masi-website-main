@@ -2143,3 +2143,59 @@ class ConsolidateKhazimlaCommandTests(TestCase):
 
         self._run(dry_run=True)
         self.assertTrue(School.objects.filter(name="Khazimla").exists())  # dup still present
+
+
+class RefreshGridStrandedYouthTests(TestCase):
+    """Active youth on schools OUTSIDE the grid iteration (legacy is_active=False
+    duplicates, non-grid-eligible types) must be flagged, never silently dropped.
+
+    The bug (2026-07-27): youth attached to legacy duplicate School rows simply
+    vanished from the grid -- Lingelethu's cell showed 0/8 while 7 coaches were
+    in post on the dead row, and the Act First panel told leadership to hire
+    where staff already worked.
+    """
+
+    YEAR = 2026
+
+    def _youth(self, employee_id, school):
+        from api.models import Youth
+
+        return Youth.objects.create(
+            employee_id=employee_id, first_names="Y", last_name="C",
+            employment_status="Active", job_title="Literacy Coach", school=school,
+        )
+
+    def test_flags_youth_on_legacy_inactive_school_row(self):
+        from api.models import School
+        from api.school_programme import refresh_school_programme_grid
+
+        School.objects.create(
+            name="Lingelethu", school_uid="SCH-00322",
+            type="Primary School", is_active=True,
+        )
+        legacy = School.objects.create(name="Lingelethu", type="Primary School", is_active=False)
+        self._youth(96001, legacy)
+        self._youth(96002, legacy)
+
+        result = refresh_school_programme_grid(self.YEAR)
+
+        self.assertEqual(result["integrity"]["youth_on_nongrid_schools"], [{
+            "school": "Lingelethu",
+            "school_id": legacy.id,
+            "school_is_active": False,
+            "youth": 2,
+        }])
+
+    def test_no_flag_when_all_youth_on_grid_schools(self):
+        from api.models import School
+        from api.school_programme import refresh_school_programme_grid
+
+        primary = School.objects.create(
+            name="Clean Primary", school_uid="SCH-09301",
+            type="Primary School", is_active=True,
+        )
+        self._youth(96003, primary)
+
+        result = refresh_school_programme_grid(self.YEAR)
+
+        self.assertEqual(result["integrity"]["youth_on_nongrid_schools"], [])

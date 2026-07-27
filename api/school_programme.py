@@ -489,6 +489,7 @@ def refresh_school_programme_grid(year, zazi_export=None):
         "unmatched_schools": [],
         "unmapped_titles": dict(youth["unmapped"]),
         "site_assigned_no_school": dict(youth["site_assigned_no_school"]),
+        "youth_on_nongrid_schools": [],
         "unknown_site_type_tokens": set(),
         "reach_without_identities": [],
         "unmapped_zazi_schools": list(zazi["unmapped_schools"]),
@@ -583,6 +584,30 @@ def refresh_school_programme_grid(year, zazi_export=None):
                 "school_uid": school.school_uid,
                 "programmes": sorted(programmes_present),
             })
+
+    # Active youth whose school FK points OUTSIDE the grid iteration (an
+    # is_active=False legacy duplicate row, or a non-grid-eligible type). Their
+    # counts were consumed by no cell above, so without this flag they'd vanish
+    # silently and the board would show fake vacancies at the canonical school
+    # (the 2026-07-27 Lingelethu 0/8-with-7-in-post bug). The youth sync now
+    # prefers canonical rows, so entries here should heal on the next sync run;
+    # anything persisting needs a school-row merge.
+    grid_school_ids = {school.id for school in grid_schools}
+    stranded_ids = set(youth_by_school) - grid_school_ids
+    if stranded_ids:
+        stranded_schools = School.objects.in_bulk(stranded_ids)
+        integrity["youth_on_nongrid_schools"] = sorted(
+            (
+                {
+                    "school": stranded_schools[sid].name if sid in stranded_schools else f"deleted school id {sid}",
+                    "school_id": sid,
+                    "school_is_active": stranded_schools[sid].is_active if sid in stranded_schools else None,
+                    "youth": sum(youth_by_school[sid].values()),
+                }
+                for sid in stranded_ids
+            ),
+            key=lambda entry: (-entry["youth"], entry["school"]),
+        )
 
     integrity["unknown_site_type_tokens"] = sorted(integrity["unknown_site_type_tokens"])
     return {
@@ -845,6 +870,7 @@ def build_grid_health(result, rollup, now):
         },
         "schools_missing_uid": integ["unmatched_schools"],
         "site_assigned_no_school": integ["site_assigned_no_school"],
+        "youth_on_nongrid_schools": integ.get("youth_on_nongrid_schools", []),
         "unmapped_job_titles": integ["unmapped_titles"],
         "unresolved_zazi_participants": integ["unresolved_zazi_participants"],
         "unmapped_zazi_schools": integ["unmapped_zazi_schools"],

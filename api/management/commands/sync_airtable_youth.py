@@ -28,6 +28,30 @@ def _coerce_int(value):
     return int(n)
 
 
+def build_school_map():
+    """name (lowered, stripped) -> School.id, preferring the canonical row.
+
+    School has legacy duplicate rows: same name, but is_active=False and no
+    school_uid, left over from earlier imports (e.g. Lingelethu exists as both
+    id=1 legacy and id=184 SCH-00322). A plain dict comprehension let whichever
+    row the unordered queryset yielded LAST win, so youth were sometimes attached
+    to dead rows the grid never reads -- the staffing board then showed fake
+    vacancies at schools that were actually staffed (bug found 2026-07-27).
+
+    Preference order per name: active over inactive, then has school_uid, then
+    highest id (newest). Deterministic, so every sync run agrees.
+    """
+    best = {}  # name key -> (rank, school_id)
+    for school in School.objects.all().only("id", "name", "is_active", "school_uid"):
+        if not school.name or not school.name.strip():
+            continue
+        key = school.name.lower().strip()
+        rank = (school.is_active, bool(school.school_uid), school.id)
+        if key not in best or rank > best[key][0]:
+            best[key] = (rank, school.id)
+    return {key: school_id for key, (_, school_id) in best.items()}
+
+
 class Command(BaseCommand):
     """
     Syncs youth (literacy/numeracy coaches) from Airtable into the Youth model.
@@ -101,7 +125,7 @@ class Command(BaseCommand):
                 return
 
             # Build lookup maps for FK resolution
-            school_map = {s.name.lower().strip(): s.id for s in School.objects.all()}
+            school_map = build_school_map()
             mentor_map = {m.name.lower().strip(): m.id for m in Mentor.objects.all()}
 
             # Airtable typo aliases — map misspelled names to canonical mentor

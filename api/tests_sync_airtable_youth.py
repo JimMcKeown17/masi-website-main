@@ -69,3 +69,65 @@ class SyncYouthNanAgeTests(TestCase):
             [_record(103, 27)], school_map={}, mentor_map={})
         self.assertEqual(Youth.objects.get(employee_id=103).age, 27)
         self.assertEqual(stats["age_unparseable_ids"], [])
+
+
+class BuildSchoolMapTests(TestCase):
+    """The school FK map must prefer canonical School rows over legacy duplicates.
+
+    The bug (2026-07-27): School has legacy duplicate rows (same name, but
+    is_active=False and no school_uid). The old dict comprehension let whichever
+    row the unordered queryset yielded last win, so youth were attached to dead
+    rows the grid never reads -- Lingelethu showed 0/8 in post while 7 literacy
+    coaches worked there.
+    """
+
+    def test_canonical_row_beats_legacy_duplicate(self):
+        from api.models import School
+        from api.management.commands.sync_airtable_youth import build_school_map
+
+        canonical = School.objects.create(
+            name="Lingelethu", school_uid="SCH-00322", is_active=True)
+        # Legacy dup created SECOND (higher id): a naive last-wins dict would
+        # pick it; the preference rank must pick the canonical row instead.
+        School.objects.create(name="Lingelethu", is_active=False)
+
+        self.assertEqual(build_school_map()["lingelethu"], canonical.id)
+
+    def test_trailing_space_names_collapse_to_one_key(self):
+        from api.models import School
+        from api.management.commands.sync_airtable_youth import build_school_map
+
+        canonical = School.objects.create(
+            name="Nceduluntu Edu-care", school_uid="SCH-00293", is_active=True)
+        School.objects.create(name="Nceduluntu Edu-care ", is_active=False)
+
+        school_map = build_school_map()
+        self.assertEqual(school_map["nceduluntu edu-care"], canonical.id)
+        self.assertNotIn("nceduluntu edu-care ", school_map)
+
+    def test_active_without_uid_beats_inactive_with_uid(self):
+        from api.models import School
+        from api.management.commands.sync_airtable_youth import build_school_map
+
+        School.objects.create(name="Odd One", school_uid="SCH-09999", is_active=False)
+        active = School.objects.create(name="Odd One", is_active=True)
+
+        self.assertEqual(build_school_map()["odd one"], active.id)
+
+    def test_name_existing_only_as_inactive_still_maps(self):
+        # Better a legacy FK than a null one; the grid-health flag surfaces it.
+        from api.models import School
+        from api.management.commands.sync_airtable_youth import build_school_map
+
+        legacy = School.objects.create(name="Old Site", is_active=False)
+
+        self.assertEqual(build_school_map()["old site"], legacy.id)
+
+    def test_blank_names_are_skipped(self):
+        from api.models import School
+        from api.management.commands.sync_airtable_youth import build_school_map
+
+        School.objects.create(name="", is_active=True)
+        School.objects.create(name="   ", is_active=True)
+
+        self.assertEqual(build_school_map(), {})
