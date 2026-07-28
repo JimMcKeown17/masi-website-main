@@ -1,0 +1,7 @@
+Receipt #,Date,Month,Year,FY,ID,Name, Amount,Paid By,Category 1,Category 2,Category 3,BC,Staff Flag,Staff Category,Youth Flag,Check, UnFunded Check, UnFunded Check,School
+T001/001,6/28/26,June,2026,2027,9001,9001 Sample," R1,000.50 ",FNB,Children & Youth,Literacy Projects,Youth Jobs: Primary Literacy Coach,63,,,,, R-   , R-   ,Astra
+T001/002,6/28/26,June,2026,2027,9002,9002 Sample," R2,000.00 ",FNB,Children & Youth,Literacy Projects,Youth Jobs: LC Mentor,63,,,,, R-   , R-   ,Astra
+T001/003,6/28/26,June,2026,2027,9003,9003 Sample," R500.00 ",FNB,Children & Youth,Amakhala Emoyeni Wind Farm,Youth Jobs: Zazi Izandi,139,,,,, R-   , R-   ,Sandwater
+T001/004,6/28/26,June,2026,2027,9004,9004 Sample," R300.00 ",FNB,Children & Youth,Literacy Projects,Youth Jobs: LC Mentor (Rural),139,,,,, R-   , R-   ,Clarkson
+T001/005,4/30/26,April ,2026,2027,9001,9001 Sample," R750.25 ",FNB,Children & Youth,Zazi Izandi,Youth Jobs: Zazi Izandi,63,,,,, R-   , R-   ,Seyisi
+T001/006,2/27/26,February,2026,2026,9005,9005 Sample," R100.00 ",FNB,Children & Youth,Numeracy,Youth Jobs: ECD Numeracy Coach,63,,,,, R-   , R-   ,Msobomvu Preschool
