@@ -442,6 +442,9 @@ def _project_rows(scenario, rows, as_of):
         months.append(
             {
                 "month": month,
+                # Exposed so the frontend can recompute lever what-ifs without
+                # duplicating the term calendar client-side.
+                "school_days": days,
                 "gross": _money(month_gross),
                 "uif": _money(month_uif),
                 "subsidy_relief": _money(month_relief),

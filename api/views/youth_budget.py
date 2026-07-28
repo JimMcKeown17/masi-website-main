@@ -178,6 +178,7 @@ def serialize_projection(projection):
         "months": [
             {
                 "month": row["month"],
+                "school_days": row["school_days"],
                 "gross": _number(row["gross"]),
                 "uif": _number(row["uif"]),
                 "subsidy_relief": _number(row["subsidy_relief"]),
