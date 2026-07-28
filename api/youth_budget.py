@@ -124,10 +124,10 @@ def default_scenario_values():
     """Defaults used when the shared scenario is first created."""
     return {
         "wage_rate": Decimal("32.01"),
-        "subsidy_contribution": Decimal("1600"),
+        "subsidy_contribution": Decimal("1400"),
         "hours_matrix": deepcopy(HOURS_MATRIX_DEFAULTS),
-        "nys_conversion_count": 200,
-        "nys_subsidy_only_count": 0,
+        "nys_full_time_count": 160,
+        "nys_part_time_count": 40,
         "nys_conversion_start_month": 8,
         "vacancy_start_month": 8,
         "holiday_pay": Decimal("0"),
@@ -453,7 +453,7 @@ def _project_rows(scenario, rows, as_of, include_holiday_pay=True):
     )
     contribution = _decimal(
         _scenario_value(scenario, "subsidy_contribution"),
-        Decimal("1600"),
+        Decimal("1400"),
     )
     conversion_month = int(
         _scenario_value(scenario, "nys_conversion_start_month", 8)
@@ -465,10 +465,14 @@ def _project_rows(scenario, rows, as_of, include_holiday_pay=True):
     ) / Decimal("100")
     if utilisation < 0:
         utilisation = Decimal("1")
+    full_time = max(int(_scenario_value(scenario, "nys_full_time_count", 160) or 0), 0)
+    part_time = max(int(_scenario_value(scenario, "nys_part_time_count", 40) or 0), 0)
+    # The split is additive: total conversions = FT + PT, of which the PT
+    # youth cost R0 (they never touch payroll).
     zero_cost_converted, relief_converted = _nys_conversions(
         rows,
-        _scenario_value(scenario, "nys_conversion_count", 200),
-        _scenario_value(scenario, "nys_subsidy_only_count", 0),
+        full_time + part_time,
+        part_time,
     )
 
     months = []

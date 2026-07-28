@@ -1718,15 +1718,15 @@ class BudgetScenario(models.Model):
     subsidy_contribution = models.DecimalField(
         max_digits=8,
         decimal_places=2,
-        default=Decimal("1600"),
+        default=Decimal("1400"),
     )
     hours_matrix = models.JSONField(default=dict)
-    nys_conversion_count = models.IntegerField(default=200)
-    # Of the NYS conversions, how many are subsidy-only part-timers: youth who
-    # work only the hours the subsidy pays for and never touch Masi payroll, so
-    # they cost R0 (no gross, no UIF), not merely the top-up. Interim lever
-    # until an Employment Basis column exists in Airtable.
-    nys_subsidy_only_count = models.IntegerField(default=0)
+    # The NYS split is additive: full-time youth are subsidised and Masi pays
+    # wages minus the contribution; part-time youth earn only their NYS funding
+    # and never touch Masi payroll (cost R0). Total subsidised jobs = FT + PT.
+    # Interim levers until an Employment Basis column exists in Airtable.
+    nys_full_time_count = models.IntegerField(default=160)
+    nys_part_time_count = models.IntegerField(default=40)
     nys_conversion_start_month = models.PositiveSmallIntegerField(default=8)
     vacancy_start_month = models.PositiveSmallIntegerField(default=8)
     # Average share of full-cap hours youth actually work (absenteeism, school

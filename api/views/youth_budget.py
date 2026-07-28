@@ -128,8 +128,8 @@ def serialize_scenario(scenario):
         "wage_rate": _number(scenario.wage_rate),
         "subsidy_contribution": _number(scenario.subsidy_contribution),
         "hours_matrix": scenario.hours_matrix,
-        "nys_conversion_count": scenario.nys_conversion_count,
-        "nys_subsidy_only_count": scenario.nys_subsidy_only_count,
+        "nys_full_time_count": scenario.nys_full_time_count,
+        "nys_part_time_count": scenario.nys_part_time_count,
         "utilisation_pct": scenario.utilisation_pct,
         "nys_conversion_start_month": scenario.nys_conversion_start_month,
         "vacancy_start_month": scenario.vacancy_start_month,
@@ -378,22 +378,12 @@ def update_youth_budget_scenario(request):
             if not 1 <= pct <= 120:
                 raise ValueError("utilisation_pct must be between 1 and 120.")
             updates["utilisation_pct"] = pct
-        if "nys_subsidy_only_count" in request.data:
-            count = _integer(
-                request.data["nys_subsidy_only_count"],
-                "nys_subsidy_only_count",
-            )
-            if count < 0:
-                raise ValueError("nys_subsidy_only_count must be non-negative.")
-            updates["nys_subsidy_only_count"] = count
-        if "nys_conversion_count" in request.data:
-            count = _integer(
-                request.data["nys_conversion_count"],
-                "nys_conversion_count",
-            )
-            if count < 0:
-                raise ValueError("nys_conversion_count must be non-negative.")
-            updates["nys_conversion_count"] = count
+        for field in ("nys_full_time_count", "nys_part_time_count"):
+            if field in request.data:
+                count = _integer(request.data[field], field)
+                if count < 0:
+                    raise ValueError(f"{field} must be non-negative.")
+                updates[field] = count
         for field in SCENARIO_MONTH_FIELDS:
             if field in request.data:
                 month = _integer(request.data[field], field)

@@ -126,7 +126,8 @@ class ProjectionTests(SimpleTestCase):
                 wage_rate=Decimal("1"),
                 subsidy_contribution=Decimal("1600"),
                 hours_matrix=matrix,
-                nys_conversion_count=0,
+                nys_full_time_count=0,
+                nys_part_time_count=0,
             ),
             [_cohort(subsidised_count=1)],
             [],
@@ -152,7 +153,8 @@ class ProjectionTests(SimpleTestCase):
             _scenario(
                 wage_rate=Decimal("10"),
                 hours_matrix=matrix,
-                nys_conversion_count=0,
+                nys_full_time_count=0,
+                nys_part_time_count=0,
             ),
             [_cohort()],
             [],
@@ -165,7 +167,7 @@ class ProjectionTests(SimpleTestCase):
 
     def test_four_days_per_week_scales_gross_to_eighty_percent(self):
         five_days = youth_budget.project(
-            _scenario(nys_conversion_count=0),
+            _scenario(nys_full_time_count=0, nys_part_time_count=0),
             [_cohort()],
             [],
             date(2026, 10, 1),
@@ -173,7 +175,7 @@ class ProjectionTests(SimpleTestCase):
         matrix = deepcopy(youth_budget.HOURS_MATRIX_DEFAULTS)
         matrix["primary"]["literacy coach"]["days_per_week"] = 4
         four_days = youth_budget.project(
-            _scenario(hours_matrix=matrix, nys_conversion_count=0),
+            _scenario(hours_matrix=matrix, nys_full_time_count=0, nys_part_time_count=0),
             [_cohort()],
             [],
             date(2026, 10, 1),
@@ -187,7 +189,8 @@ class ProjectionTests(SimpleTestCase):
         result = youth_budget.project(
             _scenario(
                 subsidy_contribution=Decimal("100"),
-                nys_conversion_count=10,
+                nys_full_time_count=10,
+                nys_part_time_count=0,
                 nys_conversion_start_month=9,
             ),
             [_cohort(headcount=3, nys_eligible_count=3)],
@@ -207,7 +210,8 @@ class ProjectionTests(SimpleTestCase):
         )
         result = youth_budget.project(
             _scenario(
-                nys_conversion_count=0,
+                nys_full_time_count=0,
+                nys_part_time_count=0,
                 vacancy_start_month=9,
             ),
             [],
@@ -223,7 +227,7 @@ class ProjectionTests(SimpleTestCase):
 
     def test_projection_horizon_stops_after_november(self):
         result = youth_budget.project(
-            _scenario(nys_conversion_count=0),
+            _scenario(nys_full_time_count=0, nys_part_time_count=0),
             [_cohort()],
             [],
             date(2026, 8, 1),
@@ -235,13 +239,15 @@ class ProjectionTests(SimpleTestCase):
 
     def test_holiday_pay_is_added_to_both_projection_totals(self):
         without_holiday = youth_budget.project(
-            _scenario(nys_conversion_count=0, holiday_pay=Decimal("0")),
+            _scenario(nys_full_time_count=0,
+                nys_part_time_count=0, holiday_pay=Decimal("0")),
             [_cohort()],
             [],
             date(2026, 10, 1),
         )
         with_holiday = youth_budget.project(
-            _scenario(nys_conversion_count=0, holiday_pay=Decimal("250")),
+            _scenario(nys_full_time_count=0,
+                nys_part_time_count=0, holiday_pay=Decimal("250")),
             [_cohort()],
             [],
             date(2026, 10, 1),
@@ -281,7 +287,7 @@ class CohortTests(TestCase):
         self._youth(9002, "Yeboneer")
         cohorts = youth_budget.build_cohorts(today=date(2026, 7, 27))
         result = youth_budget.project(
-            _scenario(nys_conversion_count=0),
+            _scenario(nys_full_time_count=0, nys_part_time_count=0),
             cohorts,
             [],
             date(2026, 10, 1),
@@ -546,7 +552,7 @@ class BudgetArithmeticTests(TestCase):
             ),
         ]
         projected = youth_budget.project_ringfenced(
-            _scenario(nys_conversion_count=0),
+            _scenario(nys_full_time_count=0, nys_part_time_count=0),
             [positive, negative, inactive],
             rows,
             vacancies,
@@ -585,7 +591,7 @@ class ModelAndSyncTests(TestCase):
     def test_budget_scenario_defaults_use_august_levers(self):
         scenario = BudgetScenario.objects.create(year=2026)
         self.assertEqual(scenario.wage_rate, Decimal("32.01"))
-        self.assertEqual(scenario.subsidy_contribution, Decimal("1600"))
+        self.assertEqual(scenario.subsidy_contribution, Decimal("1400"))
         self.assertEqual(scenario.nys_conversion_start_month, 8)
         self.assertEqual(scenario.vacancy_start_month, 8)
 
@@ -816,7 +822,7 @@ class YouthBudgetEndpointTests(TestCase):
             "/api/youth-budget/scenario/",
             {
                 "year": 2026,
-                "nys_conversion_count": 175,
+                "nys_full_time_count": 175,
                 "nys_conversion_start_month": 9,
                 "vacancy_start_month": 10,
                 "holiday_pay": "2500.50",
@@ -825,7 +831,7 @@ class YouthBudgetEndpointTests(TestCase):
         )
         self.assertEqual(response.status_code, 200)
         scenario = BudgetScenario.objects.get(year=2026)
-        self.assertEqual(scenario.nys_conversion_count, 175)
+        self.assertEqual(scenario.nys_full_time_count, 175)
         self.assertEqual(scenario.nys_conversion_start_month, 9)
         self.assertEqual(scenario.vacancy_start_month, 10)
         self.assertEqual(scenario.holiday_pay, Decimal("2500.50"))
@@ -1071,13 +1077,13 @@ class SubsidyOnlyLeverTests(SimpleTestCase):
 
     def test_subsidy_only_converts_leave_the_costed_population(self):
         base = youth_budget.project(
-            _scenario(nys_conversion_count=0),
+            _scenario(nys_full_time_count=0, nys_part_time_count=0),
             [_cohort(headcount=4, nys_eligible_count=4)],
             [],
             date(2026, 8, 1),
         )
         with_lever = youth_budget.project(
-            _scenario(nys_conversion_count=2, nys_subsidy_only_count=2),
+            _scenario(nys_full_time_count=0, nys_part_time_count=2),
             [_cohort(headcount=4, nys_eligible_count=4)],
             [],
             date(2026, 8, 1),
@@ -1093,8 +1099,8 @@ class SubsidyOnlyLeverTests(SimpleTestCase):
         result = youth_budget.project(
             _scenario(
                 subsidy_contribution=Decimal("100"),
-                nys_conversion_count=3,
-                nys_subsidy_only_count=1,
+                nys_full_time_count=2,
+                nys_part_time_count=1,
             ),
             [_cohort(headcount=4, nys_eligible_count=4)],
             [],
@@ -1104,18 +1110,20 @@ class SubsidyOnlyLeverTests(SimpleTestCase):
         # 1 youth vanishes from payroll; 2 of the remaining 3 earn relief.
         self.assertEqual(august["subsidy_relief"], Decimal("200.00"))
         full_gross = youth_budget.project(
-            _scenario(nys_conversion_count=0),
+            _scenario(nys_full_time_count=0, nys_part_time_count=0),
             [_cohort(headcount=4, nys_eligible_count=4)],
             [],
             date(2026, 8, 1),
         )["committed"]["months"][0]["gross"]
         self.assertEqual(august["gross"], full_gross * 3 / 4)
 
-    def test_subsidy_only_clamped_to_conversion_count_and_starts_in_month(self):
+    def test_part_time_clamped_to_eligible_and_starts_in_month(self):
+        # PT requested above the eligible pool clamps to it: both eligible
+        # youth leave the costed population, but only from the start month.
         result = youth_budget.project(
             _scenario(
-                nys_conversion_count=1,
-                nys_subsidy_only_count=5,
+                nys_full_time_count=0,
+                nys_part_time_count=5,
                 nys_conversion_start_month=9,
             ),
             [_cohort(headcount=2, nys_eligible_count=2)],
@@ -1124,17 +1132,13 @@ class SubsidyOnlyLeverTests(SimpleTestCase):
         )
         august, september = result["committed"]["months"][:2]
         base = youth_budget.project(
-            _scenario(nys_conversion_count=0),
+            _scenario(nys_full_time_count=0, nys_part_time_count=0),
             [_cohort(headcount=2, nys_eligible_count=2)],
             [],
             date(2026, 8, 1),
         )["committed"]["months"]
-        # Before the start month nothing changes; from it, exactly one youth
-        # (clamped to the conversion count) leaves the costed population.
         self.assertEqual(august["gross"], base[0]["gross"])
-        self.assertEqual(
-            september["gross"], youth_budget._money(base[1]["gross"] / 2)
-        )
+        self.assertEqual(september["gross"], Decimal("0.00"))
         self.assertEqual(september["subsidy_relief"], Decimal("0.00"))
 
 
@@ -1145,13 +1149,14 @@ class UtilisationLeverTests(SimpleTestCase):
 
     def test_fifty_percent_utilisation_halves_gross(self):
         base = youth_budget.project(
-            _scenario(nys_conversion_count=0),
+            _scenario(nys_full_time_count=0, nys_part_time_count=0),
             [_cohort(headcount=2)],
             [],
             date(2026, 8, 1),
         )["committed"]["months"][0]
         halved = youth_budget.project(
-            _scenario(nys_conversion_count=0, utilisation_pct=50),
+            _scenario(nys_full_time_count=0,
+                nys_part_time_count=0, utilisation_pct=50),
             [_cohort(headcount=2)],
             [],
             date(2026, 8, 1),
@@ -1164,7 +1169,8 @@ class UtilisationLeverTests(SimpleTestCase):
         # relief must cap at their full (reduced) cost, never exceed it.
         result = youth_budget.project(
             _scenario(
-                nys_conversion_count=1,
+                nys_full_time_count=1,
+                nys_part_time_count=0,
                 utilisation_pct=10,
                 subsidy_contribution=Decimal("1600"),
             ),
