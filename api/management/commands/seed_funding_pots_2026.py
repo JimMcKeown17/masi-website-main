@@ -36,9 +36,9 @@ POTS = (
         "Tsitsikamma Wind Farm",
         Decimal("0"),
         "Rural funder - amount to be confirmed",
-        # "Vukani" per Jim; DB has both Vukani Daycare and Vukanibantu.
-        # Vukani Daycare seeded pending confirmation.
-        ("Bambino", "Clarkson", "Vukani Daycare", "Msobomvu Full Service", "Siyazama"),
+        # Vukani = Vukani Daycare (Jim confirmed 2026-07-28). Msobomvu Full
+        # Service moved to Amakhala (Jim: the Tsitsikamma listing was a mistake).
+        ("Bambino", "Clarkson", "Vukani Daycare", "Siyazama"),
     ),
     (
         "Amakhala Emoyeni Wind Farm",
@@ -46,8 +46,7 @@ POTS = (
         "Rural funder - amount to be confirmed",
         # Jim's corrected list (2026-07-28): Msobomvu Full Service, Msobomvu
         # ECD (= Msobomvu Preschool row), Mzamomhle ECD, Lingelethu Full
-        # Service, Nced'uluntu ECD. Msobomvu Full Service also appears in the
-        # Tsitsikamma list - dual membership pending Jim's confirmation.
+        # Service, Nced'uluntu ECD.
         (
             "Msobomvu Full Service",
             "Msobomvu Preschool",
