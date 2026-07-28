@@ -290,6 +290,14 @@ def youth_budget_summary(request):
             ],
             "feasibility": serialize_feasibility(feasibility),
             "notes": cohorts["notes"],
+            # Directory for the pot school-restriction picker: pot writes take
+            # numeric School ids, which the grid payload (school_uid keyed)
+            # cannot supply.
+            "school_options": list(
+                School.objects.filter(is_active=True)
+                .order_by("name", "id")
+                .values("id", "name")
+            ),
         }
     )
 
