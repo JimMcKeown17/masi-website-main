@@ -22,6 +22,14 @@ from .school_programme import (
     school_programme_grid, create_grid_cell, update_grid_cell,
     update_grid_stats, rollover_grid,
 )
+from .youth_budget import (
+    youth_budget_summary,
+    update_youth_budget_scenario,
+    create_youth_budget_pot,
+    update_youth_budget_pot,
+    create_youth_budget_expenditure,
+    update_youth_budget_expenditure,
+)
 from .closures import (
     ClosureListCreateAPIView, ClosureDetailAPIView, closures_bulk, closures_bulk_set, closures_export,
     closures_lookups, identity_export,
@@ -64,6 +72,12 @@ __all__ = [
     'update_grid_cell',
     'update_grid_stats',
     'rollover_grid',
+    'youth_budget_summary',
+    'update_youth_budget_scenario',
+    'create_youth_budget_pot',
+    'update_youth_budget_pot',
+    'create_youth_budget_expenditure',
+    'update_youth_budget_expenditure',
     'ClosureListCreateAPIView',
     'ClosureDetailAPIView',
     'closures_bulk',

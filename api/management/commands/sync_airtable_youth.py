@@ -243,6 +243,8 @@ class Command(BaseCommand):
             'cell_phone_number', 'email', 'emergency_number',
             'street_number', 'street_address', 'suburb_township', 'city_or_town', 'postal_code',
             'job_title', 'employment_status', 'start_date', 'end_date',
+            'subsidy_funder', 'subsidy_status',
+            'subsidy_start_date', 'subsidy_end_date',
             'school_id', 'mentor_id',
         ]
 
@@ -323,6 +325,14 @@ class Command(BaseCommand):
             employment_status=safe_first('Employment Status') or 'Active',
             start_date=parse_date(safe_first('Start Date') or ''),
             end_date=parse_date(safe_first('End Date') or ''),
+            subsidy_funder=safe_first('Funder'),
+            subsidy_status=safe_first('SEF (Current Status) (from Office Link)'),
+            subsidy_start_date=parse_date(
+                safe_first('SEF Start Date (from Office Link)') or ''
+            ),
+            subsidy_end_date=parse_date(
+                safe_first('SEF End Date (from Office Link)') or ''
+            ),
             school_id=school_id,
             mentor_id=mentor_id,
             _school_unmatched=school_unmatched,

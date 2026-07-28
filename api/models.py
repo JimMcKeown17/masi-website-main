@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.db import models
 from django.contrib.auth.models import User
 from django.utils import timezone
@@ -123,6 +125,10 @@ class Youth(models.Model):
     end_date = models.DateField(blank=True, null=True)
     reason_for_leaving = models.CharField(max_length=255, blank=True, null=True)
     income_tax_number = models.CharField(max_length=50, blank=True, null=True)
+    subsidy_funder = models.CharField(max_length=50, blank=True, null=True)
+    subsidy_status = models.CharField(max_length=50, blank=True, null=True)
+    subsidy_start_date = models.DateField(blank=True, null=True)
+    subsidy_end_date = models.DateField(blank=True, null=True)
     
     # Banking details
     bank_name = models.CharField(max_length=100, blank=True, null=True)
@@ -1676,6 +1682,91 @@ class SchoolYearStats(models.Model):
 
     def __str__(self):
         return f"{self.school.name} / {self.year} stats"
+
+
+class FundingPot(models.Model):
+    """A remaining funder balance available to youth wages for one year."""
+
+    year = models.IntegerField()
+    funder_name = models.CharField(max_length=200)
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    as_of = models.DateField()
+    note = models.TextField(blank=True)
+    schools = models.ManyToManyField(
+        'School',
+        blank=True,
+        related_name='funding_pots',
+    )
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.funder_name} / {self.year}"
+
+
+class BudgetScenario(models.Model):
+    """The single shared set of youth-budget assumptions for one year."""
+
+    year = models.IntegerField(unique=True)
+    wage_rate = models.DecimalField(
+        max_digits=6,
+        decimal_places=2,
+        default=Decimal("32.01"),
+    )
+    subsidy_contribution = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        default=Decimal("1600"),
+    )
+    hours_matrix = models.JSONField(default=dict)
+    nys_conversion_count = models.IntegerField(default=200)
+    nys_conversion_start_month = models.PositiveSmallIntegerField(default=8)
+    vacancy_start_month = models.PositiveSmallIntegerField(default=8)
+    holiday_pay = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal("0"),
+    )
+    mentor_reserve = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal("0"),
+    )
+    updated_by = models.CharField(max_length=200, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Youth budget scenario / {self.year}"
+
+
+class MonthlyYouthExpenditure(models.Model):
+    """Actual youth expenditure split into the three finance-ledger buckets."""
+
+    year = models.IntegerField()
+    month = models.PositiveSmallIntegerField()
+    core_amount = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal("0"),
+    )
+    mentor_amount = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal("0"),
+    )
+    rural_amount = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal("0"),
+    )
+    note = models.TextField(blank=True)
+
+    class Meta:
+        unique_together = (('year', 'month'),)
+
+    def __str__(self):
+        return f"Youth expenditure / {self.year}-{self.month:02d}"
 
 
 class LiteracyAssessment2026(models.Model):
