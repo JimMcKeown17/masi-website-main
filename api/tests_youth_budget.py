@@ -502,8 +502,11 @@ class YouthBudgetEndpointTests(TestCase):
                 "expenditure",
                 "feasibility",
                 "notes",
+                "school_options",
             },
         )
+        for option in body["school_options"]:
+            self.assertEqual(set(option), {"id", "name"})
         self.assertEqual(body["scenario"]["nys_conversion_start_month"], 8)
         self.assertEqual(body["scenario"]["vacancy_start_month"], 8)
         self.assertEqual(
