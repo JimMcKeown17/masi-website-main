@@ -7,44 +7,58 @@ from django.db import transaction
 from api.models import FundingPot, School
 
 
+# (funder_name, amount, note, restricted school names). Empty schools tuple =
+# unrestricted. Wind-farm pots are rural funders whose amounts Jim still has to
+# confirm; seeding them at R0 with their school restrictions makes the
+# feasibility panel show projected rural spend per funder immediately, and the
+# verdict self-corrects as soon as real amounts are entered in the UI.
 POTS = (
-    ("Winds of Change Community Trust", Decimal("0"), ""),
-    ("GWP: Children & Youth", Decimal("195930.47"), ""),
+    ("Winds of Change Community Trust", Decimal("0"), "", ()),
+    ("GWP: Children & Youth", Decimal("195930.47"), "", ()),
+    ("TDH: Exchange Rate Gains & Interest", Decimal("54065.15"), "", ()),
+    ("TDH: 2026 (April - December 2026)", Decimal("610310.80"), "", ()),
+    ("DGMT", Decimal("325000.00"), "", ()),
     (
-        "TDH: Exchange Rate Gains & Interest",
-        Decimal("54065.15"),
+        "United Through Sport",
+        Decimal("138471.54"),
         "",
+        ("Astra", "Isaac Booi", "Green Apple", "Noluthando"),
+    ),
+    ("HCI", Decimal("200000.00"), "Fungible for youth or mentors", ()),
+    ("Yard Education Trust", Decimal("0"), "", ()),
+    (
+        "Kouga Wind Farm",
+        Decimal("0"),
+        "Rural funder - amount to be confirmed",
+        ("Sandwater", "Living Ubuntu", "Kokkewiet"),
     ),
     (
-        "TDH: 2026 (April - December 2026)",
-        Decimal("610310.80"),
-        "",
+        "Tsitsikamma Wind Farm",
+        Decimal("0"),
+        "Rural funder - amount to be confirmed",
+        # "Vukani" per Jim; DB has both Vukani Daycare and Vukanibantu.
+        # Vukani Daycare seeded pending confirmation.
+        ("Bambino", "Clarkson", "Vukani Daycare", "Msobomvu Full Service", "Siyazama"),
     ),
-    ("DGMT", Decimal("325000.00"), ""),
-    ("United Through Sport", Decimal("138471.54"), ""),
     (
-        "HCI",
-        Decimal("200000.00"),
-        "Fungible for youth or mentors",
+        "Amakhala Emoyeni Wind Farm",
+        Decimal("0"),
+        "Rural funder - amount to be confirmed",
+        # Jim also listed "Msobomvu Primary School": no such School row exists
+        # (closest is Msobomvu Preschool). Left off pending confirmation; add
+        # via the pot picker once resolved.
+        ("Lingelethu", "Nceduluntu Edu-care", "Mzamomhle Edu-care"),
     ),
-    ("Yard Education Trust", Decimal("0"), ""),
-)
-RESTRICTED_SCHOOLS = (
-    "Astra",
-    "Isaac Booi",
-    "Green Apple",
-    "Noluthando",
 )
 
 
 class Command(BaseCommand):
-    help = "Seed the eight known 2026 youth Funding Pots"
+    help = "Seed the known 2026 youth Funding Pots (idempotent)"
 
     @transaction.atomic
     def handle(self, *args, **options):
-        pots = {}
         created_count = 0
-        for funder_name, amount, note in POTS:
+        for funder_name, amount, note, school_names in POTS:
             pot, created = FundingPot.objects.get_or_create(
                 year=2026,
                 funder_name=funder_name,
@@ -55,25 +69,27 @@ class Command(BaseCommand):
                     "is_active": True,
                 },
             )
-            pots[funder_name] = pot
             created_count += int(created)
-
-        restricted = []
-        for name in RESTRICTED_SCHOOLS:
-            school = (
-                School.objects.filter(name__iexact=name)
-                .order_by("-is_active", "id")
-                .first()
-            )
-            if school is None:
-                self.stdout.write(
-                    self.style.WARNING(
-                        f"School not found for United Through Sport: {name}"
-                    )
+            # Restrictions are asserted only on create so later UI edits to a
+            # pot's school list survive seed re-runs.
+            if not created or not school_names:
+                continue
+            restricted = []
+            for name in school_names:
+                school = (
+                    School.objects.filter(name__iexact=name)
+                    .order_by("-is_active", "id")
+                    .first()
                 )
-            else:
-                restricted.append(school)
-        pots["United Through Sport"].schools.set(restricted)
+                if school is None:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"School not found for {funder_name}: {name}"
+                        )
+                    )
+                else:
+                    restricted.append(school)
+            pot.schools.set(restricted)
 
         self.stdout.write(
             self.style.SUCCESS(

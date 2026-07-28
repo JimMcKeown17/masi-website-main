@@ -470,10 +470,25 @@ def project(scenario, cohorts, vacancies, as_of):
     else:
         active_rows = list(cohorts)
     vacancy_rows = [{**row, "_vacancy": True} for row in vacancies]
-    return {
-        "committed": _project_rows(scenario, active_rows, as_of),
-        "at_plan": _project_rows(scenario, active_rows + vacancy_rows, as_of),
-    }
+
+    # Headcounts explain WHY at-plan exceeds committed: staff read the gap as
+    # "cost of N more posts", so both projections carry their costed population.
+    costed_youth = sum(
+        max(int(row.get("headcount") or 0), 0)
+        for row in active_rows
+        if row.get("programme") != YEBO
+    )
+    open_posts = sum(
+        max(int(row.get("headcount") or 0), 0) for row in vacancy_rows
+    )
+
+    committed = _project_rows(scenario, active_rows, as_of)
+    committed["costed_youth"] = costed_youth
+    committed["open_posts"] = 0
+    at_plan = _project_rows(scenario, active_rows + vacancy_rows, as_of)
+    at_plan["costed_youth"] = costed_youth + open_posts
+    at_plan["open_posts"] = open_posts
+    return {"committed": committed, "at_plan": at_plan}
 
 
 def calculate_verdict(pots_total, mentor_reserve, projected_total):

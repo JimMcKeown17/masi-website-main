@@ -187,6 +187,8 @@ def serialize_projection(projection):
             for row in projection["months"]
         ],
         "total": _number(projection["total"]),
+        "costed_youth": projection.get("costed_youth", 0),
+        "open_posts": projection.get("open_posts", 0),
     }
 
 

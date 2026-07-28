@@ -528,7 +528,10 @@ class YouthBudgetEndpointTests(TestCase):
                 "verdict_at_plan",
             },
         )
-        self.assertEqual(set(projections["committed"]), {"months", "total"})
+        self.assertEqual(
+            set(projections["committed"]),
+            {"months", "total", "costed_youth", "open_posts"},
+        )
 
     def test_unauthenticated_read_is_rejected(self):
         response = self.client.get("/api/youth-budget/?year=2026")
@@ -700,7 +703,8 @@ class FundingPotSeedTests(TestCase):
     def test_seed_creates_exact_pot_total_and_active_restrictions(self):
         call_command("seed_funding_pots_2026", verbosity=0)
         pots = FundingPot.objects.filter(year=2026)
-        self.assertEqual(pots.count(), 8)
+        # 8 urban pots plus 3 rural wind-farm placeholders seeded at R0.
+        self.assertEqual(pots.count(), 11)
         self.assertEqual(
             sum((pot.amount for pot in pots), Decimal("0")),
             Decimal("1523777.96"),
@@ -714,7 +718,7 @@ class FundingPotSeedTests(TestCase):
     def test_seed_is_idempotent(self):
         call_command("seed_funding_pots_2026", verbosity=0)
         call_command("seed_funding_pots_2026", verbosity=0)
-        self.assertEqual(FundingPot.objects.filter(year=2026).count(), 8)
+        self.assertEqual(FundingPot.objects.filter(year=2026).count(), 11)
 
 
 SAMPLE_LEDGER = Path(__file__).resolve().parent / "testdata" / "youth-payments-sample.csv"
