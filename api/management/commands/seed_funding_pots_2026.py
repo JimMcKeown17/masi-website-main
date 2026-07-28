@@ -44,10 +44,17 @@ POTS = (
         "Amakhala Emoyeni Wind Farm",
         Decimal("0"),
         "Rural funder - amount to be confirmed",
-        # Jim also listed "Msobomvu Primary School": no such School row exists
-        # (closest is Msobomvu Preschool). Left off pending confirmation; add
-        # via the pot picker once resolved.
-        ("Lingelethu", "Nceduluntu Edu-care", "Mzamomhle Edu-care"),
+        # Jim's corrected list (2026-07-28): Msobomvu Full Service, Msobomvu
+        # ECD (= Msobomvu Preschool row), Mzamomhle ECD, Lingelethu Full
+        # Service, Nced'uluntu ECD. Msobomvu Full Service also appears in the
+        # Tsitsikamma list - dual membership pending Jim's confirmation.
+        (
+            "Msobomvu Full Service",
+            "Msobomvu Preschool",
+            "Mzamomhle Edu-care",
+            "Lingelethu",
+            "Nceduluntu Edu-care",
+        ),
     ),
 )
 
