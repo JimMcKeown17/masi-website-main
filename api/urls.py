@@ -61,6 +61,14 @@ urlpatterns = [
     path('school-programme-grid/stats/<int:pk>/', views.update_grid_stats, name='spg_update_stats'),
     path('school-programme-grid/rollover/', views.rollover_grid, name='spg_rollover'),
 
+    # Youth Budget Calculator
+    path('youth-budget/', views.youth_budget_summary, name='youth_budget'),
+    path('youth-budget/scenario/', views.update_youth_budget_scenario, name='youth_budget_scenario'),
+    path('youth-budget/pots/', views.create_youth_budget_pot, name='youth_budget_pots'),
+    path('youth-budget/pots/<int:pk>/', views.update_youth_budget_pot, name='youth_budget_pot_detail'),
+    path('youth-budget/expenditure/', views.create_youth_budget_expenditure, name='youth_budget_expenditure'),
+    path('youth-budget/expenditure/<int:pk>/', views.update_youth_budget_expenditure, name='youth_budget_expenditure_detail'),
+
     # Closure calendar (authoring: ADMIN / PROJECT MANAGER; export: shared-secret)
     path('closures/', views.ClosureListCreateAPIView.as_view(), name='closures'),
     path('closures/bulk/', views.closures_bulk, name='closures_bulk'),
