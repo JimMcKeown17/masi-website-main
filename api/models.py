@@ -1728,6 +1728,10 @@ class BudgetScenario(models.Model):
     nys_subsidy_only_count = models.IntegerField(default=0)
     nys_conversion_start_month = models.PositiveSmallIntegerField(default=8)
     vacancy_start_month = models.PositiveSmallIntegerField(default=8)
+    # Average share of full-cap hours youth actually work (absenteeism, school
+    # cancellations, late starts). 100 = the conservative full-utilisation
+    # assumption of ADR 0002; calibrate from post-SEF ledger months.
+    utilisation_pct = models.PositiveSmallIntegerField(default=100)
     holiday_pay = models.DecimalField(
         max_digits=12,
         decimal_places=2,

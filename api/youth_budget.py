@@ -28,15 +28,24 @@ HORIZON_END = date(2026, 11, 30)
 UIF_FACTOR = Decimal("1.01")
 MONEY_QUANTUM = Decimal("0.01")
 
+# Zazi iZandi youth work 3.5 hours per day (Jim 2026-07-28, confirmed by the
+# full-attendance payment cluster: 3.5h x ~20 days x R32.01 matches the May
+# ledger's repeated R2,218 payments).
+_ZAZI_TITLES = {"zazi izandi coach", "zz ecd coach", "literacy coaches (zz)"}
+
+
+def _default_hours(site_type, job_title):
+    if job_title in _ZAZI_TITLES:
+        return 3.5
+    if site_type == "ecd" or job_title in {"practitioner", "ecd practitioner"}:
+        return 5.5
+    return 4.5
+
+
 HOURS_MATRIX_DEFAULTS = {
     site_type: {
         job_title: {
-            "hours_per_day": (
-                5.5
-                if site_type == "ecd"
-                or job_title in {"practitioner", "ecd practitioner"}
-                else 4.5
-            ),
+            "hours_per_day": _default_hours(site_type, job_title),
             "days_per_week": 5,
         }
         for job_title in _JOB_TITLE_TO_PROGRAMME
@@ -123,6 +132,7 @@ def default_scenario_values():
         "vacancy_start_month": 8,
         "holiday_pay": Decimal("0"),
         "mentor_reserve": Decimal("0"),
+        "utilisation_pct": 100,
         "updated_by": "",
     }
 
@@ -413,6 +423,12 @@ def _project_rows(scenario, rows, as_of):
         _scenario_value(scenario, "nys_conversion_start_month", 8)
     )
     vacancy_month = int(_scenario_value(scenario, "vacancy_start_month", 8))
+    utilisation = _decimal(
+        _scenario_value(scenario, "utilisation_pct", 100),
+        Decimal("100"),
+    ) / Decimal("100")
+    if utilisation < 0:
+        utilisation = Decimal("1")
     zero_cost_converted, relief_converted = _nys_conversions(
         rows,
         _scenario_value(scenario, "nys_conversion_count", 200),
@@ -451,6 +467,7 @@ def _project_rows(scenario, rows, as_of):
                 * Decimal(days)
                 * (days_per_week / Decimal("5"))
                 * wage_rate
+                * utilisation
             )
             gross = gross_each * headcount
             uif = gross * (UIF_FACTOR - Decimal("1"))

@@ -850,3 +850,51 @@ class SubsidyOnlyLeverTests(SimpleTestCase):
             september["gross"], youth_budget._money(base[1]["gross"] / 2)
         )
         self.assertEqual(september["subsidy_relief"], Decimal("0.00"))
+
+
+class UtilisationLeverTests(SimpleTestCase):
+    """Utilisation discounts full-cap gross for absenteeism and cancelled
+    school days (Jim 2026-07-28); relief stays capped at the reduced cost so
+    a subsidised youth can never produce negative net."""
+
+    def test_fifty_percent_utilisation_halves_gross(self):
+        base = youth_budget.project(
+            _scenario(nys_conversion_count=0),
+            [_cohort(headcount=2)],
+            [],
+            date(2026, 8, 1),
+        )["committed"]["months"][0]
+        halved = youth_budget.project(
+            _scenario(nys_conversion_count=0, utilisation_pct=50),
+            [_cohort(headcount=2)],
+            [],
+            date(2026, 8, 1),
+        )["committed"]["months"][0]
+        self.assertEqual(halved["gross"], base["gross"] / 2)
+        self.assertEqual(halved["net"], base["net"] / 2)
+
+    def test_relief_caps_at_reduced_cost(self):
+        # At 10% utilisation a youth earns far less than the contribution;
+        # relief must cap at their full (reduced) cost, never exceed it.
+        result = youth_budget.project(
+            _scenario(
+                nys_conversion_count=1,
+                utilisation_pct=10,
+                subsidy_contribution=Decimal("1600"),
+            ),
+            [_cohort(headcount=1, nys_eligible_count=1)],
+            [],
+            date(2026, 8, 1),
+        )["committed"]["months"][0]
+        self.assertEqual(result["net"], Decimal("0.00"))
+
+    def test_zazi_default_hours_are_three_and_a_half(self):
+        matrix = youth_budget.HOURS_MATRIX_DEFAULTS
+        for site_type in ("primary", "ecd"):
+            for title in ("zazi izandi coach", "zz ecd coach", "literacy coaches (zz)"):
+                self.assertEqual(
+                    matrix[site_type][title]["hours_per_day"], 3.5,
+                    f"{site_type}/{title}",
+                )
+        self.assertEqual(matrix["primary"]["literacy coach"]["hours_per_day"], 4.5)
+        self.assertEqual(matrix["ecd"]["literacy coach"]["hours_per_day"], 5.5)

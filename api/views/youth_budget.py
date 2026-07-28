@@ -130,6 +130,7 @@ def serialize_scenario(scenario):
         "hours_matrix": scenario.hours_matrix,
         "nys_conversion_count": scenario.nys_conversion_count,
         "nys_subsidy_only_count": scenario.nys_subsidy_only_count,
+        "utilisation_pct": scenario.utilisation_pct,
         "nys_conversion_start_month": scenario.nys_conversion_start_month,
         "vacancy_start_month": scenario.vacancy_start_month,
         "holiday_pay": _number(scenario.holiday_pay),
@@ -316,6 +317,11 @@ def update_youth_budget_scenario(request):
         for field in SCENARIO_DECIMAL_FIELDS:
             if field in request.data:
                 updates[field] = _nonnegative_decimal(request.data[field], field)
+        if "utilisation_pct" in request.data:
+            pct = _integer(request.data["utilisation_pct"], "utilisation_pct")
+            if not 1 <= pct <= 120:
+                raise ValueError("utilisation_pct must be between 1 and 120.")
+            updates["utilisation_pct"] = pct
         if "nys_subsidy_only_count" in request.data:
             count = _integer(
                 request.data["nys_subsidy_only_count"],
