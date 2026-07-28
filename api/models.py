@@ -1721,6 +1721,11 @@ class BudgetScenario(models.Model):
     )
     hours_matrix = models.JSONField(default=dict)
     nys_conversion_count = models.IntegerField(default=200)
+    # Of the NYS conversions, how many are subsidy-only part-timers: youth who
+    # work only the hours the subsidy pays for and never touch Masi payroll, so
+    # they cost R0 (no gross, no UIF), not merely the top-up. Interim lever
+    # until an Employment Basis column exists in Airtable.
+    nys_subsidy_only_count = models.IntegerField(default=0)
     nys_conversion_start_month = models.PositiveSmallIntegerField(default=8)
     vacancy_start_month = models.PositiveSmallIntegerField(default=8)
     holiday_pay = models.DecimalField(

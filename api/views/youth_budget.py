@@ -129,6 +129,7 @@ def serialize_scenario(scenario):
         "subsidy_contribution": _number(scenario.subsidy_contribution),
         "hours_matrix": scenario.hours_matrix,
         "nys_conversion_count": scenario.nys_conversion_count,
+        "nys_subsidy_only_count": scenario.nys_subsidy_only_count,
         "nys_conversion_start_month": scenario.nys_conversion_start_month,
         "vacancy_start_month": scenario.vacancy_start_month,
         "holiday_pay": _number(scenario.holiday_pay),
@@ -315,6 +316,14 @@ def update_youth_budget_scenario(request):
         for field in SCENARIO_DECIMAL_FIELDS:
             if field in request.data:
                 updates[field] = _nonnegative_decimal(request.data[field], field)
+        if "nys_subsidy_only_count" in request.data:
+            count = _integer(
+                request.data["nys_subsidy_only_count"],
+                "nys_subsidy_only_count",
+            )
+            if count < 0:
+                raise ValueError("nys_subsidy_only_count must be non-negative.")
+            updates["nys_subsidy_only_count"] = count
         if "nys_conversion_count" in request.data:
             count = _integer(
                 request.data["nys_conversion_count"],

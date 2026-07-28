@@ -118,6 +118,7 @@ def default_scenario_values():
         "subsidy_contribution": Decimal("1600"),
         "hours_matrix": deepcopy(HOURS_MATRIX_DEFAULTS),
         "nys_conversion_count": 200,
+        "nys_subsidy_only_count": 0,
         "nys_conversion_start_month": 8,
         "vacancy_start_month": 8,
         "holiday_pay": Decimal("0"),
@@ -339,37 +340,62 @@ def _actual_subsidised_count(row, year, month):
     return count
 
 
-def _nys_conversions(rows, requested):
+def _allocate_proportionally(eligible_counts, requested):
+    """Largest-remainder allocation of `requested` slots across cohorts."""
+    eligible_total = sum(eligible_counts)
+    target = min(max(int(requested or 0), 0), eligible_total)
+    if eligible_total == 0 or target == 0:
+        return [0 for _count in eligible_counts]
+
+    allocated = [
+        target * eligible // eligible_total
+        for eligible in eligible_counts
+    ]
+    remaining = target - sum(allocated)
+    remainders = [
+        (target * eligible) % eligible_total
+        for eligible in eligible_counts
+    ]
+    for index in sorted(
+        range(len(eligible_counts)),
+        key=lambda item: (-remainders[item], item),
+    ):
+        if remaining == 0:
+            break
+        if allocated[index] < eligible_counts[index]:
+            allocated[index] += 1
+            remaining -= 1
+    return allocated
+
+
+def _nys_conversions(rows, requested, subsidy_only=0):
+    """Split NYS conversions into zero-cost and top-up allocations per row.
+
+    Subsidy-only part-timers work only the hours the subsidy pays for and
+    never touch Masi payroll, so they leave the costed population entirely
+    (no gross, no UIF) rather than merely earning the R1,600 relief. They are
+    allocated first; the remaining conversions get standard top-up relief
+    from the pool that is left.
+    """
     eligible_counts = []
     for row in rows:
         eligible = 0
         if row.get("programme") != YEBO and not row.get("_vacancy"):
             eligible = max(int(row.get("nys_eligible_count") or 0), 0)
         eligible_counts.append(eligible)
-    eligible_total = sum(eligible_counts)
-    target = min(max(int(requested or 0), 0), eligible_total)
-    if eligible_total == 0 or target == 0:
-        return [0 for _row in rows]
 
-    converted = [
-        target * eligible // eligible_total
-        for eligible in eligible_counts
+    requested_total = max(int(requested or 0), 0)
+    zero_target = min(max(int(subsidy_only or 0), 0), requested_total)
+    zero_cost = _allocate_proportionally(eligible_counts, zero_target)
+    remaining_eligible = [
+        eligible - converted
+        for eligible, converted in zip(eligible_counts, zero_cost)
     ]
-    remaining = target - sum(converted)
-    remainders = [
-        (target * eligible) % eligible_total
-        for eligible in eligible_counts
-    ]
-    for index in sorted(
-        range(len(rows)),
-        key=lambda item: (-remainders[item], item),
-    ):
-        if remaining == 0:
-            break
-        if converted[index] < eligible_counts[index]:
-            converted[index] += 1
-            remaining -= 1
-    return converted
+    relief = _allocate_proportionally(
+        remaining_eligible,
+        requested_total - sum(zero_cost),
+    )
+    return zero_cost, relief
 
 
 def _project_rows(scenario, rows, as_of):
@@ -387,9 +413,10 @@ def _project_rows(scenario, rows, as_of):
         _scenario_value(scenario, "nys_conversion_start_month", 8)
     )
     vacancy_month = int(_scenario_value(scenario, "vacancy_start_month", 8))
-    converted = _nys_conversions(
+    zero_cost_converted, relief_converted = _nys_conversions(
         rows,
         _scenario_value(scenario, "nys_conversion_count", 200),
+        _scenario_value(scenario, "nys_subsidy_only_count", 0),
     )
 
     months = []
@@ -407,6 +434,10 @@ def _project_rows(scenario, rows, as_of):
             if row.get("_vacancy") and month < vacancy_month:
                 continue
             headcount = max(int(row.get("headcount") or 0), 0)
+            # Subsidy-only converts leave the costed population from their
+            # start month: no gross, no UIF, not merely relief.
+            if not row.get("_vacancy") and month >= conversion_month:
+                headcount = max(headcount - zero_cost_converted[index], 0)
             if headcount == 0:
                 continue
 
@@ -427,7 +458,7 @@ def _project_rows(scenario, rows, as_of):
             if not row.get("_vacancy"):
                 subsidised = _actual_subsidised_count(row, year, month)
                 if month >= conversion_month:
-                    subsidised += converted[index]
+                    subsidised += relief_converted[index]
                 subsidised = min(subsidised, headcount)
             relief_each = min(contribution, gross_each * UIF_FACTOR)
             relief = relief_each * subsidised

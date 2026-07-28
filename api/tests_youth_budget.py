@@ -775,3 +775,78 @@ class RealLedgerSeedTests(TestCase):
         self.assertTrue(
             MonthlyYouthExpenditure.objects.filter(year=2026, month=4).exists()
         )
+
+
+class SubsidyOnlyLeverTests(SimpleTestCase):
+    """Subsidy-only part-timers work only the hours SEF/NYS pays for and never
+    touch Masi payroll: their cost is exactly R0 (no gross, no UIF), not merely
+    the R1,600 top-up relief. Interim lever until an Employment Basis column
+    exists in Airtable (Jim, 2026-07-28)."""
+
+    def test_subsidy_only_converts_leave_the_costed_population(self):
+        base = youth_budget.project(
+            _scenario(nys_conversion_count=0),
+            [_cohort(headcount=4, nys_eligible_count=4)],
+            [],
+            date(2026, 8, 1),
+        )
+        with_lever = youth_budget.project(
+            _scenario(nys_conversion_count=2, nys_subsidy_only_count=2),
+            [_cohort(headcount=4, nys_eligible_count=4)],
+            [],
+            date(2026, 8, 1),
+        )
+        august_base = base["committed"]["months"][0]
+        august_lever = with_lever["committed"]["months"][0]
+        # Two of four youth drop off payroll entirely: gross halves, no relief.
+        self.assertEqual(august_lever["gross"], august_base["gross"] / 2)
+        self.assertEqual(august_lever["subsidy_relief"], Decimal("0.00"))
+        self.assertEqual(august_lever["net"], august_base["net"] / 2)
+
+    def test_split_between_zero_cost_and_topup_conversions(self):
+        result = youth_budget.project(
+            _scenario(
+                subsidy_contribution=Decimal("100"),
+                nys_conversion_count=3,
+                nys_subsidy_only_count=1,
+            ),
+            [_cohort(headcount=4, nys_eligible_count=4)],
+            [],
+            date(2026, 8, 1),
+        )
+        august = result["committed"]["months"][0]
+        # 1 youth vanishes from payroll; 2 of the remaining 3 earn relief.
+        self.assertEqual(august["subsidy_relief"], Decimal("200.00"))
+        full_gross = youth_budget.project(
+            _scenario(nys_conversion_count=0),
+            [_cohort(headcount=4, nys_eligible_count=4)],
+            [],
+            date(2026, 8, 1),
+        )["committed"]["months"][0]["gross"]
+        self.assertEqual(august["gross"], full_gross * 3 / 4)
+
+    def test_subsidy_only_clamped_to_conversion_count_and_starts_in_month(self):
+        result = youth_budget.project(
+            _scenario(
+                nys_conversion_count=1,
+                nys_subsidy_only_count=5,
+                nys_conversion_start_month=9,
+            ),
+            [_cohort(headcount=2, nys_eligible_count=2)],
+            [],
+            date(2026, 8, 1),
+        )
+        august, september = result["committed"]["months"][:2]
+        base = youth_budget.project(
+            _scenario(nys_conversion_count=0),
+            [_cohort(headcount=2, nys_eligible_count=2)],
+            [],
+            date(2026, 8, 1),
+        )["committed"]["months"]
+        # Before the start month nothing changes; from it, exactly one youth
+        # (clamped to the conversion count) leaves the costed population.
+        self.assertEqual(august["gross"], base[0]["gross"])
+        self.assertEqual(
+            september["gross"], youth_budget._money(base[1]["gross"] / 2)
+        )
+        self.assertEqual(september["subsidy_relief"], Decimal("0.00"))
