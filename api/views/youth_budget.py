@@ -156,6 +156,7 @@ def serialize_pot(pot):
             for school in schools
         ],
         "is_active": pot.is_active,
+        "is_ringfenced": pot.is_ringfenced,
         "created_at": _iso(pot.created_at),
         "updated_at": _iso(pot.updated_at),
     }
@@ -207,6 +208,22 @@ def serialize_feasibility(rows):
     ]
 
 
+def serialize_ringfenced(rows):
+    return [
+        {
+            "funder_name": row["funder_name"],
+            "amount": _number(row["amount"]),
+            "schools": row["schools"],
+            "costed_youth": row["costed_youth"],
+            "open_posts": row["open_posts"],
+            "projected_committed": _number(row["projected_committed"]),
+            "projected_at_plan": _number(row["projected_at_plan"]),
+            "surplus": _number(row["surplus"]),
+        }
+        for row in rows
+    ]
+
+
 def _schools_from_ids(value):
     if not isinstance(value, list):
         raise ValueError("schools must be a list of school ids.")
@@ -246,13 +263,47 @@ def youth_budget_summary(request):
         .prefetch_related("schools")
         .order_by("funder_name", "id")
     )
-    active_pots_total = sum(
-        (pot.amount for pot in pots if pot.is_active),
+    active_core_pots_total = sum(
+        (
+            pot.amount
+            for pot in pots
+            if pot.is_active and not pot.is_ringfenced
+        ),
         Decimal("0"),
     )
-    cohorts = youth_budget.build_cohorts(today=as_of)
-    vacancies = youth_budget.build_vacancies(year)
-    projections = youth_budget.project(scenario, cohorts, vacancies, as_of)
+    active_ringfenced_pots = [
+        pot for pot in pots if pot.is_active and pot.is_ringfenced
+    ]
+    ringfenced_school_ids = frozenset(
+        school.id
+        for pot in active_ringfenced_pots
+        for school in pot.schools.all()
+    )
+    ringfenced_total = sum(
+        (pot.amount for pot in active_ringfenced_pots),
+        Decimal("0"),
+    )
+    cohorts = youth_budget.build_cohorts(
+        today=as_of,
+        ringfenced_school_ids=ringfenced_school_ids,
+    )
+    vacancies = youth_budget.build_vacancies(
+        year,
+        ringfenced_school_ids=ringfenced_school_ids,
+    )
+    projections = youth_budget.project(
+        scenario,
+        cohorts,
+        vacancies["vacancies"],
+        as_of,
+    )
+    ringfenced = youth_budget.project_ringfenced(
+        scenario,
+        active_ringfenced_pots,
+        cohorts["ringfenced_costing_cohorts"],
+        vacancies["ringfenced_vacancies"],
+        as_of,
+    )
     feasibility = youth_budget.calculate_feasibility(
         pots,
         projections["at_plan"],
@@ -267,7 +318,12 @@ def youth_budget_summary(request):
             "year": year,
             "as_of": as_of.isoformat(),
             "pots": [serialize_pot(pot) for pot in pots],
-            "pots_total": _number(active_pots_total),
+            "pots_total": _number(active_core_pots_total),
+            "ringfenced": {
+                "pots": serialize_ringfenced(ringfenced),
+                "total_amount": _number(ringfenced_total),
+                "youth": cohorts["notes"]["ringfenced"],
+            },
             "scenario": serialize_scenario(scenario),
             "cohorts": cohorts["cohorts"],
             "projections": {
@@ -275,14 +331,14 @@ def youth_budget_summary(request):
                 "at_plan": serialize_projection(projections["at_plan"]),
                 "verdict_committed": _number(
                     youth_budget.calculate_verdict(
-                        active_pots_total,
+                        active_core_pots_total,
                         scenario.mentor_reserve,
                         projections["committed"]["total"],
                     )
                 ),
                 "verdict_at_plan": _number(
                     youth_budget.calculate_verdict(
-                        active_pots_total,
+                        active_core_pots_total,
                         scenario.mentor_reserve,
                         projections["at_plan"]["total"],
                     )
@@ -380,6 +436,10 @@ def _create_pot(data):
         as_of=_date(data["as_of"], "as_of"),
         note=str(data.get("note", "")),
         is_active=_boolean(data.get("is_active", True), "is_active"),
+        is_ringfenced=_boolean(
+            data.get("is_ringfenced", False),
+            "is_ringfenced",
+        ),
     )
     pot.schools.set(schools)
     return pot
@@ -430,6 +490,11 @@ def update_youth_budget_pot(request, pk):
                 pot.is_active = _boolean(
                     request.data["is_active"],
                     "is_active",
+                )
+            if "is_ringfenced" in request.data:
+                pot.is_ringfenced = _boolean(
+                    request.data["is_ringfenced"],
+                    "is_ringfenced",
                 )
             schools = None
             if "schools" in request.data:

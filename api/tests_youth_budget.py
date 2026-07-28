@@ -333,6 +333,42 @@ class CohortTests(TestCase):
             youth_budget.SITE_UNASSIGNED,
         )
 
+    def test_ringfenced_youth_are_separated_from_core_and_cannot_consume_nys(self):
+        ringfenced_school = School.objects.create(
+            name="Ringfenced Primary",
+            school_uid="SCH-YB-RING-1",
+            type="Primary School",
+        )
+        self._youth(9006, "Literacy Coach")
+        Youth.objects.create(
+            employee_id=9007,
+            first_names="Rural",
+            last_name="Youth",
+            job_title="Literacy Coach",
+            school=ringfenced_school,
+        )
+
+        cohorts = youth_budget.build_cohorts(
+            today=date(2026, 7, 27),
+            ringfenced_school_ids=frozenset({ringfenced_school.id}),
+        )
+
+        self.assertEqual(cohorts["notes"]["active_total"], 2)
+        self.assertEqual(cohorts["notes"]["ringfenced"], 1)
+        self.assertEqual(sum(row["headcount"] for row in cohorts["cohorts"]), 1)
+        self.assertEqual(
+            {row["school_id"] for row in cohorts["costing_cohorts"]},
+            {self.school.id},
+        )
+        self.assertEqual(
+            cohorts["ringfenced_costing_cohorts"][0]["school_id"],
+            ringfenced_school.id,
+        )
+        self.assertEqual(
+            cohorts["ringfenced_costing_cohorts"][0]["nys_eligible_count"],
+            0,
+        )
+
 
 class VacancyTests(TestCase):
     """Vacancies come from positive grid gaps and never include Yebo posts."""
@@ -353,10 +389,11 @@ class VacancyTests(TestCase):
             youth_active=1,
         )
         vacancies = youth_budget.build_vacancies(2026)
-        self.assertEqual(len(vacancies), 1)
-        self.assertEqual(vacancies[0]["headcount"], 3)
-        self.assertEqual(vacancies[0]["site_type"], "ecd")
-        self.assertEqual(vacancies[0]["job_title"], "practitioner")
+        self.assertEqual(len(vacancies["vacancies"]), 1)
+        self.assertEqual(vacancies["vacancies"][0]["headcount"], 3)
+        self.assertEqual(vacancies["vacancies"][0]["site_type"], "ecd")
+        self.assertEqual(vacancies["vacancies"][0]["job_title"], "practitioner")
+        self.assertEqual(vacancies["ringfenced_vacancies"], [])
 
     def test_build_vacancies_excludes_yebo(self):
         SchoolProgrammeYear.objects.create(
@@ -366,7 +403,35 @@ class VacancyTests(TestCase):
             youth_planned=10,
             youth_active=0,
         )
-        self.assertEqual(youth_budget.build_vacancies(2026), [])
+        self.assertEqual(
+            youth_budget.build_vacancies(2026),
+            {"vacancies": [], "ringfenced_vacancies": []},
+        )
+
+    def test_ringfenced_vacancy_is_separated_from_core(self):
+        SchoolProgrammeYear.objects.create(
+            school=self.school,
+            programme="preschool",
+            year=2026,
+            youth_planned=4,
+            youth_active=1,
+        )
+
+        vacancies = youth_budget.build_vacancies(
+            2026,
+            ringfenced_school_ids=frozenset({self.school.id}),
+        )
+
+        self.assertEqual(vacancies["vacancies"], [])
+        self.assertEqual(len(vacancies["ringfenced_vacancies"]), 1)
+        self.assertEqual(
+            vacancies["ringfenced_vacancies"][0]["school_id"],
+            self.school.id,
+        )
+        self.assertEqual(
+            vacancies["ringfenced_vacancies"][0]["headcount"],
+            3,
+        )
 
 
 class BudgetArithmeticTests(TestCase):
@@ -397,10 +462,20 @@ class BudgetArithmeticTests(TestCase):
             as_of=date(2026, 7, 27),
         )
         pot.schools.add(self.school)
+        ringfenced = FundingPot.objects.create(
+            year=2026,
+            funder_name="Ringfenced",
+            amount=Decimal("100"),
+            as_of=date(2026, 7, 27),
+            is_ringfenced=True,
+        )
+        ringfenced.schools.add(self.school)
         rows = youth_budget.calculate_feasibility(
-            [pot],
+            [pot, ringfenced],
             {"school_totals": {self.school.id: Decimal("60")}},
         )
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["funder_name"], "Restricted")
         self.assertEqual(rows[0]["projected_at_schools"], Decimal("60.00"))
         self.assertEqual(rows[0]["shortfall"], Decimal("40.00"))
 
@@ -427,9 +502,85 @@ class BudgetArithmeticTests(TestCase):
             [],
         )
 
+    def test_ringfenced_projection_reports_positive_and_negative_surplus(self):
+        second_school = School.objects.create(
+            name="Second Ringfenced School",
+            school_uid="SCH-YB-RING-2",
+            type="Primary School",
+        )
+        positive = FundingPot.objects.create(
+            year=2026,
+            funder_name="Positive Wind Farm",
+            amount=Decimal("50000"),
+            as_of=date(2026, 7, 27),
+            is_ringfenced=True,
+        )
+        positive.schools.add(self.school)
+        negative = FundingPot.objects.create(
+            year=2026,
+            funder_name="Negative Wind Farm",
+            amount=Decimal("1"),
+            as_of=date(2026, 7, 27),
+            is_ringfenced=True,
+        )
+        negative.schools.add(second_school)
+        inactive = FundingPot.objects.create(
+            year=2026,
+            funder_name="Inactive Wind Farm",
+            amount=Decimal("999999"),
+            as_of=date(2026, 7, 27),
+            is_ringfenced=True,
+            is_active=False,
+        )
+        inactive.schools.add(self.school)
+
+        rows = [
+            _cohort(school_id=self.school.id, headcount=1),
+            _cohort(school_id=second_school.id, headcount=1),
+        ]
+        vacancies = [
+            _cohort(
+                school_id=self.school.id,
+                headcount=2,
+                _vacancy=True,
+            ),
+        ]
+        projected = youth_budget.project_ringfenced(
+            _scenario(nys_conversion_count=0),
+            [positive, negative, inactive],
+            rows,
+            vacancies,
+            date(2026, 10, 1),
+        )
+        by_funder = {row["funder_name"]: row for row in projected}
+
+        self.assertEqual(set(by_funder), {"Positive Wind Farm", "Negative Wind Farm"})
+        self.assertEqual(by_funder["Positive Wind Farm"]["costed_youth"], 1)
+        self.assertEqual(by_funder["Positive Wind Farm"]["open_posts"], 2)
+        self.assertEqual(
+            by_funder["Positive Wind Farm"]["schools"],
+            [self.school.name],
+        )
+        for row in by_funder.values():
+            self.assertEqual(
+                row["surplus"],
+                row["amount"] - row["projected_at_plan"],
+            )
+        self.assertGreater(by_funder["Positive Wind Farm"]["surplus"], 0)
+        self.assertLess(by_funder["Negative Wind Farm"]["surplus"], 0)
+
 
 class ModelAndSyncTests(TestCase):
     """Schema defaults and Airtable mapping must preserve source intent."""
+
+    def test_funding_pot_is_core_by_default(self):
+        pot = FundingPot.objects.create(
+            year=2026,
+            funder_name="Core by default",
+            amount=Decimal("100"),
+            as_of=date(2026, 7, 27),
+        )
+        self.assertFalse(pot.is_ringfenced)
 
     def test_budget_scenario_defaults_use_august_levers(self):
         scenario = BudgetScenario.objects.create(year=2026)
@@ -496,6 +647,7 @@ class YouthBudgetEndpointTests(TestCase):
                 "as_of",
                 "pots",
                 "pots_total",
+                "ringfenced",
                 "scenario",
                 "cohorts",
                 "projections",
@@ -512,6 +664,10 @@ class YouthBudgetEndpointTests(TestCase):
         self.assertEqual(
             body["scenario"]["hours_matrix"],
             youth_budget.HOURS_MATRIX_DEFAULTS,
+        )
+        self.assertEqual(
+            set(body["notes"]),
+            {"active_total", "school_less", "yebo_shown_only", "ringfenced"},
         )
         self.assertTrue(BudgetScenario.objects.filter(year=2026).exists())
 
@@ -532,6 +688,96 @@ class YouthBudgetEndpointTests(TestCase):
             set(projections["committed"]),
             {"months", "total", "costed_youth", "open_posts"},
         )
+
+    def test_summary_segregates_ringfenced_money_youth_and_vacancies(self):
+        self._auth("MENTOR")
+        FundingPot.objects.create(
+            year=2026,
+            funder_name="Core Funder",
+            amount=Decimal("1000"),
+            as_of=date(2026, 7, 27),
+        )
+        ringfenced = FundingPot.objects.create(
+            year=2026,
+            funder_name="Rural Wind Farm",
+            amount=Decimal("50000"),
+            as_of=date(2026, 7, 27),
+            is_ringfenced=True,
+        )
+        ringfenced.schools.add(self.school)
+        Youth.objects.create(
+            employee_id=9200,
+            first_names="Ringfenced",
+            last_name="Youth",
+            job_title="Literacy Coach",
+            school=self.school,
+        )
+        SchoolProgrammeYear.objects.create(
+            school=self.school,
+            programme="masi_literacy",
+            year=2026,
+            youth_planned=3,
+            youth_active=1,
+        )
+
+        response = self.client.get("/api/youth-budget/?year=2026")
+
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(body["pots_total"], 1000.0)
+        self.assertEqual(
+            set(body["ringfenced"]),
+            {"pots", "total_amount", "youth"},
+        )
+        self.assertEqual(body["ringfenced"]["total_amount"], 50000.0)
+        self.assertEqual(body["ringfenced"]["youth"], 1)
+        self.assertEqual(len(body["ringfenced"]["pots"]), 1)
+        ringfenced_row = body["ringfenced"]["pots"][0]
+        self.assertEqual(
+            set(ringfenced_row),
+            {
+                "funder_name",
+                "amount",
+                "schools",
+                "costed_youth",
+                "open_posts",
+                "projected_committed",
+                "projected_at_plan",
+                "surplus",
+            },
+        )
+        self.assertEqual(ringfenced_row["costed_youth"], 1)
+        self.assertEqual(ringfenced_row["open_posts"], 2)
+        self.assertGreater(
+            ringfenced_row["projected_at_plan"],
+            ringfenced_row["projected_committed"],
+        )
+        self.assertEqual(body["projections"]["committed"]["costed_youth"], 0)
+        self.assertEqual(body["projections"]["committed"]["total"], 0.0)
+        self.assertEqual(body["projections"]["at_plan"]["open_posts"], 0)
+        self.assertEqual(body["projections"]["at_plan"]["total"], 0.0)
+        serialized = {
+            pot["funder_name"]: pot
+            for pot in body["pots"]
+        }
+        self.assertEqual(
+            set(serialized["Core Funder"]),
+            {
+                "id",
+                "year",
+                "funder_name",
+                "amount",
+                "as_of",
+                "note",
+                "schools",
+                "is_active",
+                "is_ringfenced",
+                "created_at",
+                "updated_at",
+            },
+        )
+        self.assertFalse(serialized["Core Funder"]["is_ringfenced"])
+        self.assertTrue(serialized["Rural Wind Farm"]["is_ringfenced"])
 
     def test_unauthenticated_read_is_rejected(self):
         response = self.client.get("/api/youth-budget/?year=2026")
@@ -610,23 +856,30 @@ class YouthBudgetEndpointTests(TestCase):
                 "amount": "1000.00",
                 "as_of": "2026-07-27",
                 "schools": [self.school.id],
+                "is_ringfenced": True,
             },
             format="json",
         )
         self.assertEqual(created.status_code, 201)
         pot_id = created.json()["id"]
+        self.assertTrue(created.json()["is_ringfenced"])
         self.assertEqual(
             created.json()["schools"],
             [{"id": self.school.id, "name": self.school.name}],
         )
         patched = self.client.patch(
             f"/api/youth-budget/pots/{pot_id}/",
-            {"amount": "900.00", "schools": []},
+            {
+                "amount": "900.00",
+                "schools": [],
+                "is_ringfenced": False,
+            },
             format="json",
         )
         self.assertEqual(patched.status_code, 200)
         self.assertEqual(patched.json()["amount"], 900.0)
         self.assertEqual(patched.json()["schools"], [])
+        self.assertFalse(patched.json()["is_ringfenced"])
         deleted = self.client.delete(
             f"/api/youth-budget/pots/{pot_id}/"
         )
@@ -674,6 +927,26 @@ class YouthBudgetEndpointTests(TestCase):
             FundingPot.objects.filter(funder_name="Bad restriction").exists()
         )
 
+    def test_pot_rejects_non_boolean_ringfenced_flag(self):
+        self._auth("ADMIN")
+        response = self.client.post(
+            "/api/youth-budget/pots/",
+            {
+                "year": 2026,
+                "funder_name": "Bad ringfenced flag",
+                "amount": 100,
+                "as_of": "2026-07-27",
+                "is_ringfenced": "true",
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(
+            FundingPot.objects.filter(
+                funder_name="Bad ringfenced flag",
+            ).exists()
+        )
+
 
 class FundingPotSeedTests(TestCase):
     """The known balances and UTS restriction must be reproducible."""
@@ -708,6 +981,19 @@ class FundingPotSeedTests(TestCase):
         self.assertEqual(
             sum((pot.amount for pot in pots), Decimal("0")),
             Decimal("1523777.96"),
+        )
+        self.assertEqual(
+            set(
+                pots.filter(is_ringfenced=True).values_list(
+                    "funder_name",
+                    flat=True,
+                )
+            ),
+            {
+                "Kouga Wind Farm",
+                "Tsitsikamma Wind Farm",
+                "Amakhala Emoyeni Wind Farm",
+            },
         )
         uts = pots.get(funder_name="United Through Sport")
         self.assertEqual(

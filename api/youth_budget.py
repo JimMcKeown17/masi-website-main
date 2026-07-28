@@ -137,7 +137,7 @@ def default_scenario_values():
     }
 
 
-def build_cohorts(today=None):
+def build_cohorts(today=None, ringfenced_school_ids=frozenset()):
     """Aggregate active Youth for public what-if data and detailed costing.
 
     The public rows use only the fields the frontend needs. Detailed rows retain
@@ -164,10 +164,18 @@ def build_cohorts(today=None):
             "nys_eligible_count": 0,
         }
     )
+    ringfenced_detailed = defaultdict(
+        lambda: {
+            "headcount": 0,
+            "subsidised_count": 0,
+            "nys_eligible_count": 0,
+        }
+    )
     notes = {
         "active_total": 0,
         "school_less": 0,
         "yebo_shown_only": 0,
+        "ringfenced": 0,
     }
 
     rows = Youth.objects.filter(employment_status="Active").select_related("school")
@@ -198,6 +206,25 @@ def build_cohorts(today=None):
             notes["school_less"] += 1
         if programme == YEBO:
             notes["yebo_shown_only"] += 1
+
+        is_ringfenced = youth.school_id in ringfenced_school_ids
+        if is_ringfenced:
+            notes["ringfenced"] += 1
+            detailed_key = (
+                youth.school_id,
+                youth.school.name if youth.school else "",
+                site_type,
+                job_title,
+                programme,
+                status_active,
+                youth.subsidy_end_date if status_active else None,
+                False,
+            )
+            ringfenced_detailed[detailed_key]["headcount"] += 1
+            ringfenced_detailed[detailed_key]["subsidised_count"] += int(
+                status_active
+            )
+            continue
 
         public_key = (site_type, job_title, programme)
         public[public_key]["headcount"] += 1
@@ -232,53 +259,57 @@ def build_cohorts(today=None):
             }
         )
 
-    costing_rows = []
-    for key, counts in sorted(
-        detailed.items(),
-        key=lambda item: (
-            item[0][0] is None,
-            item[0][0] or 0,
-            item[0][2],
-            item[0][3],
-            item[0][4] or "",
-            str(item[0][6] or ""),
-        ),
-    ):
-        (
-            school_id,
-            school_name,
-            site_type,
-            job_title,
-            programme,
-            _status_active,
-            subsidy_end_date,
-            _nys_eligible,
-        ) = key
-        costing_rows.append(
-            {
-                "school_id": school_id,
-                "school_name": school_name,
-                "site_type": site_type,
-                "job_title": job_title,
-                "programme": programme,
-                "subsidy_end_date": subsidy_end_date,
-                **counts,
-            }
-        )
+    def costing_rows(source):
+        rows = []
+        for key, counts in sorted(
+            source.items(),
+            key=lambda item: (
+                item[0][0] is None,
+                item[0][0] or 0,
+                item[0][2],
+                item[0][3],
+                item[0][4] or "",
+                str(item[0][6] or ""),
+            ),
+        ):
+            (
+                school_id,
+                school_name,
+                site_type,
+                job_title,
+                programme,
+                _status_active,
+                subsidy_end_date,
+                _nys_eligible,
+            ) = key
+            rows.append(
+                {
+                    "school_id": school_id,
+                    "school_name": school_name,
+                    "site_type": site_type,
+                    "job_title": job_title,
+                    "programme": programme,
+                    "subsidy_end_date": subsidy_end_date,
+                    **counts,
+                }
+            )
+        return rows
 
     return {
         "cohorts": public_rows,
-        "costing_cohorts": costing_rows,
+        "costing_cohorts": costing_rows(detailed),
+        "ringfenced_costing_cohorts": costing_rows(ringfenced_detailed),
         "notes": notes,
     }
 
 
-def build_vacancies(year):
-    """Return open non-Yebo planned posts in projection-ready rows."""
+def build_vacancies(year, ringfenced_school_ids=frozenset()):
+    """Return core and ringfenced open posts in projection-ready rows."""
     from django.db.models import F
     from api.models import SchoolProgrammeYear
 
     vacancies = []
+    ringfenced_vacancies = []
     rows = (
         SchoolProgrammeYear.objects.filter(
             year=year,
@@ -290,23 +321,28 @@ def build_vacancies(year):
         .order_by("school_id", "programme")
     )
     for row in rows:
-        vacancies.append(
-            {
-                "school_id": row.school_id,
-                "school_name": row.school.name,
-                "site_type": _site_type(row.school.type),
-                "job_title": PROGRAMME_REPRESENTATIVE_TITLES.get(
-                    row.programme,
-                    "",
-                ),
-                "programme": row.programme,
-                "headcount": row.youth_planned - row.youth_active,
-                "subsidised_count": 0,
-                "nys_eligible_count": 0,
-                "_vacancy": True,
-            }
-        )
-    return vacancies
+        vacancy = {
+            "school_id": row.school_id,
+            "school_name": row.school.name,
+            "site_type": _site_type(row.school.type),
+            "job_title": PROGRAMME_REPRESENTATIVE_TITLES.get(
+                row.programme,
+                "",
+            ),
+            "programme": row.programme,
+            "headcount": row.youth_planned - row.youth_active,
+            "subsidised_count": 0,
+            "nys_eligible_count": 0,
+            "_vacancy": True,
+        }
+        if row.school_id in ringfenced_school_ids:
+            ringfenced_vacancies.append(vacancy)
+        else:
+            vacancies.append(vacancy)
+    return {
+        "vacancies": vacancies,
+        "ringfenced_vacancies": ringfenced_vacancies,
+    }
 
 
 def hours_for(matrix, site_type, job_title):
@@ -408,7 +444,7 @@ def _nys_conversions(rows, requested, subsidy_only=0):
     return zero_cost, relief
 
 
-def _project_rows(scenario, rows, as_of):
+def _project_rows(scenario, rows, as_of, include_holiday_pay=True):
     year = int(_scenario_value(scenario, "year", as_of.year))
     matrix = _scenario_value(scenario, "hours_matrix") or HOURS_MATRIX_DEFAULTS
     wage_rate = _decimal(
@@ -500,7 +536,11 @@ def _project_rows(scenario, rows, as_of):
             }
         )
 
-    holiday_pay = _decimal(_scenario_value(scenario, "holiday_pay"), Decimal("0"))
+    holiday_pay = (
+        _decimal(_scenario_value(scenario, "holiday_pay"), Decimal("0"))
+        if include_holiday_pay
+        else Decimal("0")
+    )
     return {
         "months": months,
         "total": _money(sum((row["net"] for row in months), Decimal("0")) + holiday_pay),
@@ -539,6 +579,69 @@ def project(scenario, cohorts, vacancies, as_of):
     return {"committed": committed, "at_plan": at_plan}
 
 
+def project_ringfenced(
+    scenario,
+    pots,
+    ringfenced_rows,
+    ringfenced_vacancies,
+    as_of,
+):
+    """Return each active ringfenced pot's school-bound projection totals."""
+    result = []
+    for pot in pots:
+        if not pot.is_active or not pot.is_ringfenced:
+            continue
+
+        schools = sorted(pot.schools.all(), key=lambda school: (school.name, school.id))
+        school_ids = {school.id for school in schools}
+        active_rows = [
+            {**row, "nys_eligible_count": 0}
+            for row in ringfenced_rows
+            if row.get("school_id") in school_ids
+        ]
+        vacancy_rows = [
+            {**row, "nys_eligible_count": 0, "_vacancy": True}
+            for row in ringfenced_vacancies
+            if row.get("school_id") in school_ids
+        ]
+        costed_youth = sum(
+            max(int(row.get("headcount") or 0), 0)
+            for row in active_rows
+            if row.get("programme") != YEBO
+        )
+        open_posts = sum(
+            max(int(row.get("headcount") or 0), 0)
+            for row in vacancy_rows
+        )
+        committed = _project_rows(
+            scenario,
+            active_rows,
+            as_of,
+            include_holiday_pay=False,
+        )
+        at_plan = _project_rows(
+            scenario,
+            active_rows + vacancy_rows,
+            as_of,
+            include_holiday_pay=False,
+        )
+        amount = _money(_decimal(pot.amount))
+        projected_at_plan = at_plan["total"]
+        result.append(
+            {
+                "funder_name": pot.funder_name,
+                "amount": amount,
+                "schools": [school.name for school in schools],
+                "costed_youth": costed_youth,
+                "open_posts": open_posts,
+                "projected_committed": committed["total"],
+                "projected_at_plan": projected_at_plan,
+                "surplus": _money(amount - projected_at_plan),
+            }
+        )
+    return result
+
+
 def calculate_verdict(pots_total, mentor_reserve, projected_total):
     """Positive means under budget and negative means over budget."""
     return _money(
@@ -553,7 +656,7 @@ def calculate_feasibility(pots, at_plan_projection):
     school_totals = at_plan_projection.get("school_totals", {})
     result = []
     for pot in pots:
-        if not pot.is_active:
+        if not pot.is_active or pot.is_ringfenced:
             continue
         # Sort in Python: chaining .order_by() onto a prefetched manager clones
         # the queryset and re-queries, silently defeating prefetch_related.
