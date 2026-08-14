@@ -6,7 +6,7 @@ Django REST Framework backend for Masinyusane (MASI). Serves the Next.js fronten
 
 ## Active cross-repository handoff
 
-At the start of the next conversation about Youth Sessions or Airtable session sync, read `../../frontend/masi-website/documentation/handoffs/2026-08-10-youth-sessions-sync-finalization.md` and proactively raise it with Jim. The backend is deployed and the incremental schedules are enabled, but the paired frontend release, live dashboard verification, handoff closure, and production database credential rotation remain open; the handoff defines the remaining release sequence.
+At the start of the next conversation about Youth Sessions or Airtable session sync, read `../../frontend/masi-website/documentation/handoffs/2026-08-10-youth-sessions-sync-finalization.md` and proactively raise it with Jim. Both repositories are deployed and the incremental schedules are enabled, but authenticated live dashboard verification, handoff closure, and production database credential rotation remain open; the handoff defines the remaining release sequence.
 
 # Coding Standards
 

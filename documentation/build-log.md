@@ -6,7 +6,7 @@ This is the project-level implementation and release log for the Django reposito
 
 ## 14 August 2026 — Backend deployed, bootstrapped, and scheduled in production
 
-Status at 18:17 UTC: backend commit `efbb946` (`feat: harden youth sessions sync freshness`) is on `main` and `origin/main`. Render deployed the web service and rebuilt the retained full-sync cron from that commit. The unrelated local `.gitignore` edit remains excluded and uncommitted.
+Status at 18:32 UTC: backend implementation commit `efbb946` and release-record commit `9e700b3` are on `main` and `origin/main`. Render deployed the web service and rebuilt the cron services from the current branch. The unrelated local `.gitignore` edit remains excluded and uncommitted.
 
 ### Migration and production bootstrap
 
@@ -24,6 +24,7 @@ Status at 18:17 UTC: backend commit `efbb946` (`feat: harden youth sessions sync
 - Both services use the Starter plan, backend commit `efbb946`, the shared `masi-shared-env` environment group, and workspace-default failure notifications.
 - Managed literacy log 919 and numeracy log 920 both completed successfully with zero records fetched, created, updated, or skipped. This proves that both cron services can connect and execute with Render's effective environment.
 - The enabled numeracy cadence then fired automatically at 18:20 UTC. Scheduled log 921 completed successfully with zero records fetched, created, updated, or skipped, proving the saved cron schedule itself is active rather than only the manual trigger path.
+- The enabled literacy cadence fired automatically at 18:30 UTC. Scheduled log 922 completed successfully with zero records fetched, created, updated, or skipped. Both staggered schedules are therefore verified through their actual cron paths.
 - The existing full reconciliation service `sync_airtable_sessions_daily` remains at `0 4,12 * * *` with the literacy and numeracy full commands. It continues to reconcile edits and FK repairs. Its saved command is `sync_exit_code=0; python manage.py sync_airtable_literacy_sessions_2026 || sync_exit_code=1; python manage.py sync_airtable_numeracy_sessions_2026 || sync_exit_code=1; exit $sync_exit_code`. This runs both feeds and exits non-zero if either failed, removing the previous process-status masking while retaining per-feed `AirtableSyncLog` history. Local zsh checks passed for the all-success, literacy-failure, and numeracy-failure branches; the next scheduled full execution remains the Render runtime verification of the wrapper.
 - `PYTHON_VERSION=3.13.4` was added to the shared environment group after Render's Python 3.14 default failed to build the pinned scientific dependency stack. Rebuilds succeeded on 3.13.4.
 
@@ -31,7 +32,9 @@ Status at 18:17 UTC: backend commit `efbb946` (`feat: harden youth sessions sync
 
 The shared environment group initially carried a stale localhost `DATABASE_URL`, so the first managed literacy run failed closed before data mutation. During repair, one attempted edit appended the production URL to the stale value, causing a second pre-mutation failure whose private Render log included the production database connection string. The shared variable was then replaced cleanly, and managed logs 919 and 920 proved the repaired value. Do not reproduce the credential. It still requires coordinated rotation across Render and the local production-only configuration after explicit authorization.
 
-Backend production rollout is otherwise complete. Remaining cross-repository work is to commit and deploy the paired frontend, verify the authenticated freshness payload and responsive light/dark dashboard, prove open-page version-driven revalidation, rotate the exposed database credential, update the release logs with those outcomes, and close the handoff.
+Read-only rotation inventory identified the consumers that must move together: `masi-shared-env` is linked to `daily-syncs`, `sync_airtable_sessions_daily`, and both incremental services; the web service has its own `DATABASE_URL`; the retained full cron has a standalone `DATABASE_URL` in addition to the shared group; backend `.env` contains `DATABASE_URL`, `PROD_DATABASE_URL`, `INTERNAL_DATABASE_URL`, and `EXTERNAL_DATABASE_URL`; frontend `.env.local` contains `DATABASE_URL`, `INTERNAL_DATABASE_URL`, and `EXTERNAL_DATABASE_URL`. Values were not revealed during this inventory.
+
+Frontend commit `08764bb` is now on frontend `main`, both Vercel contexts deployed it successfully, and the production protected route redirects unauthenticated users to Clerk. Backend production rollout is otherwise complete. Remaining cross-repository work is to verify the authenticated freshness payload and responsive light/dark dashboard, prove open-page version-driven revalidation, rotate the exposed database credential, update the release logs with those outcomes, and close the handoff.
 
 ## 14 August 2026 — Production rollout authorized; pre-release baseline verified
 
@@ -86,7 +89,7 @@ Every material backend change must update this file in the same change. Each ent
 - Session facts: `LiteracySession2026` and `NumeracySession2026`, idempotently keyed by unique Airtable record ID.
 - Audit history: `AirtableSyncLog` records attempts, counts, errors, completion, and structured details.
 - Incremental control state: `AirtableSyncCursor` stores the acknowledged Airtable creation-time watermark separately from audit history.
-- Release state of the latest entry: implemented and verified by the focused and complete SQLite-backed Django suites; rollout is authorized but not yet committed, migrated, scheduled, deployed, or verified live.
+- Release state of the latest entry: backend committed, migrated, deployed, bootstrapped, and verified through automatic production schedules; frontend deployed. Authenticated dashboard behavior and database credential rotation remain open.
 
 ## 4 August 2026 — Incremental session ingestion and freshness control plane
 
