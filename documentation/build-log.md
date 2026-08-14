@@ -4,6 +4,35 @@ Last updated: 14 August 2026
 
 This is the project-level implementation and release log for the Django repository. It starts with the current work rather than reconstructing older history. Domain history and source topology remain in `data_map.md` and `airtable_pipeline_sync.md`.
 
+## 14 August 2026 — Backend deployed, bootstrapped, and scheduled in production
+
+Status at 18:17 UTC: backend commit `efbb946` (`feat: harden youth sessions sync freshness`) is on `main` and `origin/main`. Render deployed the web service and rebuilt the retained full-sync cron from that commit. The unrelated local `.gitignore` edit remains excluded and uncommitted.
+
+### Migration and production bootstrap
+
+- Migration `0046_airtable_sync_cursor` was applied automatically by the Render web deployment. A subsequent explicit `migrate --noinput` reported no work, and production inspection confirmed both the migration-recorder entry and the `api_airtablesynccursor` table.
+- Full literacy bootstrap log 915 processed 25,068 Airtable records: 52 created, 25,016 updated, 0 skipped. The literacy cursor is `2026-08-14T17:19:28.820113+00:00`.
+- Full numeracy bootstrap log 916 processed 6,606 Airtable records: 24 created, 6,582 updated, 0 skipped. The numeracy cursor is `2026-08-14T17:23:19.200999+00:00`.
+- Production row counts after bootstrap are 25,128 literacy and 6,647 numeracy. Airtable returned 25,120 literacy and 6,630 numeracy records across the pre-existing full run plus bootstrap deltas. The extra 8 literacy and 17 numeracy rows are historical records no longer present in Airtable; guarded deletion or retirement remains explicitly out of scope.
+- Direct production incremental smoke logs 917 and 918 both succeeded with zero records fetched, created, updated, or skipped. These runs exercised the real PostgreSQL advisory-lock, Airtable-filter, transaction, and cursor paths.
+- The freshness route changed from pre-deploy `404` to unauthenticated `403`, proving that the endpoint is live and protected. Authenticated payload and staff-visible behavior remain frontend release checks.
+
+### Render services and schedules
+
+- Literacy incremental service `sync_youth_sessions_literacy_incremental` (`crn-d9vkvo3m8hqs73dn62p0`) runs `python manage.py sync_airtable_literacy_sessions_2026 --incremental-new` at `0,15,30,45 * * * *`.
+- Numeracy incremental service `sync_youth_sessions_numeracy_incremental` (`crn-d9vl15vmal7c73fqkeug`) runs `python manage.py sync_airtable_numeracy_sessions_2026 --incremental-new` at `5,20,35,50 * * * *`.
+- Both services use the Starter plan, backend commit `efbb946`, the shared `masi-shared-env` environment group, and workspace-default failure notifications.
+- Managed literacy log 919 and numeracy log 920 both completed successfully with zero records fetched, created, updated, or skipped. This proves that both cron services can connect and execute with Render's effective environment.
+- The enabled numeracy cadence then fired automatically at 18:20 UTC. Scheduled log 921 completed successfully with zero records fetched, created, updated, or skipped, proving the saved cron schedule itself is active rather than only the manual trigger path.
+- The existing full reconciliation service `sync_airtable_sessions_daily` remains at `0 4,12 * * *` with the literacy and numeracy full commands. It continues to reconcile edits and FK repairs. Its saved command is `sync_exit_code=0; python manage.py sync_airtable_literacy_sessions_2026 || sync_exit_code=1; python manage.py sync_airtable_numeracy_sessions_2026 || sync_exit_code=1; exit $sync_exit_code`. This runs both feeds and exits non-zero if either failed, removing the previous process-status masking while retaining per-feed `AirtableSyncLog` history. Local zsh checks passed for the all-success, literacy-failure, and numeracy-failure branches; the next scheduled full execution remains the Render runtime verification of the wrapper.
+- `PYTHON_VERSION=3.13.4` was added to the shared environment group after Render's Python 3.14 default failed to build the pinned scientific dependency stack. Rebuilds succeeded on 3.13.4.
+
+### Environment incident and remaining release work
+
+The shared environment group initially carried a stale localhost `DATABASE_URL`, so the first managed literacy run failed closed before data mutation. During repair, one attempted edit appended the production URL to the stale value, causing a second pre-mutation failure whose private Render log included the production database connection string. The shared variable was then replaced cleanly, and managed logs 919 and 920 proved the repaired value. Do not reproduce the credential. It still requires coordinated rotation across Render and the local production-only configuration after explicit authorization.
+
+Backend production rollout is otherwise complete. Remaining cross-repository work is to commit and deploy the paired frontend, verify the authenticated freshness payload and responsive light/dark dashboard, prove open-page version-driven revalidation, rotate the exposed database credential, update the release logs with those outcomes, and close the handoff.
+
 ## 14 August 2026 — Production rollout authorized; pre-release baseline verified
 
 Status at 17:12 UTC: Jim authorized the full backend-first rollout. The source is still uncommitted and no production write, migration, deploy, sync, or schedule change has occurred in this finalization pass yet.

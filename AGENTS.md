@@ -4,7 +4,7 @@ Read `CLAUDE.md`, `documentation/build-log.md`, and the relevant pipeline docume
 
 ## Active handoff — raise this with Jim
 
-Before continuing the unfinished Youth Sessions sync/freshness work, read `../../frontend/masi-website/documentation/handoffs/2026-08-10-youth-sessions-sync-finalization.md` and explicitly bring it up with Jim so the two repositories can be reviewed and finalized. The implementation is currently uncommitted and its production rollout is unverified; do not silently treat it as complete.
+Before continuing the Youth Sessions sync/freshness rollout, read `../../frontend/masi-website/documentation/handoffs/2026-08-10-youth-sessions-sync-finalization.md` and explicitly bring it up with Jim so the two repositories can be reviewed and finalized. The backend is deployed and the incremental schedules are enabled, but the paired frontend release, live dashboard verification, handoff closure, and production database credential rotation remain open; do not silently treat the rollout as complete.
 
 ## Build log is part of the change
 
