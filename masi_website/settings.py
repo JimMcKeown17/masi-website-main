@@ -202,6 +202,18 @@ USE_I18N = True
 
 USE_TZ = True
 
+# Youth Sessions incremental ingestion contract. The dashboard treats data as
+# untrustworthy when both Airtable feeds have not succeeded within this window.
+YOUTH_SESSIONS_SYNC_CADENCE_MINUTES = int(
+    os.environ.get('YOUTH_SESSIONS_SYNC_CADENCE_MINUTES', '15')
+)
+YOUTH_SESSIONS_STALE_AFTER_MINUTES = int(
+    os.environ.get(
+        'YOUTH_SESSIONS_STALE_AFTER_MINUTES',
+        str(YOUTH_SESSIONS_SYNC_CADENCE_MINUTES * 2),
+    )
+)
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 

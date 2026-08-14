@@ -559,6 +559,31 @@ class AirtableSyncLog(models.Model):
         ordering = ['-started_at']
 
 
+class AirtableSyncCursor(models.Model):
+    """Durable high-water mark for a repeatable incremental Airtable feed.
+
+    Sync logs are append-only audit history. This model is intentionally
+    separate control state: a cursor advances only in the same transaction as
+    the database upsert it acknowledges.
+    """
+
+    sync_type = models.CharField(max_length=50, unique=True, verbose_name="Sync Type")
+    created_through = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name="Airtable Records Created Through",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Airtable Sync Cursor"
+        verbose_name_plural = "Airtable Sync Cursors"
+
+    def __str__(self):
+        return f"{self.sync_type}: created through {self.created_through}"
+
+
 class ZaziOverviewSnapshot(models.Model):
     """Cached copy of the Zazi backend's /api/programme-overview/ response.
 

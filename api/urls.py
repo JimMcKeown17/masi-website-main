@@ -46,6 +46,7 @@ urlpatterns = [
     path('youth-sessions/school-coverage/', views.youth_sessions_school_coverage, name='youth_sessions_school_coverage'),
     path('youth-sessions/youth-detail/<str:youth_uid>/', views.youth_sessions_detail, name='youth_sessions_detail'),
     path('youth-sessions/lookups/', views.youth_sessions_lookups, name='youth_sessions_lookups'),
+    path('youth-sessions/freshness/', views.youth_sessions_freshness, name='youth_sessions_freshness'),
 
     # WIG dashboard (ADMIN / PROJECT MANAGER only)
     path('wig/lead-measures/', views.wig_lead_measures, name='wig_lead_measures'),

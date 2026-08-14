@@ -16,6 +16,7 @@ from .youth_sessions import (
     youth_sessions_school_coverage,
     youth_sessions_detail,
     youth_sessions_lookups,
+    youth_sessions_freshness,
 )
 from .wig import wig_lead_measures, wig_data_quality, wig_zazi, wig_detail, wig_outcomes
 from .school_programme import (
@@ -62,6 +63,7 @@ __all__ = [
     'youth_sessions_school_coverage',
     'youth_sessions_detail',
     'youth_sessions_lookups',
+    'youth_sessions_freshness',
     'wig_lead_measures',
     'wig_data_quality',
     'wig_zazi',

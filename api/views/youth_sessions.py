@@ -16,6 +16,7 @@ from ..models import (
 from ..authentication import ClerkAuthentication
 from ..closures import open_working_days_bulk, working_days_count
 from ..permissions import WIG_ALLOWED_ROLES
+from ..sync_health import build_youth_session_freshness
 
 AUTH_CLASSES = [SessionAuthentication, ClerkAuthentication]
 PERM_CLASSES = [permissions.IsAuthenticated]
@@ -26,6 +27,14 @@ PERM_CLASSES = [permissions.IsAuthenticated]
 INCLUDED_JOB_TITLES = ['Literacy Coach', 'Numeracy Coach']
 LITERACY_JOB_TITLES = ['Literacy Coach']
 NUMERACY_JOB_TITLES = ['Numeracy Coach']
+
+
+@api_view(['GET'])
+@authentication_classes(AUTH_CLASSES)
+@permission_classes(PERM_CLASSES)
+def youth_sessions_freshness(request):
+    """Report whether the two session feeds are current enough to trust."""
+    return Response(build_youth_session_freshness())
 
 
 def _get_job_titles_for_programme(programme):

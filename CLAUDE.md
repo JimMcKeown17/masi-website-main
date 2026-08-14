@@ -4,6 +4,10 @@ Django REST Framework backend for Masinyusane (MASI). Serves the Next.js fronten
 
 **Local path:** `/Users/jimmckeown/Development/Masi_Website_2026/backend/Masi Web Main/`
 
+## Active cross-repository handoff
+
+At the start of the next conversation about Youth Sessions or Airtable session sync, read `../../frontend/masi-website/documentation/handoffs/2026-08-10-youth-sessions-sync-finalization.md` and proactively raise it with Jim. The paired frontend/backend implementation remains uncommitted and has not been proven deployed; the handoff defines the review and release sequence needed to finalize it.
+
 # Coding Standards
 
 1. Keep it simple — no over-engineering, no unnecessary defensive programming
@@ -115,11 +119,18 @@ Keep tests focused and minimal — test the endpoint contract, not Django intern
 
 Data flows from Airtable into the local database via management commands in `api/management/commands/`.
 
-**Twice daily:**
+**Session sync modes:**
 ```bash
+# Full upsert for edit/FK reconciliation
 python manage.py sync_airtable_literacy_sessions_2026
 python manage.py sync_airtable_numeracy_sessions_2026
+
+# New-record incremental mode for frequent ingestion
+python manage.py sync_airtable_literacy_sessions_2026 --incremental-new
+python manage.py sync_airtable_numeracy_sessions_2026 --incremental-new
 ```
+
+Incremental mode requires migration `0046_airtable_sync_cursor` and at least one successful full sync. Production cadence and release state are tracked in `documentation/build-log.md`; do not infer that code availability means the Render schedule is deployed.
 
 **Once daily (Render cron job):**
 ```bash

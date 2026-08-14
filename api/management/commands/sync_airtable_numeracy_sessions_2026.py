@@ -1,10 +1,20 @@
 import os
-import requests
 from django.core.management.base import BaseCommand
+from django.utils import timezone
 from django.utils.dateparse import parse_date
 from django.db import transaction
 from dotenv import load_dotenv
-from api.models import NumeracySession2026, AirtableSyncLog, Youth, School
+from api.models import NumeracySession2026, Youth, School
+from api.airtable_sync import fetch_airtable_records, run_session_import
+
+
+SYNC_TYPE = 'numeracy_sessions_2026'
+AIRTABLE_FIELDS = [
+    'Session Record', 'Session UID', 'Session Date', 'Youth UID', 'School UID',
+    'Child UID', 'Children Count', 'Group Current Count Level',
+    'Group Current Number Recognition', 'Duplicate?', 'Overall Session Status',
+    'Capture Delay', 'Capture Delay Flag', 'Duplicate Fingerprint', 'Created',
+]
 
 
 class Command(BaseCommand):
@@ -30,6 +40,11 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument('--dry-run', action='store_true', help='Preview without saving')
         parser.add_argument('--verbose', action='store_true', help='Show sample records fetched')
+        parser.add_argument(
+            '--incremental-new',
+            action='store_true',
+            help='Upsert only Airtable records created since the acknowledged cursor',
+        )
 
     def handle(self, *args, **options):
         load_dotenv()
@@ -47,25 +62,14 @@ class Command(BaseCommand):
             ))
             return
 
-        if is_dry_run:
-            self.stdout.write(self.style.WARNING("=== DRY RUN MODE — no changes will be saved ===\n"))
-
         # Build FK lookup dicts for resolving UIDs to canonical records
         self.youth_by_uid = {y.youth_uid: y for y in Youth.objects.filter(youth_uid__isnull=False)}
         self.school_by_uid = {s.school_uid: s for s in School.objects.filter(school_uid__isnull=False)}
         self.stdout.write(f"FK lookups: youth={len(self.youth_by_uid)}, school={len(self.school_by_uid)}")
 
-        sync_log = None
-        if not is_dry_run:
-            sync_log = AirtableSyncLog.objects.create(sync_type='numeracy_sessions_2026')
-            self.stdout.write(f"Sync log started (ID: {sync_log.id})")
-
-        try:
-            all_records = self.fetch_from_airtable(base_id, table_id, token)
-            self.stdout.write(self.style.SUCCESS(f"Fetched {len(all_records)} records from Airtable"))
-
+        def show_samples(records):
             if options['verbose']:
-                for r in all_records[:3]:
+                for r in records:
                     f = r['fields']
                     self.stdout.write(
                         f"  Sample: {f.get('Session UID')} | "
@@ -76,43 +80,28 @@ class Command(BaseCommand):
                         f"count_level={f.get('Group Current Count Level')}"
                     )
 
-            db_count = NumeracySession2026.objects.count()
-
-            if is_dry_run:
-                self.stdout.write(f"DRY RUN: would process {len(all_records)} records")
-                self.stdout.write(f"Current row count in DB: {db_count}")
-                return
-
-            stats = self.bulk_upsert(all_records)
-
-            if sync_log:
-                sync_log.records_processed = len(all_records)
-                sync_log.records_created = stats['created']
-                sync_log.records_updated = stats['updated']
-                sync_log.records_skipped = stats['skipped']
-                sync_log.mark_complete(success=True)
-
-            self.stdout.write(self.style.SUCCESS(
-                f"\nSync complete — "
-                f"Airtable records: {len(all_records)}, "
-                f"created: {stats['created']}, "
-                f"updated: {stats['updated']}, "
-                f"skipped: {stats['skipped']}"
-            ))
-
-        except Exception as e:
-            if sync_log:
-                try:
-                    sync_log.mark_complete(success=False, error_message=str(e))
-                except Exception:
-                    pass
-            self.stdout.write(self.style.ERROR(f"Sync failed: {e}"))
-            raise
+        run_session_import(
+            self,
+            sync_type=SYNC_TYPE,
+            model=NumeracySession2026,
+            base_id=base_id,
+            table_id=table_id,
+            token=token,
+            fields=AIRTABLE_FIELDS,
+            incremental_new=options['incremental_new'],
+            dry_run=is_dry_run,
+            upper_bound=timezone.now(),
+            fetcher=fetch_airtable_records,
+            verbose_callback=show_samples,
+        )
 
     def bulk_upsert(self, all_records):
+        incoming_ids = [record.get('id') for record in all_records if record.get('id')]
         existing = {
             row['source_airtable_id']: row['id']
-            for row in NumeracySession2026.objects.values('id', 'source_airtable_id')
+            for row in NumeracySession2026.objects.filter(
+                source_airtable_id__in=incoming_ids
+            ).values('id', 'source_airtable_id')
         }
 
         new_objs = []
@@ -190,17 +179,10 @@ class Command(BaseCommand):
         )
 
     def fetch_from_airtable(self, base_id, table_id, token):
-        url = f"https://api.airtable.com/v0/{base_id}/{table_id}"
-        headers = {"Authorization": f"Bearer {token}"}
-        all_records = []
-
-        while url:
-            response = requests.get(url, headers=headers)
-            if response.status_code != 200:
-                raise ValueError(f"Airtable API error {response.status_code}: {response.text[:200]}")
-            data = response.json()
-            all_records.extend(data.get('records', []))
-            offset = data.get('offset')
-            url = f"https://api.airtable.com/v0/{base_id}/{table_id}?offset={offset}" if offset else None
-
-        return all_records
+        """Compatibility wrapper for scripts that called the old command method."""
+        return fetch_airtable_records(
+            base_id=base_id,
+            table_id=table_id,
+            token=token,
+            fields=AIRTABLE_FIELDS,
+        )

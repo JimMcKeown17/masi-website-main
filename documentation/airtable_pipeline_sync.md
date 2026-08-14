@@ -29,15 +29,17 @@ Command blueprint (reference: `sync_airtable_children.py`, `sync_airtable_litera
 `sync_airtable_2025_assessments.py`):
 
 1. Config via `os.getenv` after `load_dotenv()`: `AIRTABLE_TOKEN` + per-table `*_BASE_ID`/`*_TABLE_ID`.
-2. Paginate the Airtable API (`offset` loop, small `time.sleep`).
+2. Paginate through `api.airtable_sync.fetch_airtable_records`, retaining filters and selected fields across every offset page, with explicit timeout and bounded transient retries.
 3. `map_fields()` with `safe_str`/`safe_int`; **strip `None`** so blanks don't overwrite good data.
    Linked fields return **record-ID arrays** → resolve to FKs; lookups return display strings.
 4. Resolve FKs from **pre-loaded dimension dicts** (`{child_uid: CanonicalChild}`, …), not per-row queries.
-5. **Bulk upsert** on `source_airtable_id`: one `values()` fetch of existing ids, then
+5. **Bulk upsert** on `source_airtable_id`: one incoming-ID-scoped `values()` fetch, then
    `bulk_create` + `bulk_update` (batch 500) in one `transaction.atomic()`.
 6. Write an **`AirtableSyncLog`** (created/updated/failed).
 7. Support `--dry-run` / `--verbose`.
 8. Register the table in the ETL-preview `TABLE_CONFIG` (`/api/etl-status/`, `/api/etl-preview/<table>/`).
+
+The 2026 literacy and numeracy session commands also support `--incremental-new`. Their immutable Airtable creation-time watermark lives in `AirtableSyncCursor`, separate from `AirtableSyncLog`; upsert and cursor advancement commit atomically. Full mode remains necessary for source edits and FK repair. See `build-log.md` for deployment state and known deletion boundaries.
 
 ---
 
