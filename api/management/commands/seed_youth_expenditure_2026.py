@@ -1,7 +1,6 @@
-import calendar
 import csv
 from collections import defaultdict
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 from pathlib import Path
 
 from django.conf import settings
@@ -9,41 +8,7 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
 from api.models import MonthlyYouthExpenditure
-
-
-MONTHS = {
-    name.lower(): number
-    for number, name in enumerate(calendar.month_name)
-    if name
-}
-
-
-def parse_amount(raw):
-    """Parse a finance-ledger Rand amount into Decimal."""
-    cleaned = (
-        str(raw or "")
-        .strip()
-        .replace("R", "")
-        .replace(",", "")
-        .replace(" ", "")
-    )
-    if not cleaned or cleaned == "-":
-        return Decimal("0")
-    try:
-        return Decimal(cleaned)
-    except InvalidOperation:
-        raise ValueError(f"Invalid Amount value: {raw!r}")
-
-
-def bucket_for(row):
-    """Classify one ledger payment using the agreed priority order."""
-    category_2 = (row.get("Category 2") or "").lower()
-    category_3 = (row.get("Category 3") or "").lower()
-    if "mentor" in category_3:
-        return "mentor_amount"
-    if "wind farm" in category_2 or "rural" in category_3:
-        return "rural_amount"
-    return "core_amount"
+from api.youth_expenditure_import import MONTHS, bucket_for, parse_amount
 
 
 class Command(BaseCommand):

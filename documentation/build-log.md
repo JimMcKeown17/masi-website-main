@@ -1,8 +1,93 @@
 # Backend Build Log
 
-Last updated: 14 August 2026
+Last updated: 31 August 2026
 
 This is the project-level implementation and release log for the Django repository. It starts with the current work rather than reconstructing older history. Domain history and source topology remain in `data_map.md` and `airtable_pipeline_sync.md`.
+
+## 31 August 2026 - Youth Budget actuals publication from management accounts
+
+Status: implemented and verified locally. No source was committed or pushed, no
+production database write occurred, and no backend or frontend deployment or live
+authenticated verification occurred.
+
+### Source contract
+
+- Jim designated the newest dated workbook in the ignored local
+  `/Users/jimmckeown/Development/masi-finance/management_sheets` directory as the complete
+  source of truth. The importer does not merge a missing row from another workbook and
+  does not preserve older database figures; every month in the selected year-to-date
+  snapshot is restated.
+- `sync_youth_expenditure` dynamically selects the newest
+  `YYYYMMDD - *Management Accounts*.xlsx` file by date prefix, with modification time and
+  filename as deterministic same-date tie-breakers. `MASI_MANAGEMENT_SHEETS_DIR`,
+  `--workbook-dir`, and `--path` support deployment and explicit-source overrides.
+- The importer reads the workbook without modifying it, hashes it before and after the
+  read, and aborts if its bytes, size, or modification timestamp change. It requires an
+  `Expenditure` sheet and the expected Date, Month, Year, Amount, and Category 1/2/3
+  headers.
+- Selected-year rows qualify when Category 3 contains `Youth Jobs:` and Category 1 is
+  `Children & Youth`. Mentor in Category 3 wins classification priority; otherwise Wind
+  Farm in Category 2 or Rural in Category 3 is rural; remaining Youth Jobs rows are core.
+  The accounting Month/Year columns control publication, while Date disagreements are
+  reported. Actual months must be contiguous from January.
+
+### Publication safety
+
+- The command is a read-only preview unless `--apply` is present. The preview prints the
+  absolute source path, SHA-256, source timestamp, row count, data-quality warnings,
+  category totals, and differences from the database.
+- Rows with Excel category errors are reported and excluded because no Youth Jobs
+  classification can be inferred from them. An apply with such rows refuses to run unless
+  the operator explicitly passes `--allow-category-errors`.
+- Applies run in one transaction and `update_or_create` every month in the full snapshot,
+  including historical months. Each database row records source filename, source hash,
+  and source row count. The command refuses to move the latest actual month backwards if
+  the database contains a later month.
+- `openpyxl==3.1.5` is now an explicit backend dependency. The original
+  `seed_youth_expenditure_2026` CSV command remains available for legacy/bootstrap use and
+  shares the canonical amount parsing and category classification helpers.
+
+### Real-workbook evidence
+
+- Default selection resolved
+  `20260829 - Masinyusane Management Accounts.xlsx`, SHA-256
+  `81ed709ff0506f574d00e3c9f9852a28b87b421383282135c382d32882262fe6`.
+- The 2026 filter classified 2,020 Youth Jobs rows. July is R172,852.53, August is
+  R882,963.85, and January through August totals R3,009,253.32.
+- Three selected-year rows contain Excel errors in all category columns and remain
+  excluded: July R700, August R700, and August R275. They were printed in the preview and
+  explicitly acknowledged for the isolated test apply.
+- A temporary SQLite database was migrated and received eight January-through-August
+  rows from the real workbook. All rows retained the source hash and the aggregate tied to
+  R3,009,253.32. Repeating the apply produced zero monthly deltas, demonstrating local
+  idempotence without touching production.
+
+### Verification
+
+- `env DATABASE_URL=sqlite:///:memory: PYTHONDONTWRITEBYTECODE=1 venv/bin/python manage.py test api.tests_youth_expenditure_import api.tests_youth_budget.ExpenditureSeedTests`
+  - 10 tests passed.
+- `env DATABASE_URL=sqlite:///:memory: PYTHONDONTWRITEBYTECODE=1 venv/bin/python manage.py test api.tests_youth_expenditure_import api.tests_youth_budget`
+  - 62 tests passed.
+- `env DATABASE_URL=sqlite:///:memory: PYTHONDONTWRITEBYTECODE=1 venv/bin/python manage.py test api`
+  - all 554 tests passed in 9.101 seconds.
+- `env DATABASE_URL=sqlite:///:memory: PYTHONDONTWRITEBYTECODE=1 venv/bin/python manage.py makemigrations --check --dry-run`
+  - no migration changes detected.
+- `env DATABASE_URL=sqlite:///:memory: PYTHONDONTWRITEBYTECODE=1 venv/bin/python manage.py check`
+  - no system-check issues.
+- `venv/bin/pip check` - no broken requirements.
+
+### Release work still required
+
+1. Review, commit, push, and deploy the paired backend and frontend source changes.
+2. Set `MASI_MANAGEMENT_SHEETS_DIR` or provide an explicit workbook path in the protected
+   production execution environment; the ignored local workbook is intentionally not
+   packaged with application source.
+3. Run `sync_youth_expenditure --year 2026` against production without `--apply` and
+   review the resolved source, hash, warnings, and database deltas.
+4. Only after explicit production-write authorization, run
+   `sync_youth_expenditure --year 2026 --apply --allow-category-errors`.
+5. Deploy the frontend and verify the authenticated budget response and chart in a real
+   browser. Local tests and the isolated database rehearsal are not production proof.
 
 ## 14 August 2026 — Backend deployed, bootstrapped, and scheduled in production
 
