@@ -6,9 +6,14 @@ This is the project-level implementation and release log for the Django reposito
 
 ## 31 August 2026 - Youth Budget actuals publication from management accounts
 
-Status: implemented and verified locally. No source was committed or pushed, no
-production database write occurred, and no backend or frontend deployment or live
-authenticated verification occurred.
+Status: backend commit `ca97504` is on `main` and `origin/main`, and Render deployed it
+successfully as live deployment `dep-dab0c50ae00c73dfdvh0`. Frontend commit `7076c04`
+is on `main` and `origin/main`, and both linked Vercel projects deployed it successfully.
+The production expenditure dry run succeeded against the selected management workbook;
+no production database row was changed. The authenticated production page was reloaded
+successfully and shows the new dynamic-chart copy and accessible SVG descriptions. It
+correctly remains January-through-June actual until data publication is separately
+authorized.
 
 ### Source contract
 
@@ -61,6 +66,12 @@ authenticated verification occurred.
   rows from the real workbook. All rows retained the source hash and the aggregate tied to
   R3,009,253.32. Repeating the apply produced zero monthly deltas, demonstrating local
   idempotence without touching production.
+- After backend deployment, the production command was run without `--apply` using that
+  exact local workbook. It selected the same SHA-256, classified 2,020 Youth Jobs rows,
+  reported the same three category errors, and reproduced every local month and category
+  total. Its database deltas were January -R271.67, February R0, March -R6,005.80,
+  April +R471.67, May R0, June +R11,860.30, July +R172,852.53, and August +R882,963.85.
+  It ended with `DRY RUN: no database rows changed`.
 
 ### Verification
 
@@ -78,16 +89,13 @@ authenticated verification occurred.
 
 ### Release work still required
 
-1. Review, commit, push, and deploy the paired backend and frontend source changes.
-2. Set `MASI_MANAGEMENT_SHEETS_DIR` or provide an explicit workbook path in the protected
-   production execution environment; the ignored local workbook is intentionally not
-   packaged with application source.
-3. Run `sync_youth_expenditure --year 2026` against production without `--apply` and
-   review the resolved source, hash, warnings, and database deltas.
-4. Only after explicit production-write authorization, run
-   `sync_youth_expenditure --year 2026 --apply --allow-category-errors`.
-5. Deploy the frontend and verify the authenticated budget response and chart in a real
-   browser. Local tests and the isolated database rehearsal are not production proof.
+1. Obtain explicit production-write authorization before running
+   `sync_youth_expenditure --year 2026 --apply --allow-category-errors` from the operator
+   computer with the selected local workbook.
+2. After an authorized apply, read the production rows back and confirm the eight-month
+   aggregate and per-row source hash.
+3. Reload the authenticated production page and verify January-through-August actuals,
+   September-through-November projections, values, tooltips, and responsive rendering.
 
 ## 14 August 2026 — Backend deployed, bootstrapped, and scheduled in production
 
