@@ -9,11 +9,11 @@ This is the project-level implementation and release log for the Django reposito
 Status: backend commit `ca97504` is on `main` and `origin/main`, and Render deployed it
 successfully as live deployment `dep-dab0c50ae00c73dfdvh0`. Frontend commit `7076c04`
 is on `main` and `origin/main`, and both linked Vercel projects deployed it successfully.
-The production expenditure dry run succeeded against the selected management workbook;
-no production database row was changed. The authenticated production page was reloaded
-successfully and shows the new dynamic-chart copy and accessible SVG descriptions. It
-correctly remains January-through-June actual until data publication is separately
-authorized.
+The production expenditure dry run succeeded against the selected management workbook,
+then Jim explicitly authorized the production write. The guarded apply restated all eight
+January-through-August rows, and an independent production readback tied every amount and
+source hash to the reviewed snapshot. The authenticated production page now shows
+January through August as actual and September through November as projected.
 
 ### Source contract
 
@@ -72,6 +72,20 @@ authorized.
   total. Its database deltas were January -R271.67, February R0, March -R6,005.80,
   April +R471.67, May R0, June +R11,860.30, July +R172,852.53, and August +R882,963.85.
   It ended with `DRY RUN: no database rows changed`.
+- After Jim explicitly authorized the database write, the same command was re-run with
+  `--apply --allow-category-errors`. The preflight reconfirmed that the workbook remained
+  the newest dated file and its SHA-256 was unchanged. The transaction reported
+  `APPLIED: 8 months restated for 2026`.
+- A separate production readback returned exactly eight rows with months 1 through 8,
+  aggregate R3,009,253.32, and `PROVENANCE_OK True`. Every row contained the selected
+  workbook filename, matching SHA-256, and its classified source-row count.
+- The authenticated production page then rendered January through August as actual,
+  September through November as projected, and the expected core/mentor/rural values and
+  accessible SVG descriptions. Desktop light-mode rendering passed. At the mobile
+  breakpoint, chart overflow stayed inside its 360-pixel scroller with no body-level
+  horizontal overflow, and both the early and later months remained reachable.
+- The current application shell exposes no dark-theme control or dark class and reports
+  the normal color scheme, so no dark-mode verification claim is made.
 
 ### Verification
 
@@ -87,15 +101,15 @@ authorized.
   - no system-check issues.
 - `venv/bin/pip check` - no broken requirements.
 
-### Release work still required
+### Operational follow-ups
 
-1. Obtain explicit production-write authorization before running
-   `sync_youth_expenditure --year 2026 --apply --allow-category-errors` from the operator
-   computer with the selected local workbook.
-2. After an authorized apply, read the production rows back and confirm the eight-month
-   aggregate and per-row source hash.
-3. Reload the authenticated production page and verify January-through-August actuals,
-   September-through-November projections, values, tooltips, and responsive rendering.
+- Correct the three Excel category-error rows in the management workbook when their
+  intended categories are known; this publication intentionally excluded their R1,675.
+- For future monthly updates, add the newest dated workbook to the ignored local
+  `management_sheets` directory, run the production dry run, review its hash, warnings,
+  and deltas, and require explicit authorization before `--apply`.
+- If the application later introduces a dark theme, add and verify a dark-state treatment
+  for this page; the current shell is light-only.
 
 ## 14 August 2026 — Backend deployed, bootstrapped, and scheduled in production
 
