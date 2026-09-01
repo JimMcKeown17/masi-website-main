@@ -121,6 +121,66 @@ def _scenario_year(request):
     return _integer(raw or timezone.localdate().year, "year")
 
 
+def _scenario_updates(data, year):
+    updates = {}
+    for field in SCENARIO_DECIMAL_FIELDS:
+        if field in data:
+            updates[field] = _nonnegative_decimal(data[field], field)
+    if "utilisation_pct" in data:
+        pct = _integer(data["utilisation_pct"], "utilisation_pct")
+        if not 1 <= pct <= 120:
+            raise ValueError("utilisation_pct must be between 1 and 120.")
+        updates["utilisation_pct"] = pct
+    for field in ("nys_full_time_count", "nys_part_time_count"):
+        if field in data:
+            count = _integer(data[field], field)
+            if count < 0:
+                raise ValueError(f"{field} must be non-negative.")
+            updates[field] = count
+    for field in SCENARIO_MONTH_FIELDS:
+        if field in data:
+            month = _integer(data[field], field)
+            if not 1 <= month <= 12:
+                raise ValueError(f"{field} must be between 1 and 12.")
+            updates[field] = month
+    if "last_paid_programme_date" in data:
+        end_date = _date(
+            data["last_paid_programme_date"],
+            "last_paid_programme_date",
+        )
+        if end_date.year != year:
+            raise ValueError(
+                "last_paid_programme_date must be in the scenario year."
+            )
+        if end_date > youth_budget.HORIZON_END:
+            raise ValueError(
+                "last_paid_programme_date cannot be after 30 November 2026."
+            )
+        updates["last_paid_programme_date"] = end_date
+    if "hours_matrix" in data:
+        updates["hours_matrix"] = _hours_matrix(data["hours_matrix"])
+    return updates
+
+
+def _scenario_as_dict(scenario, updates=None):
+    values = {
+        "year": scenario.year,
+        "wage_rate": scenario.wage_rate,
+        "subsidy_contribution": scenario.subsidy_contribution,
+        "hours_matrix": scenario.hours_matrix,
+        "nys_full_time_count": scenario.nys_full_time_count,
+        "nys_part_time_count": scenario.nys_part_time_count,
+        "utilisation_pct": scenario.utilisation_pct,
+        "nys_conversion_start_month": scenario.nys_conversion_start_month,
+        "vacancy_start_month": scenario.vacancy_start_month,
+        "last_paid_programme_date": scenario.last_paid_programme_date,
+        "holiday_pay": scenario.holiday_pay,
+        "mentor_reserve": scenario.mentor_reserve,
+    }
+    values.update(updates or {})
+    return values
+
+
 def serialize_scenario(scenario):
     return {
         "id": scenario.id,
@@ -133,6 +193,7 @@ def serialize_scenario(scenario):
         "utilisation_pct": scenario.utilisation_pct,
         "nys_conversion_start_month": scenario.nys_conversion_start_month,
         "vacancy_start_month": scenario.vacancy_start_month,
+        "last_paid_programme_date": _iso(scenario.last_paid_programme_date),
         "holiday_pay": _number(scenario.holiday_pay),
         "mentor_reserve": _number(scenario.mentor_reserve),
         "updated_by": scenario.updated_by,
@@ -182,6 +243,9 @@ def serialize_projection(projection):
             {
                 "month": row["month"],
                 "school_days": row["school_days"],
+                "working_dates": [
+                    _iso(value) for value in row.get("working_dates", [])
+                ],
                 "gross": _number(row["gross"]),
                 "uif": _number(row["uif"]),
                 "subsidy_relief": _number(row["subsidy_relief"]),
@@ -192,6 +256,37 @@ def serialize_projection(projection):
         "total": _number(projection["total"]),
         "costed_youth": projection.get("costed_youth", 0),
         "open_posts": projection.get("open_posts", 0),
+    }
+
+
+def serialize_spend_forecast(forecast):
+    estimate = forecast["mentor_estimate"]
+    return {
+        "months": [
+            {
+                "month": row["month"],
+                "working_days": row["working_days"],
+                "working_dates": [
+                    _iso(value) for value in row.get("working_dates", [])
+                ],
+                "core_amount": _number(row["core_amount"]),
+                "mentor_amount": _number(row["mentor_amount"]),
+                "rural_amount": _number(row["rural_amount"]),
+                "total": _number(row["total"]),
+            }
+            for row in forecast["months"]
+        ],
+        "mentor_estimate": {
+            "method": estimate["method"],
+            "monthly_amount": _number(estimate["monthly_amount"]),
+            "source_actuals": [
+                {
+                    "month": row["month"],
+                    "amount": _number(row["amount"]),
+                }
+                for row in estimate["source_actuals"]
+            ],
+        },
     }
 
 
@@ -222,6 +317,142 @@ def serialize_ringfenced(rows):
         }
         for row in rows
     ]
+
+
+def _load_budget_state(year, as_of):
+    pots = list(
+        FundingPot.objects.filter(year=year)
+        .prefetch_related("schools")
+        .order_by("funder_name", "id")
+    )
+    active_core_pots_total = sum(
+        (
+            pot.amount
+            for pot in pots
+            if pot.is_active and not pot.is_ringfenced
+        ),
+        Decimal("0"),
+    )
+    active_ringfenced_pots = [
+        pot for pot in pots if pot.is_active and pot.is_ringfenced
+    ]
+    ringfenced_school_ids = frozenset(
+        school.id
+        for pot in active_ringfenced_pots
+        for school in pot.schools.all()
+    )
+    cohorts = youth_budget.build_cohorts(
+        today=as_of,
+        ringfenced_school_ids=ringfenced_school_ids,
+    )
+    vacancies = youth_budget.build_vacancies(
+        year,
+        ringfenced_school_ids=ringfenced_school_ids,
+    )
+    expenditure = list(
+        MonthlyYouthExpenditure.objects.filter(year=year).order_by(
+            "month",
+            "id",
+        )
+    )
+    return {
+        "pots": pots,
+        "active_core_pots_total": active_core_pots_total,
+        "active_ringfenced_pots": active_ringfenced_pots,
+        "ringfenced_total": sum(
+            (pot.amount for pot in active_ringfenced_pots),
+            Decimal("0"),
+        ),
+        "cohorts": cohorts,
+        "vacancies": vacancies,
+        "expenditure": expenditure,
+    }
+
+
+def _calculate_budget(state, scenario, as_of):
+    cohorts = state["cohorts"]
+    vacancies = state["vacancies"]
+    projections = youth_budget.project(
+        scenario,
+        cohorts,
+        vacancies["vacancies"],
+        as_of,
+    )
+    ringfenced_pots = youth_budget.project_ringfenced(
+        scenario,
+        state["active_ringfenced_pots"],
+        cohorts["ringfenced_costing_cohorts"],
+        vacancies["ringfenced_vacancies"],
+        as_of,
+    )
+    ringfenced_projections = youth_budget.project_ringfenced_summary(
+        scenario,
+        cohorts["ringfenced_costing_cohorts"],
+        vacancies["ringfenced_vacancies"],
+        as_of,
+    )
+    mentor_estimate = youth_budget.build_mentor_estimate(state["expenditure"])
+    spend_forecast = youth_budget.build_spend_forecast(
+        projections["committed"],
+        ringfenced_projections["committed"],
+        mentor_estimate,
+    )
+    feasibility = youth_budget.calculate_feasibility(
+        state["pots"],
+        projections["at_plan"],
+    )
+    return {
+        "projections": projections,
+        "ringfenced_pots": ringfenced_pots,
+        "ringfenced_projections": ringfenced_projections,
+        "spend_forecast": spend_forecast,
+        "feasibility": feasibility,
+    }
+
+
+def _serialize_projection_calculation(calculation, state, scenario):
+    projections = calculation["projections"]
+    return {
+        "projections": {
+            "committed": serialize_projection(projections["committed"]),
+            "at_plan": serialize_projection(projections["at_plan"]),
+            "verdict_committed": _number(
+                youth_budget.calculate_verdict(
+                    state["active_core_pots_total"],
+                    _scenario_value_for_view(scenario, "mentor_reserve"),
+                    projections["committed"]["total"],
+                )
+            ),
+            "verdict_at_plan": _number(
+                youth_budget.calculate_verdict(
+                    state["active_core_pots_total"],
+                    _scenario_value_for_view(scenario, "mentor_reserve"),
+                    projections["at_plan"]["total"],
+                )
+            ),
+        },
+        "ringfenced_projections": {
+            "committed": serialize_projection(
+                calculation["ringfenced_projections"]["committed"]
+            ),
+            "at_plan": serialize_projection(
+                calculation["ringfenced_projections"]["at_plan"]
+            ),
+        },
+        "ringfenced_pots": serialize_ringfenced(
+            calculation["ringfenced_pots"]
+        ),
+        "spend_forecast": serialize_spend_forecast(
+            calculation["spend_forecast"]
+        ),
+        "feasibility": serialize_feasibility(calculation["feasibility"]),
+    }
+
+
+def _scenario_value_for_view(scenario, field):
+    if isinstance(scenario, dict):
+        return scenario.get(field)
+    return getattr(scenario, field)
 
 
 def _schools_from_ids(value):
@@ -258,97 +489,38 @@ def youth_budget_summary(request):
             year=year,
             defaults=_scenario_defaults(),
         )
-    pots = list(
-        FundingPot.objects.filter(year=year)
-        .prefetch_related("schools")
-        .order_by("funder_name", "id")
-    )
-    active_core_pots_total = sum(
-        (
-            pot.amount
-            for pot in pots
-            if pot.is_active and not pot.is_ringfenced
-        ),
-        Decimal("0"),
-    )
-    active_ringfenced_pots = [
-        pot for pot in pots if pot.is_active and pot.is_ringfenced
-    ]
-    ringfenced_school_ids = frozenset(
-        school.id
-        for pot in active_ringfenced_pots
-        for school in pot.schools.all()
-    )
-    ringfenced_total = sum(
-        (pot.amount for pot in active_ringfenced_pots),
-        Decimal("0"),
-    )
-    cohorts = youth_budget.build_cohorts(
-        today=as_of,
-        ringfenced_school_ids=ringfenced_school_ids,
-    )
-    vacancies = youth_budget.build_vacancies(
-        year,
-        ringfenced_school_ids=ringfenced_school_ids,
-    )
-    projections = youth_budget.project(
+    state = _load_budget_state(year, as_of)
+    calculation = _calculate_budget(state, scenario, as_of)
+    serialized_calculation = _serialize_projection_calculation(
+        calculation,
+        state,
         scenario,
-        cohorts,
-        vacancies["vacancies"],
-        as_of,
     )
-    ringfenced = youth_budget.project_ringfenced(
-        scenario,
-        active_ringfenced_pots,
-        cohorts["ringfenced_costing_cohorts"],
-        vacancies["ringfenced_vacancies"],
-        as_of,
-    )
-    feasibility = youth_budget.calculate_feasibility(
-        pots,
-        projections["at_plan"],
-    )
-    expenditure = MonthlyYouthExpenditure.objects.filter(year=year).order_by(
-        "month",
-        "id",
-    )
+    cohorts = state["cohorts"]
 
     return Response(
         {
             "year": year,
             "as_of": as_of.isoformat(),
-            "pots": [serialize_pot(pot) for pot in pots],
-            "pots_total": _number(active_core_pots_total),
+            "pots": [serialize_pot(pot) for pot in state["pots"]],
+            "pots_total": _number(state["active_core_pots_total"]),
             "ringfenced": {
-                "pots": serialize_ringfenced(ringfenced),
-                "total_amount": _number(ringfenced_total),
+                "pots": serialized_calculation["ringfenced_pots"],
+                "total_amount": _number(state["ringfenced_total"]),
                 "youth": cohorts["notes"]["ringfenced"],
+                "projections": serialized_calculation[
+                    "ringfenced_projections"
+                ],
             },
             "scenario": serialize_scenario(scenario),
             "cohorts": cohorts["cohorts"],
-            "projections": {
-                "committed": serialize_projection(projections["committed"]),
-                "at_plan": serialize_projection(projections["at_plan"]),
-                "verdict_committed": _number(
-                    youth_budget.calculate_verdict(
-                        active_core_pots_total,
-                        scenario.mentor_reserve,
-                        projections["committed"]["total"],
-                    )
-                ),
-                "verdict_at_plan": _number(
-                    youth_budget.calculate_verdict(
-                        active_core_pots_total,
-                        scenario.mentor_reserve,
-                        projections["at_plan"]["total"],
-                    )
-                ),
-            },
+            "projections": serialized_calculation["projections"],
+            "spend_forecast": serialized_calculation["spend_forecast"],
             "expenditure": [
                 serialize_expenditure(row)
-                for row in expenditure
+                for row in state["expenditure"]
             ],
-            "feasibility": serialize_feasibility(feasibility),
+            "feasibility": serialized_calculation["feasibility"],
             "notes": cohorts["notes"],
             # Directory for the pot school-restriction picker: pot writes take
             # numeric School ids, which the grid payload (school_uid keyed)
@@ -362,6 +534,33 @@ def youth_budget_summary(request):
     )
 
 
+@api_view(["POST"])
+@authentication_classes(AUTH_CLASSES)
+@permission_classes([IsAuthenticated])
+def preview_youth_budget_scenario(request):
+    """Recalculate a draft scenario without changing shared database state."""
+    try:
+        year = _scenario_year(request)
+        updates = _scenario_updates(request.data, year)
+    except ValueError as exc:
+        return Response({"detail": str(exc)}, status=400)
+
+    try:
+        scenario = BudgetScenario.objects.get(year=year)
+    except BudgetScenario.DoesNotExist:
+        scenario = BudgetScenario(year=year, **_scenario_defaults())
+    draft = _scenario_as_dict(scenario, updates)
+    as_of = timezone.localdate()
+    state = _load_budget_state(year, as_of)
+    calculation = _calculate_budget(state, draft, as_of)
+    serialized = _serialize_projection_calculation(
+        calculation,
+        state,
+        draft,
+    )
+    return Response(serialized)
+
+
 @api_view(["PATCH"])
 @authentication_classes(AUTH_CLASSES)
 @permission_classes([IsAdminOrProjectManager])
@@ -369,29 +568,7 @@ def update_youth_budget_scenario(request):
     """Partially update the shared scenario selected by its year."""
     try:
         year = _scenario_year(request)
-        updates = {}
-        for field in SCENARIO_DECIMAL_FIELDS:
-            if field in request.data:
-                updates[field] = _nonnegative_decimal(request.data[field], field)
-        if "utilisation_pct" in request.data:
-            pct = _integer(request.data["utilisation_pct"], "utilisation_pct")
-            if not 1 <= pct <= 120:
-                raise ValueError("utilisation_pct must be between 1 and 120.")
-            updates["utilisation_pct"] = pct
-        for field in ("nys_full_time_count", "nys_part_time_count"):
-            if field in request.data:
-                count = _integer(request.data[field], field)
-                if count < 0:
-                    raise ValueError(f"{field} must be non-negative.")
-                updates[field] = count
-        for field in SCENARIO_MONTH_FIELDS:
-            if field in request.data:
-                month = _integer(request.data[field], field)
-                if not 1 <= month <= 12:
-                    raise ValueError(f"{field} must be between 1 and 12.")
-                updates[field] = month
-        if "hours_matrix" in request.data:
-            updates["hours_matrix"] = _hours_matrix(request.data["hours_matrix"])
+        updates = _scenario_updates(request.data, year)
     except ValueError as exc:
         return Response({"detail": str(exc)}, status=400)
 

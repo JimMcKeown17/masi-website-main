@@ -1,4 +1,5 @@
 from decimal import Decimal
+from datetime import date
 
 from django.db import models
 from django.contrib.auth.models import User
@@ -1754,6 +1755,10 @@ class BudgetScenario(models.Model):
     nys_part_time_count = models.IntegerField(default=40)
     nys_conversion_start_month = models.PositiveSmallIntegerField(default=8)
     vacancy_start_month = models.PositiveSmallIntegerField(default=8)
+    # Global programme horizon used to cap paid core and rural working days.
+    # Mentor projections are a full-month operating estimate and are not
+    # prorated when this date falls within a month.
+    last_paid_programme_date = models.DateField(default=date(2026, 11, 30))
     # Average share of full-cap hours youth actually work (absenteeism, school
     # cancellations, late starts). 100 = the conservative full-utilisation
     # assumption of ADR 0002; calibrate from post-SEF ledger months.

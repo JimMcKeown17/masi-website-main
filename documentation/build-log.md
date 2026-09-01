@@ -1,8 +1,54 @@
 # Backend Build Log
 
-Last updated: 31 August 2026
+Last updated: 1 September 2026
 
 This is the project-level implementation and release log for the Django repository. It starts with the current work rather than reconstructing older history. Domain history and source topology remain in `data_map.md` and `airtable_pipeline_sync.md`.
+
+## 1 September 2026 - Budget horizon, working-date provenance, and preview API
+
+Status: implemented and verified locally in the backend and frontend worktrees. No commit,
+push, migration apply, deploy, or production verification has been performed for this
+change.
+
+### Backend contract and policy
+
+- Added `BudgetScenario.last_paid_programme_date` with migration `0047` and the requested
+  default of 30 November 2026. The value must be inside the scenario year and no later
+  than the supported 2026 horizon. It caps the exact in-term weekday list used for core
+  and rural wage calculations.
+- Projection rows now expose `working_dates` as ISO dates alongside `school_days`. This
+  makes the costed calendar inspectable and keeps the frontend from recreating term,
+  holiday, or horizon policy.
+- Added authenticated `POST /api/youth-budget/preview/`. It overlays validated draft
+  fields on the saved scenario in memory, recalculates all dependent outputs, and performs
+  no database write. Scenario persistence remains restricted to ADMIN and PROJECT MANAGER
+  through the existing PATCH endpoint.
+- Added a unique ringfenced committed/at-plan monthly projection for the chart. It costs
+  the union population once, while existing per-pot projections remain independent for
+  funder feasibility and surplus reporting.
+- Added a mentor operating estimate equal to the arithmetic mean of the latest three
+  published `MonthlyYouthExpenditure.mentor_amount` values. The response includes method,
+  exact source months and values, and monthly amount. Mentor is a full-month estimate for
+  every projected month touched by the horizon and does not alter the core Funding Pot
+  verdict.
+- NYS policy is unchanged: the monthly contribution is not prorated by working-day share
+  and remains capped at the youth's earned gross plus UIF. Core and rural wage earning,
+  however, use only the exact eligible dates through the selected end date.
+
+### Verification
+
+- `venv/bin/python manage.py test api.tests_youth_budget`: all 63 tests passed.
+- `venv/bin/python manage.py test api`: all 562 tests passed.
+- `env DATABASE_URL=sqlite:///:memory: PYTHONDONTWRITEBYTECODE=1 venv/bin/python manage.py makemigrations --check --dry-run`:
+  no model changes beyond the checked-in migration were detected.
+- `env DATABASE_URL=sqlite:///:memory: PYTHONDONTWRITEBYTECODE=1 venv/bin/python manage.py check`:
+  system check passed with no issues.
+- Frontend `pnpm test:unit`: all 6 tests passed.
+- Frontend `pnpm exec tsc --noEmit` and `pnpm lint` passed; lint retained one unrelated
+  existing `image-debug` warning.
+- Network-enabled frontend `pnpm build` passed and generated all 27 static pages.
+- Migration apply, deployment, and authenticated live browser verification remain required
+  before this can be described as production-ready or live.
 
 ## 31 August 2026 - Youth Budget actuals publication from management accounts
 

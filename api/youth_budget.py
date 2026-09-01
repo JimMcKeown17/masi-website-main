@@ -97,27 +97,40 @@ def _is_empty(value):
     return value is None or (isinstance(value, str) and not value.strip())
 
 
-def school_days_in_month(year, month, start_from=None):
-    """Count in-term weekdays for a month within the November horizon."""
+def school_dates_in_month(year, month, start_from=None, end_on=None):
+    """Return the exact in-term weekdays costed inside one calendar month."""
     try:
         first = date(year, month, 1)
     except ValueError:
-        return 0
+        return []
     last = date(year, month, monthrange(year, month)[1])
+    effective_end = min(end_on or HORIZON_END, HORIZON_END)
     current = first
-    total = 0
+    result = []
     while current <= last:
         in_term = any(start <= current <= end for start, end in TERM_RANGES_2026)
         if (
-            current <= HORIZON_END
+            current <= effective_end
             and (start_from is None or current >= start_from)
             and current.weekday() < 5
             and current not in PUBLIC_HOLIDAYS_2026
             and in_term
         ):
-            total += 1
+            result.append(current)
         current += timedelta(days=1)
-    return total
+    return result
+
+
+def school_days_in_month(year, month, start_from=None, end_on=None):
+    """Count the exact dates returned by :func:`school_dates_in_month`."""
+    return len(
+        school_dates_in_month(
+            year,
+            month,
+            start_from=start_from,
+            end_on=end_on,
+        )
+    )
 
 
 def default_scenario_values():
@@ -130,6 +143,7 @@ def default_scenario_values():
         "nys_part_time_count": 40,
         "nys_conversion_start_month": 8,
         "vacancy_start_month": 8,
+        "last_paid_programme_date": HORIZON_END,
         "holiday_pay": Decimal("0"),
         "mentor_reserve": Decimal("0"),
         "utilisation_pct": 100,
@@ -361,16 +375,31 @@ def hours_for(matrix, site_type, job_title):
     return hours, days
 
 
-def _projection_months(year, as_of):
-    if as_of.year > year or year > HORIZON_END.year:
+def _scenario_last_paid_programme_date(scenario):
+    value = _scenario_value(
+        scenario,
+        "last_paid_programme_date",
+        HORIZON_END,
+    )
+    if isinstance(value, str):
+        try:
+            value = date.fromisoformat(value)
+        except ValueError:
+            value = HORIZON_END
+    return value if isinstance(value, date) else HORIZON_END
+
+
+def _projection_months(year, as_of, end_on):
+    effective_end = min(end_on, HORIZON_END)
+    if as_of.year > year or year > effective_end.year or effective_end < as_of:
         return []
     if as_of.year < year:
         start_month = 1
     else:
         start_month = as_of.month
-    if start_month > HORIZON_END.month:
+    if start_month > effective_end.month:
         return []
-    return list(range(start_month, HORIZON_END.month + 1))
+    return list(range(start_month, effective_end.month + 1))
 
 
 def _actual_subsidised_count(row, year, month):
@@ -467,6 +496,7 @@ def _project_rows(scenario, rows, as_of, include_holiday_pay=True):
         utilisation = Decimal("1")
     full_time = max(int(_scenario_value(scenario, "nys_full_time_count", 160) or 0), 0)
     part_time = max(int(_scenario_value(scenario, "nys_part_time_count", 40) or 0), 0)
+    last_paid_programme_date = _scenario_last_paid_programme_date(scenario)
     # The split is additive: total conversions = FT + PT, of which the PT
     # youth cost R0 (they never touch payroll).
     zero_cost_converted, relief_converted = _nys_conversions(
@@ -477,8 +507,14 @@ def _project_rows(scenario, rows, as_of, include_holiday_pay=True):
 
     months = []
     school_totals = defaultdict(lambda: Decimal("0"))
-    for month in _projection_months(year, as_of):
-        days = school_days_in_month(year, month, start_from=as_of)
+    for month in _projection_months(year, as_of, last_paid_programme_date):
+        working_dates = school_dates_in_month(
+            year,
+            month,
+            start_from=as_of,
+            end_on=last_paid_programme_date,
+        )
+        days = len(working_dates)
         month_gross = Decimal("0")
         month_uif = Decimal("0")
         month_relief = Decimal("0")
@@ -530,9 +566,10 @@ def _project_rows(scenario, rows, as_of, include_holiday_pay=True):
         months.append(
             {
                 "month": month,
-                # Exposed so the frontend can recompute lever what-ifs without
-                # duplicating the term calendar client-side.
+                # Exposed so the UI can explain costs without duplicating the
+                # backend term calendar.
                 "school_days": days,
+                "working_dates": working_dates,
                 "gross": _money(month_gross),
                 "uif": _money(month_uif),
                 "subsidy_relief": _money(month_relief),
@@ -644,6 +681,124 @@ def project_ringfenced(
             }
         )
     return result
+
+
+def project_ringfenced_summary(
+    scenario,
+    ringfenced_rows,
+    ringfenced_vacancies,
+    as_of,
+):
+    """Project the unique ringfenced population once for charting.
+
+    Per-pot rows may overlap when funders share schools, so chart totals must
+    use the union cohort produced by ``build_cohorts`` rather than summing the
+    independent per-pot projections.
+    """
+    active_rows = [
+        {**row, "nys_eligible_count": 0}
+        for row in ringfenced_rows
+    ]
+    vacancy_rows = [
+        {**row, "nys_eligible_count": 0, "_vacancy": True}
+        for row in ringfenced_vacancies
+    ]
+    costed_youth = sum(
+        max(int(row.get("headcount") or 0), 0)
+        for row in active_rows
+        if row.get("programme") != YEBO
+    )
+    open_posts = sum(
+        max(int(row.get("headcount") or 0), 0)
+        for row in vacancy_rows
+    )
+    committed = _project_rows(
+        scenario,
+        active_rows,
+        as_of,
+        include_holiday_pay=False,
+    )
+    committed["costed_youth"] = costed_youth
+    committed["open_posts"] = 0
+    at_plan = _project_rows(
+        scenario,
+        active_rows + vacancy_rows,
+        as_of,
+        include_holiday_pay=False,
+    )
+    at_plan["costed_youth"] = costed_youth + open_posts
+    at_plan["open_posts"] = open_posts
+    return {"committed": committed, "at_plan": at_plan}
+
+
+def _expenditure_value(row, field, fallback=None):
+    if isinstance(row, dict):
+        return row.get(field, fallback)
+    return getattr(row, field, fallback)
+
+
+def build_mentor_estimate(expenditure_rows):
+    """Average the latest three published mentor actuals for a monthly proxy."""
+    latest = sorted(
+        expenditure_rows,
+        key=lambda row: int(_expenditure_value(row, "month", 0) or 0),
+        reverse=True,
+    )[:3]
+    source_actuals = sorted(
+        (
+            {
+                "month": int(_expenditure_value(row, "month", 0) or 0),
+                "amount": _money(
+                    _decimal(_expenditure_value(row, "mentor_amount", 0))
+                ),
+            }
+            for row in latest
+        ),
+        key=lambda row: row["month"],
+    )
+    monthly_amount = Decimal("0")
+    if source_actuals:
+        monthly_amount = _money(
+            sum(
+                (row["amount"] for row in source_actuals),
+                Decimal("0"),
+            )
+            / Decimal(len(source_actuals))
+        )
+    return {
+        "method": "average_latest_3_actual_months",
+        "monthly_amount": monthly_amount,
+        "source_actuals": source_actuals,
+    }
+
+
+def build_spend_forecast(core_projection, rural_projection, mentor_estimate):
+    """Combine committed core, mentor proxy, and rural costs by month."""
+    rural_by_month = {
+        row["month"]: row
+        for row in rural_projection.get("months", [])
+    }
+    mentor_amount = _money(mentor_estimate.get("monthly_amount", Decimal("0")))
+    months = []
+    for core in core_projection.get("months", []):
+        rural = rural_by_month.get(core["month"], {})
+        core_amount = _money(_decimal(core.get("net")))
+        rural_amount = _money(_decimal(rural.get("net")))
+        months.append(
+            {
+                "month": core["month"],
+                "working_days": core["school_days"],
+                "working_dates": list(core.get("working_dates", [])),
+                "core_amount": core_amount,
+                "mentor_amount": mentor_amount,
+                "rural_amount": rural_amount,
+                "total": _money(core_amount + mentor_amount + rural_amount),
+            }
+        )
+    return {
+        "months": months,
+        "mentor_estimate": mentor_estimate,
+    }
 
 
 def calculate_verdict(pots_total, mentor_reserve, projected_total):

@@ -64,6 +64,7 @@ urlpatterns = [
 
     # Youth Budget Calculator
     path('youth-budget/', views.youth_budget_summary, name='youth_budget'),
+    path('youth-budget/preview/', views.preview_youth_budget_scenario, name='youth_budget_preview'),
     path('youth-budget/scenario/', views.update_youth_budget_scenario, name='youth_budget_scenario'),
     path('youth-budget/pots/', views.create_youth_budget_pot, name='youth_budget_pots'),
     path('youth-budget/pots/<int:pk>/', views.update_youth_budget_pot, name='youth_budget_pot_detail'),

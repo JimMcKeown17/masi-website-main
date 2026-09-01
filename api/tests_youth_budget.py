@@ -8,6 +8,7 @@ from copy import deepcopy
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
+from unittest.mock import patch
 
 from django.contrib.auth.models import User
 from django.core.management import call_command
@@ -88,6 +89,18 @@ class SchoolDaysTests(SimpleTestCase):
             ),
             4,
         )
+
+    def test_mid_november_end_date_exposes_the_ten_exact_working_dates(self):
+        dates = youth_budget.school_dates_in_month(
+            2026,
+            11,
+            end_on=date(2026, 11, 14),
+        )
+
+        self.assertEqual(len(dates), 10)
+        self.assertEqual(dates[0], date(2026, 11, 2))
+        self.assertEqual(dates[-1], date(2026, 11, 13))
+        self.assertNotIn(date(2026, 11, 14), dates)
 
 
 class HoursMatrixTests(SimpleTestCase):
@@ -235,6 +248,41 @@ class ProjectionTests(SimpleTestCase):
         self.assertEqual(
             [row["month"] for row in result["committed"]["months"]],
             [8, 9, 10, 11],
+        )
+
+    def test_last_paid_programme_date_caps_months_days_and_date_provenance(self):
+        result = youth_budget.project(
+            _scenario(
+                nys_full_time_count=0,
+                nys_part_time_count=0,
+                last_paid_programme_date=date(2026, 11, 14),
+            ),
+            [_cohort()],
+            [],
+            date(2026, 9, 1),
+        )
+
+        months = result["committed"]["months"]
+        self.assertEqual([row["month"] for row in months], [9, 10, 11])
+        self.assertEqual(months[-1]["school_days"], 10)
+        self.assertEqual(months[-1]["working_dates"][0], date(2026, 11, 2))
+        self.assertEqual(months[-1]["working_dates"][-1], date(2026, 11, 13))
+
+    def test_end_october_removes_november_from_the_projection(self):
+        result = youth_budget.project(
+            _scenario(
+                nys_full_time_count=0,
+                nys_part_time_count=0,
+                last_paid_programme_date=date(2026, 10, 30),
+            ),
+            [_cohort()],
+            [],
+            date(2026, 9, 1),
+        )
+
+        self.assertEqual(
+            [row["month"] for row in result["committed"]["months"]],
+            [9, 10],
         )
 
     def test_holiday_pay_is_added_to_both_projection_totals(self):
@@ -575,6 +623,84 @@ class BudgetArithmeticTests(TestCase):
         self.assertGreater(by_funder["Positive Wind Farm"]["surplus"], 0)
         self.assertLess(by_funder["Negative Wind Farm"]["surplus"], 0)
 
+    def test_ringfenced_summary_projects_the_unique_population_once(self):
+        rows = [_cohort(school_id=self.school.id, headcount=2)]
+        result = youth_budget.project_ringfenced_summary(
+            _scenario(
+                nys_full_time_count=0,
+                nys_part_time_count=0,
+                last_paid_programme_date=date(2026, 10, 30),
+            ),
+            rows,
+            [],
+            date(2026, 10, 1),
+        )
+
+        self.assertEqual(result["committed"]["costed_youth"], 2)
+        self.assertEqual(result["committed"]["months"][0]["month"], 10)
+        self.assertEqual(result["committed"]["months"][0]["school_days"], 19)
+
+
+class MentorEstimateTests(SimpleTestCase):
+    def test_latest_three_actual_mentor_months_form_the_monthly_estimate(self):
+        estimate = youth_budget.build_mentor_estimate(
+            [
+                {"month": 5, "mentor_amount": Decimal("100")},
+                {"month": 6, "mentor_amount": Decimal("200")},
+                {"month": 7, "mentor_amount": Decimal("400")},
+                {"month": 8, "mentor_amount": Decimal("600")},
+            ]
+        )
+
+        self.assertEqual(estimate["monthly_amount"], Decimal("400.00"))
+        self.assertEqual(
+            estimate["source_actuals"],
+            [
+                {"month": 6, "amount": Decimal("200.00")},
+                {"month": 7, "amount": Decimal("400.00")},
+                {"month": 8, "amount": Decimal("600.00")},
+            ],
+        )
+
+    def test_category_forecast_keeps_mentor_full_month_when_end_date_touches_month(self):
+        core = youth_budget.project(
+            _scenario(
+                nys_full_time_count=0,
+                nys_part_time_count=0,
+                last_paid_programme_date=date(2026, 11, 14),
+            ),
+            [_cohort()],
+            [],
+            date(2026, 11, 1),
+        )["committed"]
+        rural = youth_budget.project_ringfenced_summary(
+            _scenario(
+                nys_full_time_count=0,
+                nys_part_time_count=0,
+                last_paid_programme_date=date(2026, 11, 14),
+            ),
+            [],
+            [],
+            date(2026, 11, 1),
+        )["committed"]
+        estimate = youth_budget.build_mentor_estimate(
+            [
+                {"month": 6, "mentor_amount": Decimal("60")},
+                {"month": 7, "mentor_amount": Decimal("90")},
+                {"month": 8, "mentor_amount": Decimal("150")},
+            ]
+        )
+
+        forecast = youth_budget.build_spend_forecast(core, rural, estimate)
+
+        self.assertEqual(len(forecast["months"]), 1)
+        self.assertEqual(forecast["months"][0]["working_days"], 10)
+        self.assertEqual(forecast["months"][0]["mentor_amount"], Decimal("100.00"))
+        self.assertEqual(
+            forecast["months"][0]["total"],
+            forecast["months"][0]["core_amount"] + Decimal("100.00"),
+        )
+
 
 class ModelAndSyncTests(TestCase):
     """Schema defaults and Airtable mapping must preserve source intent."""
@@ -594,6 +720,7 @@ class ModelAndSyncTests(TestCase):
         self.assertEqual(scenario.subsidy_contribution, Decimal("1400"))
         self.assertEqual(scenario.nys_conversion_start_month, 8)
         self.assertEqual(scenario.vacancy_start_month, 8)
+        self.assertEqual(scenario.last_paid_programme_date, date(2026, 11, 30))
 
     def test_monthly_expenditure_is_unique_by_year_and_month(self):
         MonthlyYouthExpenditure.objects.create(year=2026, month=6)
@@ -661,12 +788,17 @@ class YouthBudgetEndpointTests(TestCase):
                 "feasibility",
                 "notes",
                 "school_options",
+                "spend_forecast",
             },
         )
         for option in body["school_options"]:
             self.assertEqual(set(option), {"id", "name"})
         self.assertEqual(body["scenario"]["nys_conversion_start_month"], 8)
         self.assertEqual(body["scenario"]["vacancy_start_month"], 8)
+        self.assertEqual(
+            body["scenario"]["last_paid_programme_date"],
+            "2026-11-30",
+        )
         self.assertEqual(
             body["scenario"]["hours_matrix"],
             youth_budget.HOURS_MATRIX_DEFAULTS,
@@ -693,6 +825,10 @@ class YouthBudgetEndpointTests(TestCase):
         self.assertEqual(
             set(projections["committed"]),
             {"months", "total", "costed_youth", "open_posts"},
+        )
+        self.assertEqual(
+            set(response.json()["spend_forecast"]),
+            {"months", "mentor_estimate"},
         )
 
     def test_summary_segregates_ringfenced_money_youth_and_vacancies(self):
@@ -733,7 +869,7 @@ class YouthBudgetEndpointTests(TestCase):
         self.assertEqual(body["pots_total"], 1000.0)
         self.assertEqual(
             set(body["ringfenced"]),
-            {"pots", "total_amount", "youth"},
+            {"pots", "total_amount", "youth", "projections"},
         )
         self.assertEqual(body["ringfenced"]["total_amount"], 50000.0)
         self.assertEqual(body["ringfenced"]["youth"], 1)
@@ -826,6 +962,7 @@ class YouthBudgetEndpointTests(TestCase):
                 "nys_conversion_start_month": 9,
                 "vacancy_start_month": 10,
                 "holiday_pay": "2500.50",
+                "last_paid_programme_date": "2026-11-14",
             },
             format="json",
         )
@@ -835,6 +972,7 @@ class YouthBudgetEndpointTests(TestCase):
         self.assertEqual(scenario.nys_conversion_start_month, 9)
         self.assertEqual(scenario.vacancy_start_month, 10)
         self.assertEqual(scenario.holiday_pay, Decimal("2500.50"))
+        self.assertEqual(scenario.last_paid_programme_date, date(2026, 11, 14))
         self.assertEqual(scenario.updated_by, user.username)
 
     def test_scenario_rejects_invalid_month_and_negative_money(self):
@@ -851,6 +989,70 @@ class YouthBudgetEndpointTests(TestCase):
         )
         self.assertEqual(invalid_month.status_code, 400)
         self.assertEqual(negative.status_code, 400)
+
+    @patch("api.views.youth_budget.timezone.localdate", return_value=date(2026, 9, 1))
+    def test_authenticated_preview_recalculates_without_saving(self, _localdate):
+        self._auth("MENTOR")
+        saved = BudgetScenario.objects.create(year=2026)
+        for month, amount in ((5, "10"), (6, "20"), (7, "40"), (8, "60")):
+            MonthlyYouthExpenditure.objects.create(
+                year=2026,
+                month=month,
+                mentor_amount=Decimal(amount),
+            )
+
+        response = self.client.post(
+            "/api/youth-budget/preview/",
+            {
+                "year": 2026,
+                "last_paid_programme_date": "2026-11-14",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(
+            set(body),
+            {
+                "projections",
+                "ringfenced_projections",
+                "ringfenced_pots",
+                "spend_forecast",
+                "feasibility",
+            },
+        )
+        self.assertEqual(
+            body["projections"]["committed"]["months"][-1]["school_days"],
+            10,
+        )
+        self.assertEqual(
+            body["spend_forecast"]["mentor_estimate"]["source_actuals"],
+            [
+                {"month": 6, "amount": 20.0},
+                {"month": 7, "amount": 40.0},
+                {"month": 8, "amount": 60.0},
+            ],
+        )
+        self.assertEqual(
+            body["spend_forecast"]["mentor_estimate"]["monthly_amount"],
+            40.0,
+        )
+        saved.refresh_from_db()
+        self.assertEqual(saved.last_paid_programme_date, date(2026, 11, 30))
+
+    def test_preview_rejects_an_end_date_after_the_supported_horizon(self):
+        self._auth("MENTOR")
+        response = self.client.post(
+            "/api/youth-budget/preview/",
+            {
+                "year": 2026,
+                "last_paid_programme_date": "2026-12-01",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
 
     def test_project_manager_can_create_patch_and_delete_pot(self):
         self._auth("PROJECT MANAGER")

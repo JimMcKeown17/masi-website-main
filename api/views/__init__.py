@@ -25,6 +25,7 @@ from .school_programme import (
 )
 from .youth_budget import (
     youth_budget_summary,
+    preview_youth_budget_scenario,
     update_youth_budget_scenario,
     create_youth_budget_pot,
     update_youth_budget_pot,
@@ -75,6 +76,7 @@ __all__ = [
     'update_grid_stats',
     'rollover_grid',
     'youth_budget_summary',
+    'preview_youth_budget_scenario',
     'update_youth_budget_scenario',
     'create_youth_budget_pot',
     'update_youth_budget_pot',
