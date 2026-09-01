@@ -6,9 +6,11 @@ This is the project-level implementation and release log for the Django reposito
 
 ## 1 September 2026 - Budget horizon, working-date provenance, and preview API
 
-Status: implemented and verified locally in the backend and frontend worktrees. No commit,
-push, migration apply, deploy, or production verification has been performed for this
-change.
+Status: backend commit `4392964` and frontend commit `39ff288` are on their respective
+`main` and `origin/main` branches. Render deployed the backend successfully as live
+deployment `dep-dabij415efls739n0sl0` and applied migration `0047`. Both linked Vercel
+projects deployed the frontend successfully. Authenticated production browser checks
+verified the live default and Mid-November preview paths without saving shared state.
 
 ### Backend contract and policy
 
@@ -47,8 +49,21 @@ change.
 - Frontend `pnpm exec tsc --noEmit` and `pnpm lint` passed; lint retained one unrelated
   existing `image-debug` warning.
 - Network-enabled frontend `pnpm build` passed and generated all 27 static pages.
-- Migration apply, deployment, and authenticated live browser verification remain required
-  before this can be described as production-ready or live.
+- Render identifies `4392964` as the last successfully deployed commit. Deployment
+  `dep-dabij415efls739n0sl0` completed in 1m59s; its log records
+  `Applying api.0047_budgetscenario_last_paid_programme_date... OK`, a successful build,
+  Gunicorn startup, and the service becoming live.
+- Both Vercel deployment statuses completed successfully for frontend commit `39ff288`.
+- An authenticated production reload returned the new preview-backed UI and its category
+  forecast. The default 30 November path showed 21 November working days and the existing
+  core-only R718,965 over-budget headline. Mid-November recalculated to 10 November working
+  days and R386,871 over budget, with November core R195,749, mentor R81,586, and rural
+  R52,148. Restoring Full November returned the original headline and 21-day projection.
+  The test did not invoke Save, so it did not mutate the shared scenario.
+- Desktop light-mode and narrow responsive rendering were inspected live. The new date
+  control and headline cards fit the mobile viewport; wide Funding Pots content remains in
+  its existing bounded horizontal scroller. The application currently has no dark theme,
+  so no dark-mode production claim is made.
 
 ## 31 August 2026 - Youth Budget actuals publication from management accounts
 
