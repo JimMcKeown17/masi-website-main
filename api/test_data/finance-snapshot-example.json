@@ -1,0 +1,429 @@
+{
+  "schema_version": "1.0.0",
+  "run_id": "2026-09-01T12:00:00Z-0a1b2c",
+  "published_at": "2026-09-01T12:00:00Z",
+  "payload_sha256": "925266a782a2f73e7c04d49d7356a9a6ede3834e85bc7112f5956b61ed6a8594",
+  "accounting_year": 2026,
+  "source": {
+    "workbook_name": "20260831 - Fixture Management Accounts.xlsx",
+    "workbook_date": "2026-08-31",
+    "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "size_bytes": 1,
+    "modified_at": "2026-09-01T11:59:00Z"
+  },
+  "funder_contracts": [
+    {
+      "id": "1f5047ecae02",
+      "contract_code": "ALPHA-25-26",
+      "block_label": "Alpha",
+      "period_label": "April 2025 - March 2026",
+      "sheet_row": 3,
+      "in_scope_year": true,
+      "row_count_in_year": 2,
+      "budget_total": "7000.00",
+      "allocated_total_lifetime": "5900.00",
+      "allocated_total_in_year": "1900.00",
+      "remaining": "1100.00",
+      "unbound_allocated_lifetime": "0.00",
+      "unbound_allocated_in_year": "0.00",
+      "complete": true,
+      "completeness_reasons": [],
+      "lines": [
+        {
+          "line_id": "1f5047ecae02-6",
+          "sheet_row": 6,
+          "category": "Youth Jobs",
+          "budget": "6000.00",
+          "binding": "derived",
+          "key_column": "Alpha Flag",
+          "key_column_letter": "M",
+          "category_column_letter": "N",
+          "amount_column_letter": "O",
+          "key_values": ["2025-2026"],
+          "allocated_lifetime": "5500.00",
+          "allocated_in_year": "1500.00",
+          "allocated_asserted": null,
+          "allocated_cached": null,
+          "row_count": 2,
+          "row_count_in_year": 1
+        },
+        {
+          "line_id": "1f5047ecae02-7",
+          "sheet_row": 7,
+          "category": "Admin",
+          "budget": "1000.00",
+          "binding": "derived",
+          "key_column": "Alpha Flag",
+          "key_column_letter": "M",
+          "category_column_letter": "N",
+          "amount_column_letter": "O",
+          "key_values": ["2025-2026"],
+          "allocated_lifetime": "400.00",
+          "allocated_in_year": "400.00",
+          "allocated_asserted": null,
+          "allocated_cached": null,
+          "row_count": 1,
+          "row_count_in_year": 1
+        }
+      ]
+    },
+    {
+      "id": "3f2969a42c54",
+      "contract_code": "ALPHA-26-27",
+      "block_label": "Alpha",
+      "period_label": "April 2026 - March 2027",
+      "sheet_row": 10,
+      "in_scope_year": true,
+      "row_count_in_year": 3,
+      "budget_total": "3500.00",
+      "allocated_total_lifetime": "3350.00",
+      "allocated_total_in_year": "3100.00",
+      "remaining": "150.00",
+      "unbound_allocated_lifetime": "300.00",
+      "unbound_allocated_in_year": "300.00",
+      "complete": false,
+      "completeness_reasons": [
+        { "code": "ASSERTED_LINE", "line_id": "3f2969a42c54-14" },
+        { "code": "UNBOUND_ALLOCATION", "amount": "300.00" }
+      ],
+      "lines": [
+        {
+          "line_id": "3f2969a42c54-13",
+          "sheet_row": 13,
+          "category": "Youth Jobs",
+          "budget": "3000.00",
+          "binding": "derived",
+          "key_column": "Alpha Flag",
+          "key_column_letter": "M",
+          "category_column_letter": "N",
+          "amount_column_letter": "O",
+          "key_values": ["2026"],
+          "allocated_lifetime": "2800.00",
+          "allocated_in_year": "2800.00",
+          "allocated_asserted": null,
+          "allocated_cached": null,
+          "row_count": 2,
+          "row_count_in_year": 2
+        },
+        {
+          "line_id": "3f2969a42c54-14",
+          "sheet_row": 14,
+          "category": "Training",
+          "budget": "500.00",
+          "binding": "asserted",
+          "key_column": null,
+          "key_column_letter": null,
+          "category_column_letter": null,
+          "amount_column_letter": null,
+          "key_values": [],
+          "allocated_lifetime": null,
+          "allocated_in_year": null,
+          "allocated_asserted": "250.00",
+          "allocated_cached": "250.00",
+          "row_count": null,
+          "row_count_in_year": null
+        }
+      ]
+    },
+    {
+      "id": "e10e2c2e720c",
+      "contract_code": "BETA-SD-26",
+      "block_label": "Beta Skills 2026",
+      "period_label": null,
+      "sheet_row": 17,
+      "in_scope_year": true,
+      "row_count_in_year": 1,
+      "budget_total": null,
+      "allocated_total_lifetime": "700.00",
+      "allocated_total_in_year": "700.00",
+      "remaining": null,
+      "unbound_allocated_lifetime": "0.00",
+      "unbound_allocated_in_year": "0.00",
+      "complete": false,
+      "completeness_reasons": [
+        { "code": "MISSING_BUDGET", "line_id": "e10e2c2e720c-19" },
+        { "code": "MISSING_BUDGET", "line_id": "e10e2c2e720c-20" }
+      ],
+      "lines": [
+        {
+          "line_id": "e10e2c2e720c-19",
+          "sheet_row": 19,
+          "category": "Tuition",
+          "budget": null,
+          "binding": "derived",
+          "key_column": "Beta Contract",
+          "key_column_letter": "P",
+          "category_column_letter": "Q",
+          "amount_column_letter": "R",
+          "key_values": ["2026 SD"],
+          "allocated_lifetime": "700.00",
+          "allocated_in_year": "700.00",
+          "allocated_asserted": null,
+          "allocated_cached": null,
+          "row_count": 1,
+          "row_count_in_year": 1
+        },
+        {
+          "line_id": "e10e2c2e720c-20",
+          "sheet_row": 20,
+          "category": null,
+          "budget": null,
+          "binding": "derived",
+          "key_column": "Beta Contract",
+          "key_column_letter": "P",
+          "category_column_letter": "Q",
+          "amount_column_letter": "R",
+          "key_values": ["2026 SD"],
+          "allocated_lifetime": "0.00",
+          "allocated_in_year": "0.00",
+          "allocated_asserted": null,
+          "allocated_cached": null,
+          "row_count": 0,
+          "row_count_in_year": 0
+        }
+      ]
+    },
+    {
+      "id": "9f84f311f88a",
+      "contract_code": "GAMMA-25-26",
+      "block_label": "Gamma Trust",
+      "period_label": "Contract Dates: 1 July 2025 - 30 June 2026",
+      "sheet_row": 23,
+      "in_scope_year": true,
+      "row_count_in_year": 3,
+      "budget_total": "2800.00",
+      "allocated_total_lifetime": "2100.00",
+      "allocated_total_in_year": "1200.00",
+      "remaining": "700.00",
+      "unbound_allocated_lifetime": "0.00",
+      "unbound_allocated_in_year": "0.00",
+      "complete": true,
+      "completeness_reasons": [],
+      "lines": [
+        {
+          "line_id": "9f84f311f88a-26",
+          "sheet_row": 26,
+          "category": "Literacy",
+          "budget": "2000.00",
+          "binding": "derived",
+          "key_column": "Gamma Flag",
+          "key_column_letter": "S",
+          "category_column_letter": "T",
+          "amount_column_letter": "U",
+          "key_values": ["2025-2026 Q1", "2025-2026 Q2"],
+          "allocated_lifetime": "1500.00",
+          "allocated_in_year": "600.00",
+          "allocated_asserted": null,
+          "allocated_cached": null,
+          "row_count": 2,
+          "row_count_in_year": 1
+        },
+        {
+          "line_id": "9f84f311f88a-27",
+          "sheet_row": 27,
+          "category": "Ops",
+          "budget": "800.00",
+          "binding": "derived",
+          "key_column": "Gamma Flag",
+          "key_column_letter": "S",
+          "category_column_letter": "T",
+          "amount_column_letter": "U",
+          "key_values": ["2026 Gamma"],
+          "allocated_lifetime": "600.00",
+          "allocated_in_year": "600.00",
+          "allocated_asserted": null,
+          "allocated_cached": null,
+          "row_count": 2,
+          "row_count_in_year": 2
+        }
+      ]
+    },
+    {
+      "id": "892d84e8e3c4",
+      "contract_code": null,
+      "block_label": "Delta",
+      "period_label": "January 2024 - April 2024",
+      "sheet_row": 30,
+      "in_scope_year": false,
+      "row_count_in_year": 0,
+      "budget_total": "1000.00",
+      "allocated_total_lifetime": "1000.00",
+      "allocated_total_in_year": "0.00",
+      "remaining": "0.00",
+      "unbound_allocated_lifetime": "0.00",
+      "unbound_allocated_in_year": "0.00",
+      "complete": false,
+      "completeness_reasons": [
+        { "code": "ASSERTED_LINE", "line_id": "892d84e8e3c4-33" }
+      ],
+      "lines": [
+        {
+          "line_id": "892d84e8e3c4-33",
+          "sheet_row": 33,
+          "category": "Youth",
+          "budget": "1000.00",
+          "binding": "asserted",
+          "key_column": null,
+          "key_column_letter": null,
+          "category_column_letter": null,
+          "amount_column_letter": null,
+          "key_values": [],
+          "allocated_lifetime": null,
+          "allocated_in_year": null,
+          "allocated_asserted": "1000.00",
+          "allocated_cached": "1000.00",
+          "row_count": null,
+          "row_count_in_year": null
+        }
+      ]
+    }
+  ],
+  "allocation_coverage": [
+    {
+      "category_2": "Admin",
+      "category_2_variants": ["Admin"],
+      "spend": "450.00",
+      "funded": "400.00",
+      "unfunded": "50.00",
+      "by_contract": { "1f5047ecae02": "400.00" },
+      "unbound_allocated": "0.00",
+      "unbound_row_count": 0,
+      "complete": true,
+      "completeness_reasons": []
+    },
+    {
+      "category_2": "Housing",
+      "category_2_variants": ["Housing"],
+      "spend": "500.00",
+      "funded": "500.00",
+      "unfunded": "0.00",
+      "by_contract": {},
+      "unbound_allocated": "500.00",
+      "unbound_row_count": 1,
+      "complete": false,
+      "completeness_reasons": [ { "code": "UNBOUND_ALLOCATION", "amount": "500.00" } ]
+    },
+    {
+      "category_2": "Literacy",
+      "category_2_variants": ["Literacy", "literacy"],
+      "spend": "1050.00",
+      "funded": "1050.00",
+      "unfunded": "0.00",
+      "by_contract": { "9f84f311f88a": "800.00" },
+      "unbound_allocated": "250.00",
+      "unbound_row_count": 1,
+      "complete": false,
+      "completeness_reasons": [ { "code": "UNBOUND_ALLOCATION", "amount": "250.00" } ]
+    },
+    {
+      "category_2": "Skills",
+      "category_2_variants": ["Skills"],
+      "spend": "800.00",
+      "funded": "800.00",
+      "unfunded": "0.00",
+      "by_contract": { "e10e2c2e720c": "700.00" },
+      "unbound_allocated": "100.00",
+      "unbound_row_count": 1,
+      "complete": false,
+      "completeness_reasons": [ { "code": "UNBOUND_ALLOCATION", "amount": "100.00" } ]
+    },
+    {
+      "category_2": "Youth",
+      "category_2_variants": ["Youth"],
+      "spend": "4950.00",
+      "funded": "5150.00",
+      "unfunded": "-200.00",
+      "by_contract": {
+        "1f5047ecae02": "1500.00",
+        "3f2969a42c54": "3100.00",
+        "9f84f311f88a": "400.00"
+      },
+      "unbound_allocated": "150.00",
+      "unbound_row_count": 1,
+      "complete": false,
+      "completeness_reasons": [ { "code": "UNBOUND_ALLOCATION", "amount": "150.00" } ]
+    }
+  ],
+  "allocation_coverage_caveats": [
+    { "code": "ASSERTED_LINE", "line_id": "3f2969a42c54-14", "amount": "250.00" }
+  ],
+  "findings": [
+    {
+      "code": "MISSING_CONTRACT_KEY", "severity": "error", "in_scope_year": true,
+      "contract_id": null, "line_id": null, "key_column": "Alpha Flag", "key_value": null,
+      "category": "Youth Jobs", "category_2": "Youth", "sheet_row": 16,
+      "amount": "150.00", "amount_in_year": "150.00",
+      "message": "Expenditure row 16: R150.00 in Alpha Amount has no Alpha Flag value."
+    },
+    {
+      "code": "OVER_ALLOCATED_COVERAGE", "severity": "error", "in_scope_year": true,
+      "contract_id": null, "line_id": null, "key_column": null, "key_value": null,
+      "category": null, "category_2": "Youth", "sheet_row": null,
+      "amount": "200.00", "amount_in_year": "200.00",
+      "message": "Youth: funder allocations R5,150.00 exceed spend R4,950.00 by R200.00."
+    },
+    {
+      "code": "OVER_ALLOCATED_ROW", "severity": "error", "in_scope_year": true,
+      "contract_id": null, "line_id": null, "key_column": null, "key_value": null,
+      "category": null, "category_2": "Youth", "sheet_row": 13,
+      "amount": "200.00", "amount_in_year": "200.00",
+      "message": "Expenditure row 13: funder amounts R1,200.00 exceed Amount R1,000.00 by R200.00."
+    },
+    {
+      "code": "WHITESPACE_KEY", "severity": "error", "in_scope_year": true,
+      "contract_id": null, "line_id": null, "key_column": "Beta Contract", "key_value": "2026 SD ",
+      "category": null, "category_2": null, "sheet_row": null,
+      "amount": "100.00", "amount_in_year": "100.00",
+      "message": "R100.00 tagged to Beta Contract='2026 SD ' differs from block key '2026 SD' only by whitespace."
+    },
+    {
+      "code": "CATEGORY_NOT_IN_BLOCK", "severity": "warn", "in_scope_year": true,
+      "contract_id": "3f2969a42c54", "line_id": null, "key_column": "Alpha Flag", "key_value": "2026",
+      "category": "Mentoring", "category_2": null, "sheet_row": null,
+      "amount": "300.00", "amount_in_year": "300.00",
+      "message": "R300.00 on Alpha Flag='2026' with category 'Mentoring'; no line in block 'Alpha' (row 10) lists it."
+    },
+    {
+      "code": "ORPHAN_CONTRACT_KEY", "severity": "warn", "in_scope_year": true,
+      "contract_id": null, "line_id": null, "key_column": "Gamma Flag", "key_value": "2023",
+      "category": null, "category_2": null, "sheet_row": null,
+      "amount": "250.00", "amount_in_year": "250.00",
+      "message": "R250.00 tagged to Gamma Flag='2023'; no budget block counts it."
+    },
+    {
+      "code": "UNSCANNED_FUNDER_AMOUNT", "severity": "warn", "in_scope_year": true,
+      "contract_id": null, "line_id": null, "key_column": null, "key_value": null,
+      "category": null, "category_2": "Housing", "sheet_row": 14,
+      "amount": "500.00", "amount_in_year": "500.00",
+      "message": "Expenditure row 14: R500.00 in Delta Amount; no formula binds that column to any budget block."
+    },
+    {
+      "code": "ASSERTED_LINE", "severity": "info", "in_scope_year": true,
+      "contract_id": "3f2969a42c54", "line_id": "3f2969a42c54-14", "key_column": null, "key_value": null,
+      "category": "Training", "category_2": null, "sheet_row": 14,
+      "amount": "250.00", "amount_in_year": null,
+      "message": "'Training' in block 'Alpha' (row 10) has a typed Spent value; no ledger binding."
+    },
+    {
+      "code": "MISSING_BUDGET", "severity": "info", "in_scope_year": true,
+      "contract_id": "e10e2c2e720c", "line_id": "e10e2c2e720c-19", "key_column": null, "key_value": null,
+      "category": "Tuition", "category_2": null, "sheet_row": 19,
+      "amount": "700.00", "amount_in_year": "700.00",
+      "message": "'Tuition' in block 'Beta Skills 2026' (row 17) has no budget; R700.00 allocated."
+    },
+    {
+      "code": "ASSERTED_LINE", "severity": "info", "in_scope_year": false,
+      "contract_id": "892d84e8e3c4", "line_id": "892d84e8e3c4-33", "key_column": null, "key_value": null,
+      "category": "Youth", "category_2": null, "sheet_row": 33,
+      "amount": "1000.00", "amount_in_year": null,
+      "message": "'Youth' in block 'Delta' (row 30) has a typed Spent value; no ledger binding."
+    },
+    {
+      "code": "MISSING_BUDGET", "severity": "info", "in_scope_year": false,
+      "contract_id": "e10e2c2e720c", "line_id": "e10e2c2e720c-20", "key_column": null, "key_value": null,
+      "category": null, "category_2": null, "sheet_row": 20,
+      "amount": "0.00", "amount_in_year": "0.00",
+      "message": "'(no category)' in block 'Beta Skills 2026' (row 17) has no budget; R0.00 allocated."
+    }
+  ]
+}
