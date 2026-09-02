@@ -6,9 +6,12 @@ This is the project-level implementation and release log for the Django reposito
 
 ## 1 September 2026 - Independent NYS and SEF theoretical subsidy scenarios
 
-Status: specification adversarially reviewed and local backend implementation verified.
-The changes are uncommitted, undeployed, not migrated in production, and have not changed
-the production Airtable snapshot or saved Budget Scenario.
+Status: backend commit `5f418f9` and frontend commit `bbcf24b` are on `main` and
+`origin/main`. Render deployed the backend as live deployment
+`dep-dabnb4rncjis73df5lvg` and applied migration `0048`. Both linked Vercel projects
+deployed the frontend successfully. Authenticated production checks verified the saved
+zero-SEF state and an unsaved 200-SEF preview. The production Airtable publication and
+the shared Budget Scenario remain unchanged.
 
 ### Contract and projection policy
 
@@ -87,23 +90,42 @@ the production Airtable snapshot or saved Budget Scenario.
   zero would-skip, and zero would-delete. Those database deltas describe only the
   disposable fixture, not production. The command ended with `DRY RUN`; no local fixture
   or production database rows changed.
+- Render identifies `5f418f9` as the last successfully deployed feature commit.
+  Deployment `dep-dabnb4rncjis73df5lvg` completed in 1m41s; its log records
+  `Applying api.0048_budgetscenario_subsidy_schemes... OK`, a successful build, Gunicorn
+  startup, and the service becoming live.
+- Both Vercel deployment contexts completed successfully for frontend commit `bbcf24b`.
+- The authenticated production page loaded the canonical NYS and SEF fields from the
+  migrated saved scenario: 127 NYS full-time, 41 NYS part-time, NYS R1,900 from
+  1 September to 31 December, and zero saved SEF jobs with the R1,400, 1 October to
+  31 March suggestion visible.
+- Selecting `Use planned 200` without saving requested 368 combined jobs, modelled the
+  full shared capacity of 323, assigned 155 modelled SEF jobs after NYS, and reported
+  45 jobs requiring future hires. The at-plan headline moved from R688,314 over budget
+  to R254,314 over budget. `Reset to saved` restored zero SEF and the R688,314 headline.
+  No Save action was used.
+- Desktop and narrow responsive production renderings were inspected. The two new scheme
+  cards, source warning, combined status, date controls, and moved Holiday Pay and Mentor
+  Reserve fields fit the narrow viewport. The pre-existing 850-pixel Funding Pots table
+  remains the only wide element and stays clipped by its existing bounded scroller.
+- A production-database `sync_airtable_youth --dry-run` then fetched 1,898 canonical youth
+  and reported zero creates, 1,898 updates, zero skips, zero orphan deletes, 1,898 matched
+  enrichment links, and zero missing links, multiple links, or missing targets. It ended
+  in dry-run mode and changed no production rows.
 
 ### Release work still required
 
-1. Review and commit the backend and frontend changes without including unrelated local
-   work, then deploy the backward-compatible backend and apply migration `0048` before
-   deploying the frontend.
-2. Confirm `AIRTABLE_COMBINED_YOUTH_DATA_TABLE_ID` in the effective production command
-   environment. Run the canonical production dry run, review its exact create, update,
-   skip, delete, and enrichment counts, and obtain fresh count-specific authorization
-   before any `--apply` invocation.
-3. Read back the complete source receipt and source-only NYS/SEF counts after an authorized
-   apply. Do not infer publication from a successful dry run.
-4. Verify authenticated production preview, save, responsive rendering, exact date
-   boundaries, old/new alias compatibility, unavailable/stale source states, and the
-   explicit `Use planned 200` action.
-5. Treat activating 200 SEF jobs in the shared Budget Scenario as a separate scenario
-   write requiring explicit operator intent; the migration and deployment do not do it.
+1. Obtain fresh count-specific authorization before publishing the reviewed production
+   dry-run result: zero creates, 1,898 updates, zero skips, zero orphan deletes, and all
+   1,898 enrichment links matched. Re-run the preflight immediately before `--apply` and
+   stop if any count changes.
+2. After an authorized apply, read back the complete source receipt and source-only
+   NYS/SEF counts. Do not infer publication from the successful dry run.
+3. Exercise a saved exact-date boundary only when an operator intends to replace the
+   shared scenario; live deployment verified the controls and unsaved 200-SEF preview but
+   deliberately did not press Save.
+4. Treat activating 200 SEF jobs in the shared Budget Scenario as a separate scenario
+   write requiring explicit operator intent; the migration and deployment did not do it.
 
 ## 1 September 2026 - Budget horizon, working-date provenance, and preview API
 
