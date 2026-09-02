@@ -3,6 +3,7 @@
 Reads are available to authenticated users. Every write is restricted to
 ADMIN and PROJECT MANAGER roles and runs inside a database transaction.
 """
+from datetime import date
 from decimal import Decimal, InvalidOperation
 
 from django.db import IntegrityError, transaction
@@ -20,10 +21,12 @@ from rest_framework.response import Response
 from .. import youth_budget
 from ..authentication import ClerkAuthentication
 from ..models import (
+    AirtableSyncLog,
     BudgetScenario,
     FundingPot,
     MonthlyYouthExpenditure,
     School,
+    Youth,
 )
 from ..permissions import IsAdminOrProjectManager
 
@@ -31,14 +34,21 @@ from ..permissions import IsAdminOrProjectManager
 AUTH_CLASSES = [SessionAuthentication, ClerkAuthentication]
 SCENARIO_DECIMAL_FIELDS = {
     "wage_rate",
-    "subsidy_contribution",
+    "nys_subsidy_contribution",
+    "sef_subsidy_contribution",
     "holiday_pay",
     "mentor_reserve",
 }
 SCENARIO_MONTH_FIELDS = {
-    "nys_conversion_start_month",
     "vacancy_start_month",
 }
+SCENARIO_COUNT_FIELDS = {
+    "nys_full_time_count",
+    "nys_part_time_count",
+    "sef_full_time_count",
+    "sef_part_time_count",
+}
+SUBSIDY_ENRICHMENT_CONTRACT = "youth_subsidy_enrichment_v1"
 
 
 def _number(value):
@@ -112,8 +122,8 @@ def _hours_matrix(value):
     return normalized
 
 
-def _scenario_defaults():
-    return youth_budget.default_scenario_values()
+def _scenario_defaults(year):
+    return youth_budget.default_scenario_values(year)
 
 
 def _scenario_year(request):
@@ -121,17 +131,34 @@ def _scenario_year(request):
     return _integer(raw or timezone.localdate().year, "year")
 
 
-def _scenario_updates(data, year):
+def _scenario_updates(data, year, scenario):
     updates = {}
     for field in SCENARIO_DECIMAL_FIELDS:
         if field in data:
             updates[field] = _nonnegative_decimal(data[field], field)
+
+    legacy_contribution = None
+    if "subsidy_contribution" in data:
+        legacy_contribution = _nonnegative_decimal(
+            data["subsidy_contribution"],
+            "subsidy_contribution",
+        )
+        canonical = updates.get("nys_subsidy_contribution")
+        if canonical is not None and canonical != legacy_contribution:
+            raise ValueError(
+                "subsidy_contribution conflicts with nys_subsidy_contribution."
+            )
+        updates["nys_subsidy_contribution"] = legacy_contribution
+    if "nys_subsidy_contribution" in updates:
+        updates["subsidy_contribution"] = updates[
+            "nys_subsidy_contribution"
+        ]
     if "utilisation_pct" in data:
         pct = _integer(data["utilisation_pct"], "utilisation_pct")
         if not 1 <= pct <= 120:
             raise ValueError("utilisation_pct must be between 1 and 120.")
         updates["utilisation_pct"] = pct
-    for field in ("nys_full_time_count", "nys_part_time_count"):
+    for field in SCENARIO_COUNT_FIELDS:
         if field in data:
             count = _integer(data[field], field)
             if count < 0:
@@ -143,6 +170,32 @@ def _scenario_updates(data, year):
             if not 1 <= month <= 12:
                 raise ValueError(f"{field} must be between 1 and 12.")
             updates[field] = month
+    nys_start = None
+    if "nys_start_date" in data:
+        nys_start = _date(data["nys_start_date"], "nys_start_date")
+    legacy_start_month = None
+    if "nys_conversion_start_month" in data:
+        legacy_start_month = _integer(
+            data["nys_conversion_start_month"],
+            "nys_conversion_start_month",
+        )
+        if not 1 <= legacy_start_month <= 12:
+            raise ValueError(
+                "nys_conversion_start_month must be between 1 and 12."
+            )
+        legacy_start = date(year, legacy_start_month, 1)
+        if nys_start is not None and nys_start != legacy_start:
+            raise ValueError(
+                "nys_conversion_start_month conflicts with nys_start_date."
+            )
+        nys_start = legacy_start
+    if nys_start is not None:
+        updates["nys_start_date"] = nys_start
+        updates["nys_conversion_start_month"] = nys_start.month
+
+    for field in ("nys_end_date", "sef_start_date", "sef_end_date"):
+        if field in data:
+            updates[field] = _date(data[field], field)
     if "last_paid_programme_date" in data:
         end_date = _date(
             data["last_paid_programme_date"],
@@ -159,6 +212,21 @@ def _scenario_updates(data, year):
         updates["last_paid_programme_date"] = end_date
     if "hours_matrix" in data:
         updates["hours_matrix"] = _hours_matrix(data["hours_matrix"])
+
+    merged = _scenario_as_dict(scenario, updates)
+    for scheme in ("nys", "sef"):
+        start = merged[f"{scheme}_start_date"]
+        end = merged[f"{scheme}_end_date"]
+        if start.year != year:
+            raise ValueError(f"{scheme}_start_date must be in the scenario year.")
+        if end.year not in {year, year + 1}:
+            raise ValueError(
+                f"{scheme}_end_date must be in the scenario year or following year."
+            )
+        if start > end:
+            raise ValueError(
+                f"{scheme}_start_date must be on or before {scheme}_end_date."
+            )
     return updates
 
 
@@ -166,10 +234,18 @@ def _scenario_as_dict(scenario, updates=None):
     values = {
         "year": scenario.year,
         "wage_rate": scenario.wage_rate,
-        "subsidy_contribution": scenario.subsidy_contribution,
+        "subsidy_contribution": scenario.nys_subsidy_contribution,
+        "nys_subsidy_contribution": scenario.nys_subsidy_contribution,
         "hours_matrix": scenario.hours_matrix,
         "nys_full_time_count": scenario.nys_full_time_count,
         "nys_part_time_count": scenario.nys_part_time_count,
+        "nys_start_date": scenario.nys_start_date,
+        "nys_end_date": scenario.nys_end_date,
+        "sef_subsidy_contribution": scenario.sef_subsidy_contribution,
+        "sef_full_time_count": scenario.sef_full_time_count,
+        "sef_part_time_count": scenario.sef_part_time_count,
+        "sef_start_date": scenario.sef_start_date,
+        "sef_end_date": scenario.sef_end_date,
         "utilisation_pct": scenario.utilisation_pct,
         "nys_conversion_start_month": scenario.nys_conversion_start_month,
         "vacancy_start_month": scenario.vacancy_start_month,
@@ -186,12 +262,24 @@ def serialize_scenario(scenario):
         "id": scenario.id,
         "year": scenario.year,
         "wage_rate": _number(scenario.wage_rate),
-        "subsidy_contribution": _number(scenario.subsidy_contribution),
+        "subsidy_contribution": _number(scenario.nys_subsidy_contribution),
+        "nys_subsidy_contribution": _number(
+            scenario.nys_subsidy_contribution
+        ),
         "hours_matrix": scenario.hours_matrix,
         "nys_full_time_count": scenario.nys_full_time_count,
         "nys_part_time_count": scenario.nys_part_time_count,
+        "nys_start_date": _iso(scenario.nys_start_date),
+        "nys_end_date": _iso(scenario.nys_end_date),
+        "sef_subsidy_contribution": _number(
+            scenario.sef_subsidy_contribution
+        ),
+        "sef_full_time_count": scenario.sef_full_time_count,
+        "sef_part_time_count": scenario.sef_part_time_count,
+        "sef_start_date": _iso(scenario.sef_start_date),
+        "sef_end_date": _iso(scenario.sef_end_date),
         "utilisation_pct": scenario.utilisation_pct,
-        "nys_conversion_start_month": scenario.nys_conversion_start_month,
+        "nys_conversion_start_month": scenario.nys_start_date.month,
         "vacancy_start_month": scenario.vacancy_start_month,
         "last_paid_programme_date": _iso(scenario.last_paid_programme_date),
         "holiday_pay": _number(scenario.holiday_pay),
@@ -254,8 +342,104 @@ def serialize_projection(projection):
             for row in projection["months"]
         ],
         "total": _number(projection["total"]),
+        "current_core_youth": projection.get(
+            "current_core_youth",
+            projection.get("costed_youth", 0),
+        ),
+        # Deprecated response alias retained for the running frontend.
         "costed_youth": projection.get("costed_youth", 0),
         "open_posts": projection.get("open_posts", 0),
+    }
+
+
+def serialize_subsidy_plan(plan):
+    return {
+        "policy": plan["policy"],
+        "eligible_current_youth": plan["eligible_current_youth"],
+        "requested_total": plan["requested_total"],
+        "modelled_total": plan["modelled_total"],
+        "unmodelled_total": plan["unmodelled_total"],
+        "schemes": {
+            key: {
+                "contribution": _number(row["contribution"]),
+                "start_date": _iso(row["start_date"]),
+                "end_date": _iso(row["end_date"]),
+                "requested_full_time": row["requested_full_time"],
+                "requested_part_time": row["requested_part_time"],
+                "requested_total": row["requested_total"],
+                "modelled_full_time": row["modelled_full_time"],
+                "modelled_part_time": row["modelled_part_time"],
+                "modelled_total": row["modelled_total"],
+                "unmodelled_total": row["unmodelled_total"],
+            }
+            for key, row in plan["schemes"].items()
+        },
+    }
+
+
+def source_subsidies_summary():
+    """Return the last complete canonical enrichment and current source counts."""
+    attempts = list(
+        AirtableSyncLog.objects.filter(sync_type="youth")
+        .order_by("-started_at")[:100]
+    )
+
+    canonical_attempts = []
+    for attempt in attempts:
+        details = attempt.details or {}
+        enrichment = details.get("subsidy_enrichment") or {}
+        if enrichment.get("contract_version") == SUBSIDY_ENRICHMENT_CONTRACT:
+            canonical_attempts.append((attempt, enrichment))
+
+    latest = canonical_attempts[0] if canonical_attempts else None
+    complete = next(
+        (
+            (attempt, enrichment)
+            for attempt, enrichment in canonical_attempts
+            if attempt.success and enrichment.get("complete") is True
+        ),
+        None,
+    )
+    latest_succeeded = bool(
+        latest
+        and latest[0].success
+        and latest[1].get("complete") is True
+    )
+
+    if complete is None:
+        return {
+            "policy": "informational_only",
+            "available": False,
+            "nys_tagged_active_employees": None,
+            "sef_active_status_employees": None,
+            "last_success_at": None,
+            "latest_attempt_succeeded": latest_succeeded,
+            "enrichment": None,
+        }
+
+    receipt, enrichment = complete
+    active = Youth.objects.filter(employment_status__iexact="Active")
+    return {
+        "policy": "informational_only",
+        "available": True,
+        "nys_tagged_active_employees": active.filter(
+            subsidy_funder__iexact="NYS"
+        ).count(),
+        "sef_active_status_employees": active.filter(
+            subsidy_funder__iexact="SEF",
+            subsidy_status__iexact="Active",
+        ).count(),
+        "last_success_at": _iso(receipt.completed_at),
+        "latest_attempt_succeeded": latest_succeeded,
+        "enrichment": {
+            key: enrichment.get(key, 0)
+            for key in (
+                "matched",
+                "missing_link",
+                "multiple_links",
+                "missing_target",
+            )
+        },
     }
 
 
@@ -413,6 +597,9 @@ def _calculate_budget(state, scenario, as_of):
 def _serialize_projection_calculation(calculation, state, scenario):
     projections = calculation["projections"]
     return {
+        "subsidy_plan": serialize_subsidy_plan(
+            projections["subsidy_plan"]
+        ),
         "projections": {
             "committed": serialize_projection(projections["committed"]),
             "at_plan": serialize_projection(projections["at_plan"]),
@@ -487,7 +674,7 @@ def youth_budget_summary(request):
     with transaction.atomic():
         scenario, _created = BudgetScenario.objects.get_or_create(
             year=year,
-            defaults=_scenario_defaults(),
+            defaults=_scenario_defaults(year),
         )
     state = _load_budget_state(year, as_of)
     calculation = _calculate_budget(state, scenario, as_of)
@@ -513,6 +700,8 @@ def youth_budget_summary(request):
                 ],
             },
             "scenario": serialize_scenario(scenario),
+            "subsidy_plan": serialized_calculation["subsidy_plan"],
+            "source_subsidies": source_subsidies_summary(),
             "cohorts": cohorts["cohorts"],
             "projections": serialized_calculation["projections"],
             "spend_forecast": serialized_calculation["spend_forecast"],
@@ -541,14 +730,17 @@ def preview_youth_budget_scenario(request):
     """Recalculate a draft scenario without changing shared database state."""
     try:
         year = _scenario_year(request)
-        updates = _scenario_updates(request.data, year)
     except ValueError as exc:
         return Response({"detail": str(exc)}, status=400)
 
     try:
         scenario = BudgetScenario.objects.get(year=year)
     except BudgetScenario.DoesNotExist:
-        scenario = BudgetScenario(year=year, **_scenario_defaults())
+        scenario = BudgetScenario(year=year, **_scenario_defaults(year))
+    try:
+        updates = _scenario_updates(request.data, year, scenario)
+    except ValueError as exc:
+        return Response({"detail": str(exc)}, status=400)
     draft = _scenario_as_dict(scenario, updates)
     as_of = timezone.localdate()
     state = _load_budget_state(year, as_of)
@@ -568,14 +760,23 @@ def update_youth_budget_scenario(request):
     """Partially update the shared scenario selected by its year."""
     try:
         year = _scenario_year(request)
-        updates = _scenario_updates(request.data, year)
+    except ValueError as exc:
+        return Response({"detail": str(exc)}, status=400)
+
+    scenario = BudgetScenario.objects.filter(year=year).first()
+    validation_scenario = scenario or BudgetScenario(
+        year=year,
+        **_scenario_defaults(year),
+    )
+    try:
+        updates = _scenario_updates(request.data, year, validation_scenario)
     except ValueError as exc:
         return Response({"detail": str(exc)}, status=400)
 
     with transaction.atomic():
         scenario, _created = BudgetScenario.objects.get_or_create(
             year=year,
-            defaults=_scenario_defaults(),
+            defaults=_scenario_defaults(year),
         )
         for field, value in updates.items():
             setattr(scenario, field, value)

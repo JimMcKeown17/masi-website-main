@@ -1,10 +1,50 @@
 import os
 import requests
-from django.core.management.base import BaseCommand
+from copy import deepcopy
+
+from django.core.management.base import BaseCommand, CommandError
 from django.utils.dateparse import parse_date
 from django.db import transaction
 from dotenv import load_dotenv
 from api.models import Youth, School, Mentor, AirtableSyncLog
+
+
+SUBSIDY_ENRICHMENT_CONTRACT = "youth_subsidy_enrichment_v1"
+COMBINED_LINK_FIELD = "Combined Youth Data"
+SUBSIDY_FIELD_MAP = {
+    "Funder": "Funder",
+    "SEF (Current Status)": "SEF (Current Status) (from Office Link)",
+    "SEF Start Date": "SEF Start Date (from Office Link)",
+    "SEF End Date": "SEF End Date (from Office Link)",
+}
+SUBSIDY_FIELDS = tuple(SUBSIDY_FIELD_MAP)
+BASIC_FIELDS = (
+    "Employee ID",
+    "First Names",
+    "Last Name",
+    "Full Name",
+    "DOB",
+    "Age",
+    "Gender",
+    "Race",
+    "ID Type",
+    "RSA ID Number",
+    "Cell Phone Number",
+    "Email",
+    "Emergency Number",
+    "Street Number",
+    "Street Address",
+    "Suburb/Township",
+    "City or Town",
+    "Postal Code",
+    "Job Title",
+    "Employment Status",
+    "Start Date",
+    "End Date",
+    "Site Placement",
+    "Mentor",
+    COMBINED_LINK_FIELD,
+)
 
 
 def _coerce_int(value):
@@ -58,7 +98,7 @@ class Command(BaseCommand):
 
     Canonical key: employee_id (unique integer).
     Upsert key: airtable_id (Airtable record ID).
-    youth_uid is derived as 'YTH-{employee_id}' — used as join key in 2026 session tables.
+    youth_uid is derived as 'YTH-{employee_id}', used as join key in 2026 session tables.
 
     FK resolution (best-effort, null on no match):
       - Site Placement (school name) → School.name
@@ -81,29 +121,97 @@ class Command(BaseCommand):
         load_dotenv()
         base_id = os.getenv("AIRTABLE_YOUTH_2026_BASE_ID")
         table_id = os.getenv("AIRTABLE_YOUTH_2026_TABLE_ID")
-        token = os.getenv("AIRTABLE_TOKEN")
+        combined_table_id = os.getenv("AIRTABLE_COMBINED_YOUTH_DATA_TABLE_ID")
+        token = os.getenv("AIRTABLE_TOKEN") or os.getenv("AIRTABLE_API_KEY")
         is_dry_run = options['dry_run']
 
         if not all([base_id, table_id, token]):
-            self.stdout.write(self.style.ERROR(
+            message = (
                 "Missing env vars. Required:\n"
                 f"  AIRTABLE_YOUTH_2026_BASE_ID: {bool(base_id)}\n"
                 f"  AIRTABLE_YOUTH_2026_TABLE_ID: {bool(table_id)}\n"
-                f"  AIRTABLE_TOKEN: {bool(token)}"
-            ))
-            return
+                f"  AIRTABLE_TOKEN or AIRTABLE_API_KEY: {bool(token)}"
+            )
+            if not is_dry_run:
+                log = AirtableSyncLog.objects.create(
+                    sync_type='youth',
+                    details={
+                        "subsidy_enrichment": {
+                            "contract_version": SUBSIDY_ENRICHMENT_CONTRACT,
+                            "command": "sync_airtable_youth",
+                            "complete": False,
+                            "configuration_valid": False,
+                        }
+                    },
+                )
+                log.mark_complete(success=False, error_message=message)
+            raise CommandError(message)
 
         if is_dry_run:
-            self.stdout.write(self.style.WARNING("=== DRY RUN MODE — no changes will be saved ===\n"))
+            self.stdout.write(self.style.WARNING("=== DRY RUN MODE: no changes will be saved ===\n"))
 
         sync_log = None
         if not is_dry_run:
-            sync_log = AirtableSyncLog.objects.create(sync_type='youth')
+            sync_log = AirtableSyncLog.objects.create(
+                sync_type='youth',
+                details={
+                    "subsidy_enrichment": {
+                        "contract_version": SUBSIDY_ENRICHMENT_CONTRACT,
+                        "command": "sync_airtable_youth",
+                        "canonical_table_id": table_id,
+                        "combined_table_id": combined_table_id,
+                        "complete": False,
+                    }
+                },
+            )
             self.stdout.write(f"Sync log started (ID: {sync_log.id})")
 
         try:
-            all_records = self.fetch_from_airtable(base_id, table_id, token)
-            self.stdout.write(self.style.SUCCESS(f"Fetched {len(all_records)} records from Airtable"))
+            basic_records = self.fetch_from_airtable(
+                base_id,
+                table_id,
+                token,
+                fields=BASIC_FIELDS,
+            )
+            if not basic_records:
+                raise CommandError(
+                    "Canonical Youth Basic Data fetch returned zero records; "
+                    "refusing to calculate orphan deletes."
+                )
+            self.stdout.write(self.style.SUCCESS(
+                f"Fetched {len(basic_records)} canonical Youth Basic Data records"
+            ))
+
+            enrichment_error = None
+            combined_records = []
+            if not combined_table_id:
+                enrichment_error = (
+                    "AIRTABLE_COMBINED_YOUTH_DATA_TABLE_ID is not configured."
+                )
+            else:
+                try:
+                    combined_records = self.fetch_from_airtable(
+                        base_id,
+                        combined_table_id,
+                        token,
+                        fields=SUBSIDY_FIELDS,
+                    )
+                except Exception as exc:
+                    enrichment_error = str(exc)
+
+            all_records, enrichment = self.enrich_subsidies(
+                basic_records,
+                combined_records,
+                error=enrichment_error,
+            )
+            enrichment.update({
+                "contract_version": SUBSIDY_ENRICHMENT_CONTRACT,
+                "command": "sync_airtable_youth",
+                "canonical_table_id": table_id,
+                "combined_table_id": combined_table_id,
+                "basic_fetched": len(basic_records),
+                "combined_fetched": len(combined_records),
+            })
 
             if options['verbose']:
                 for r in all_records[:3]:
@@ -117,18 +225,11 @@ class Command(BaseCommand):
                         f"mentor={f.get('Mentor')}"
                     )
 
-            db_count = Youth.objects.count()
-
-            if is_dry_run:
-                self.stdout.write(f"DRY RUN: would process {len(all_records)} records")
-                self.stdout.write(f"Current row count in DB: {db_count}")
-                return
-
             # Build lookup maps for FK resolution
             school_map = build_school_map()
             mentor_map = {m.name.lower().strip(): m.id for m in Mentor.objects.all()}
 
-            # Airtable typo aliases — map misspelled names to canonical mentor
+            # Airtable typo aliases map misspelled names to canonical mentor.
             MENTOR_ALIASES = {
                 'kariena tsaone': 'kariena tsaoane',
                 'simamnkele sali': 'simamkele sali',
@@ -139,22 +240,53 @@ class Command(BaseCommand):
 
             self.stdout.write(f"Loaded {len(school_map)} schools and {len(mentor_map)} mentors for FK resolution")
 
-            stats = self.bulk_upsert(all_records, school_map, mentor_map)
+            stats = self.bulk_upsert(
+                all_records,
+                school_map,
+                mentor_map,
+                publish_subsidies=enrichment["complete"],
+                dry_run=is_dry_run,
+            )
+
+            summary = (
+                f"records: {len(all_records)}, created: {stats['created']}, "
+                f"updated: {stats['updated']}, skipped: {stats['skipped']}, "
+                f"orphan deletes: {stats['deleted']}, "
+                f"enrichment matched: {enrichment['matched']}, "
+                f"missing links: {enrichment['missing_link']}, "
+                f"multiple links: {enrichment['multiple_links']}, "
+                f"missing targets: {enrichment['missing_target']}"
+            )
+            if is_dry_run:
+                self.stdout.write(self.style.SUCCESS(f"DRY RUN: {summary}"))
+                if not enrichment["complete"]:
+                    raise CommandError(
+                        "Canonical dry run completed, but subsidy enrichment is "
+                        f"incomplete: {enrichment.get('error') or 'link errors'}."
+                    )
+                return
 
             if sync_log:
                 sync_log.records_processed = len(all_records)
                 sync_log.records_created = stats['created']
                 sync_log.records_updated = stats['updated']
                 sync_log.records_skipped = stats['skipped']
-                sync_log.mark_complete(success=True)
+                sync_log.details = {"subsidy_enrichment": enrichment}
+                if enrichment["complete"]:
+                    sync_log.mark_complete(success=True)
+                else:
+                    sync_log.mark_complete(
+                        success=False,
+                        error_message=(
+                            "Canonical Youth fields were published, but subsidy "
+                            "enrichment was incomplete and existing subsidy fields "
+                            "were preserved."
+                        ),
+                    )
 
             age_bad = stats['age_unparseable_ids']
             self.stdout.write(self.style.SUCCESS(
-                f"\nSync complete — "
-                f"Airtable records: {len(all_records)}, "
-                f"created: {stats['created']}, "
-                f"updated: {stats['updated']}, "
-                f"skipped: {stats['skipped']}, "
+                f"\nSync complete - {summary}, "
                 f"school unmatched: {stats['school_unmatched']}, "
                 f"mentor unmatched: {stats['mentor_unmatched']}, "
                 f"age unparseable: {len(age_bad)}"
@@ -162,11 +294,17 @@ class Command(BaseCommand):
             if age_bad:
                 self.stdout.write(self.style.WARNING(
                     f"Age was non-numeric (likely a blank/invalid DOB in Airtable) "
-                    f"for employee IDs {age_bad} — stored as null. Fix the DOB at source."
+                    f"for employee IDs {age_bad}; stored as null. Fix the DOB at source."
                 ))
 
+            if not enrichment["complete"]:
+                raise CommandError(
+                    "Canonical Youth sync committed, but subsidy enrichment was "
+                    "incomplete. Existing subsidy fields were preserved."
+                )
+
         except Exception as e:
-            if sync_log:
+            if sync_log and sync_log.completed_at is None:
                 try:
                     sync_log.mark_complete(success=False, error_message=str(e))
                 except Exception:
@@ -174,14 +312,72 @@ class Command(BaseCommand):
             self.stdout.write(self.style.ERROR(f"Sync failed: {e}"))
             raise
 
-    def bulk_upsert(self, all_records, school_map, mentor_map):
-        # Delete orphans — DB records whose airtable_id no longer exists in Airtable
+    def enrich_subsidies(self, basic_records, combined_records, error=None):
+        """Join source-only subsidy fields without changing canonical identity."""
+        combined_by_id = {
+            record.get("id"): record
+            for record in combined_records
+            if record.get("id")
+        }
+        diagnostics = {
+            "matched": 0,
+            "missing_link": 0,
+            "multiple_links": 0,
+            "missing_target": 0,
+            "complete": False,
+        }
+        if error:
+            diagnostics["error"] = error
+            return list(basic_records), diagnostics
+
+        enriched = []
+        for record in basic_records:
+            result = deepcopy(record)
+            fields = result.setdefault("fields", {})
+            links = fields.get(COMBINED_LINK_FIELD) or []
+            if not isinstance(links, list) or not links:
+                diagnostics["missing_link"] += 1
+                enriched.append(result)
+                continue
+            if len(links) != 1:
+                diagnostics["multiple_links"] += 1
+                enriched.append(result)
+                continue
+            combined = combined_by_id.get(links[0])
+            if combined is None:
+                diagnostics["missing_target"] += 1
+                enriched.append(result)
+                continue
+            combined_fields = combined.get("fields", {})
+            for source_field, destination_field in SUBSIDY_FIELD_MAP.items():
+                if source_field in combined_fields:
+                    fields[destination_field] = combined_fields[source_field]
+                else:
+                    fields.pop(destination_field, None)
+            diagnostics["matched"] += 1
+            enriched.append(result)
+
+        diagnostics["complete"] = (
+            diagnostics["matched"] == len(basic_records)
+            and diagnostics["missing_link"] == 0
+            and diagnostics["multiple_links"] == 0
+            and diagnostics["missing_target"] == 0
+        )
+        return enriched, diagnostics
+
+    def bulk_upsert(
+        self,
+        all_records,
+        school_map,
+        mentor_map,
+        publish_subsidies=True,
+        dry_run=False,
+    ):
+        # Resolve orphans before the write, but delete them only inside the
+        # same transaction as creates and updates.
         incoming_airtable_ids = {r.get('id') for r in all_records if r.get('id')}
         orphans = Youth.objects.exclude(airtable_id__isnull=True).exclude(airtable_id__in=incoming_airtable_ids)
         orphan_count = orphans.count()
-        if orphan_count:
-            self.stdout.write(self.style.WARNING(f"Deleting {orphan_count} orphan records not found in Airtable"))
-            orphans.delete()
 
         # Build lookup by airtable_id AND employee_id so we match existing
         # records regardless of which key was used to create them
@@ -213,8 +409,16 @@ class Command(BaseCommand):
             if row_data is None:
                 skipped += 1
                 continue
+            if not publish_subsidies:
+                for field in (
+                    "subsidy_funder",
+                    "subsidy_status",
+                    "subsidy_start_date",
+                    "subsidy_end_date",
+                ):
+                    row_data.pop(field, None)
 
-            # Deduplicate by employee_id — keep the first Airtable record seen
+            # Deduplicate by employee_id and keep the first Airtable record seen.
             emp_id = row_data.get('employee_id')
             if emp_id in seen_employee_ids:
                 skipped += 1
@@ -243,21 +447,35 @@ class Command(BaseCommand):
             'cell_phone_number', 'email', 'emergency_number',
             'street_number', 'street_address', 'suburb_township', 'city_or_town', 'postal_code',
             'job_title', 'employment_status', 'start_date', 'end_date',
-            'subsidy_funder', 'subsidy_status',
-            'subsidy_start_date', 'subsidy_end_date',
             'school_id', 'mentor_id',
         ]
+        if publish_subsidies:
+            update_fields.extend([
+                'subsidy_funder', 'subsidy_status',
+                'subsidy_start_date', 'subsidy_end_date',
+            ])
 
-        with transaction.atomic():
-            if new_objs:
-                Youth.objects.bulk_create(new_objs, batch_size=500)
-            if update_objs:
-                Youth.objects.bulk_update(update_objs, update_fields, batch_size=500)
+        if not dry_run:
+            with transaction.atomic():
+                if orphan_count:
+                    self.stdout.write(self.style.WARNING(
+                        f"Deleting {orphan_count} orphan records not found in Airtable"
+                    ))
+                    orphans.delete()
+                if new_objs:
+                    Youth.objects.bulk_create(new_objs, batch_size=500)
+                if update_objs:
+                    Youth.objects.bulk_update(
+                        update_objs,
+                        update_fields,
+                        batch_size=500,
+                    )
 
         return {
             'created': len(new_objs),
             'updated': len(update_objs),
             'skipped': skipped,
+            'deleted': orphan_count,
             'school_unmatched': school_unmatched,
             'mentor_unmatched': mentor_unmatched,
             'age_unparseable_ids': age_unparseable_ids,
@@ -340,18 +558,30 @@ class Command(BaseCommand):
             _age_unparseable=age_unparseable,
         )
 
-    def fetch_from_airtable(self, base_id, table_id, token):
+    def fetch_from_airtable(self, base_id, table_id, token, fields=None):
         url = f"https://api.airtable.com/v0/{base_id}/{table_id}"
         headers = {"Authorization": f"Bearer {token}"}
         all_records = []
+        offset = None
 
-        while url:
-            response = requests.get(url, headers=headers)
+        while True:
+            params = [("pageSize", 100)]
+            if fields:
+                params.extend(("fields[]", field) for field in fields)
+            if offset:
+                params.append(("offset", offset))
+            response = requests.get(
+                url,
+                headers=headers,
+                params=params,
+                timeout=30,
+            )
             if response.status_code != 200:
                 raise ValueError(f"Airtable API error {response.status_code}: {response.text[:200]}")
             data = response.json()
             all_records.extend(data.get('records', []))
             offset = data.get('offset')
-            url = f"https://api.airtable.com/v0/{base_id}/{table_id}?offset={offset}" if offset else None
+            if not offset:
+                break
 
         return all_records

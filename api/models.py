@@ -1746,6 +1746,14 @@ class BudgetScenario(models.Model):
         decimal_places=2,
         default=Decimal("1400"),
     )
+    # Canonical NYS fields. The generic contribution and conversion month stay
+    # in place for one expand-contract release so the old backend and frontend
+    # remain safe while the additive migration and new clients roll out.
+    nys_subsidy_contribution = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        default=Decimal("1900"),
+    )
     hours_matrix = models.JSONField(default=dict)
     # The NYS split is additive: full-time youth are subsidised and Masi pays
     # wages minus the contribution; part-time youth earn only their NYS funding
@@ -1754,6 +1762,17 @@ class BudgetScenario(models.Model):
     nys_full_time_count = models.IntegerField(default=160)
     nys_part_time_count = models.IntegerField(default=40)
     nys_conversion_start_month = models.PositiveSmallIntegerField(default=8)
+    nys_start_date = models.DateField()
+    nys_end_date = models.DateField()
+    sef_subsidy_contribution = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        default=Decimal("1400"),
+    )
+    sef_full_time_count = models.IntegerField(default=200)
+    sef_part_time_count = models.IntegerField(default=0)
+    sef_start_date = models.DateField()
+    sef_end_date = models.DateField()
     vacancy_start_month = models.PositiveSmallIntegerField(default=8)
     # Global programme horizon used to cap paid core and rural working days.
     # Mentor projections are a full-month operating estimate and are not

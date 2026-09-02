@@ -41,6 +41,25 @@ Command blueprint (reference: `sync_airtable_children.py`, `sync_airtable_litera
 
 The 2026 literacy and numeracy session commands also support `--incremental-new`. Their immutable Airtable creation-time watermark lives in `AirtableSyncCursor`, separate from `AirtableSyncLog`; upsert and cursor advancement commit atomically. Full mode remains necessary for source edits and FK repair. See `build-log.md` for deployment state and known deletion boundaries.
 
+### 1.1 Youth subsidy linked-table enrichment
+
+`sync_airtable_youth` keeps Youth Basic Data canonical. Its Airtable record ID remains
+`Youth.airtable_id`, so orphan reconciliation never switches identity to the linked table.
+The command fetches Combined Youth Data separately through
+`AIRTABLE_COMBINED_YOUTH_DATA_TABLE_ID`, joins via the Basic `Combined Youth Data` link,
+and copies only Funder, subsidy status, subsidy start date, and subsidy end date.
+
+The four subsidy fields publish atomically. Every Basic row must resolve to exactly one
+Combined record. Missing configuration, a Combined fetch or schema failure, missing link,
+multiple links, or an unresolved target makes enrichment incomplete. Canonical Basic
+fields may still publish, but existing subsidy fields are preserved and new rows receive
+null subsidy values. The command records a versioned fail-closed health receipt and exits
+non-zero. Source counts on the Youth Budget page use only the last complete receipt.
+
+Dry run performs the complete transformation and reports exact create, update, skip, and
+orphan-delete counts without writes. An empty canonical pull is refused before orphan
+calculation. On apply, orphan deletion, creates, and updates share one database transaction.
+
 ---
 
 ## 2. Serving downstream (outbound)

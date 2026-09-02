@@ -45,7 +45,7 @@ The organisation's centre of gravity. Owns the canonical registries, receives ev
 |---|---|---|---|---|
 | Children | `canonical_children` (CanonicalChild) | `child_uid` CH-XXXXX (unique), `mcode` (unique int, cross-year), `participant_id` (Teampact bridge), upsert on `source_airtable_id` | 10,700+ | Airtable Child Registry (base `app6ayjg1NwvYdZQf`), nightly `sync_airtable_children` |
 | Schools | `api_school` | `school_uid` SCH-XXXXX (unique), `airtable_id`, `school_number` | 341 | Airtable schools base, nightly `sync_airtable_schools` |
-| Youth | `api_youth` | `youth_uid` YTH-XXXX (unique), `employee_id` (unique int) | hundreds | Airtable youth base, nightly `sync_airtable_youth` (hard-deletes orphans) |
+| Youth | `api_youth` | `youth_uid` YTH-XXXX (unique), `employee_id` (unique int), canonical Airtable ID from Youth Basic Data | hundreds | Airtable Youth Basic Data, enriched through its one-to-one Combined Youth Data link for four subsidy fields; nightly `sync_airtable_youth` (hard-deletes orphans transactionally) |
 | Staff | `staff` | `employee_number` (unique int), upsert on `source_airtable_id` | | Airtable staff base, on demand `sync_airtable_staff` |
 | Mentor | `api_mentor` | optional OneToOne to User | | Seeded/manual, not Airtable-synced; visit models FK to `User`, not this |
 
@@ -66,6 +66,10 @@ The organisation's centre of gravity. Owns the canonical registries, receives ev
 - `PublishedStat`: hand-approved donor-facing numbers; the only figures the public impact pages show. Editorial via admin, seeded by `seed_published_stats`.
 - `ZaziOverviewSnapshot`: cached Zazi programme-overview payload, refreshed by `refresh_zazi_overview` via `api/zazi_client.py`.
 - `api_airtablesynclog` (AirtableSyncLog): one row per sync run (counts, errors, JSON `details` incl. `retire_skipped`/`dup_uid_skipped` that the parquet export's freshness gates fail closed on).
+- Canonical Youth subsidy enrichment receipts use
+  `details.subsidy_enrichment.contract_version = youth_subsidy_enrichment_v1`.
+  Budget source counts are unavailable until a complete versioned receipt exists; an
+  incomplete enrichment preserves the last complete subsidy values.
 - Parquet export: `export_literacy_2026_parquet` writes analysis-ready files to the Masi Data Site (Streamlit) repo; `reconcile_literacy_2026` cross-checks against Airtable aggregates.
 - Internal identity feed: `/api/identity/export/` (shared secret) serves school/youth identity to the Zazi backend.
 

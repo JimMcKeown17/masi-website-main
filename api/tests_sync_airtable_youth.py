@@ -7,6 +7,8 @@ the API returns {'specialValue': 'NaN'} (a truthy dict) instead of a number; it 
 passed straight to Youth.age (an IntegerField) and exploded at bulk_create time
 with "Field 'age' expected a number but got {'specialValue': 'NaN'}".
 """
+from unittest.mock import patch
+
 from django.test import TestCase
 
 from api.models import Youth
@@ -69,6 +71,129 @@ class SyncYouthNanAgeTests(TestCase):
             [_record(103, 27)], school_map={}, mentor_map={})
         self.assertEqual(Youth.objects.get(employee_id=103).age, 27)
         self.assertEqual(stats["age_unparseable_ids"], [])
+
+    def test_incomplete_enrichment_preserves_existing_subsidy_fields(self):
+        Youth.objects.create(
+            airtable_id="rec1",
+            employee_id=104,
+            full_name="Existing Youth",
+            subsidy_funder="NYS",
+            subsidy_status="Active",
+        )
+
+        self.cmd.bulk_upsert(
+            [_record(104, 25)],
+            school_map={},
+            mentor_map={},
+            publish_subsidies=False,
+        )
+
+        youth = Youth.objects.get(employee_id=104)
+        self.assertEqual(youth.subsidy_funder, "NYS")
+        self.assertEqual(youth.subsidy_status, "Active")
+
+    def test_dry_run_reports_changes_without_writing(self):
+        Youth.objects.create(
+            airtable_id="orphan",
+            employee_id=105,
+            full_name="Orphan",
+        )
+
+        stats = self.cmd.bulk_upsert(
+            [_record(106, 20, airtable_id="incoming")],
+            school_map={},
+            mentor_map={},
+            dry_run=True,
+        )
+
+        self.assertEqual(stats["created"], 1)
+        self.assertEqual(stats["deleted"], 1)
+        self.assertTrue(Youth.objects.filter(employee_id=105).exists())
+        self.assertFalse(Youth.objects.filter(employee_id=106).exists())
+
+    def test_bulk_failure_rolls_orphan_delete_back(self):
+        Youth.objects.create(
+            airtable_id="keep",
+            employee_id=107,
+            full_name="Keep",
+        )
+        Youth.objects.create(
+            airtable_id="orphan",
+            employee_id=108,
+            full_name="Orphan",
+        )
+
+        with patch.object(
+            Youth.objects,
+            "bulk_update",
+            side_effect=RuntimeError("forced failure"),
+        ), self.assertRaises(RuntimeError):
+            self.cmd.bulk_upsert(
+                [_record(107, 21, airtable_id="keep")],
+                school_map={},
+                mentor_map={},
+            )
+
+        self.assertTrue(Youth.objects.filter(employee_id=108).exists())
+
+
+class SubsidyEnrichmentTests(TestCase):
+    def setUp(self):
+        self.cmd = Command()
+
+    def test_complete_link_copies_only_subsidy_fields(self):
+        basic = [{
+            "id": "basic1",
+            "fields": {
+                "Employee ID": 201,
+                "Full Name": "Canonical Name",
+                "Combined Youth Data": ["combined1"],
+            },
+        }]
+        combined = [{
+            "id": "combined1",
+            "fields": {
+                "Full Name": "Wrong Name",
+                "Funder": ["SEF"],
+                "SEF (Current Status)": ["Active"],
+                "SEF Start Date": ["2026-10-01"],
+                "SEF End Date": ["2027-03-31"],
+            },
+        }]
+
+        enriched, diagnostics = self.cmd.enrich_subsidies(basic, combined)
+
+        self.assertTrue(diagnostics["complete"])
+        self.assertEqual(diagnostics["matched"], 1)
+        self.assertEqual(enriched[0]["id"], "basic1")
+        self.assertEqual(enriched[0]["fields"]["Full Name"], "Canonical Name")
+        self.assertEqual(enriched[0]["fields"]["Funder"], ["SEF"])
+
+    def test_missing_multiple_and_unresolved_links_fail_closed(self):
+        basic = [
+            {"id": "b1", "fields": {"Employee ID": 1}},
+            {
+                "id": "b2",
+                "fields": {
+                    "Employee ID": 2,
+                    "Combined Youth Data": ["c1", "c2"],
+                },
+            },
+            {
+                "id": "b3",
+                "fields": {
+                    "Employee ID": 3,
+                    "Combined Youth Data": ["missing"],
+                },
+            },
+        ]
+
+        _enriched, diagnostics = self.cmd.enrich_subsidies(basic, [])
+
+        self.assertFalse(diagnostics["complete"])
+        self.assertEqual(diagnostics["missing_link"], 1)
+        self.assertEqual(diagnostics["multiple_links"], 1)
+        self.assertEqual(diagnostics["missing_target"], 1)
 
 
 class BuildSchoolMapTests(TestCase):

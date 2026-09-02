@@ -14,11 +14,13 @@ from django.contrib.auth.models import User
 from django.core.management import call_command
 from django.db import IntegrityError, transaction
 from django.test import SimpleTestCase, TestCase
+from django.utils import timezone
 from rest_framework.test import APIClient
 
 from api import youth_budget
 from api.management.commands.sync_airtable_youth import Command as YouthSyncCommand
 from api.models import (
+    AirtableSyncLog,
     BudgetScenario,
     FundingPot,
     MonthlyYouthExpenditure,
@@ -41,6 +43,8 @@ def _scenario(**overrides):
     scenario = {
         "year": 2026,
         **youth_budget.default_scenario_values(),
+        "sef_full_time_count": 0,
+        "sef_part_time_count": 0,
     }
     scenario.update(overrides)
     return scenario
@@ -125,7 +129,7 @@ class HoursMatrixTests(SimpleTestCase):
 class ProjectionTests(SimpleTestCase):
     """Projection tests isolate money math from the database and HTTP layer."""
 
-    def test_subsidy_relief_is_floored_at_zero_per_youth_month(self):
+    def test_theoretical_subsidy_relief_is_floored_at_zero_per_youth_month(self):
         matrix = {
             "primary": {
                 "literacy coach": {
@@ -137,12 +141,12 @@ class ProjectionTests(SimpleTestCase):
         result = youth_budget.project(
             _scenario(
                 wage_rate=Decimal("1"),
-                subsidy_contribution=Decimal("1600"),
+                nys_subsidy_contribution=Decimal("1600"),
                 hours_matrix=matrix,
-                nys_full_time_count=0,
+                nys_full_time_count=1,
                 nys_part_time_count=0,
             ),
-            [_cohort(subsidised_count=1)],
+            [_cohort(nys_eligible_count=1)],
             [],
             date(2026, 10, 1),
         )
@@ -201,10 +205,10 @@ class ProjectionTests(SimpleTestCase):
     def test_nys_conversion_starts_in_its_month_and_caps_at_eligible_count(self):
         result = youth_budget.project(
             _scenario(
-                subsidy_contribution=Decimal("100"),
+                nys_subsidy_contribution=Decimal("100"),
                 nys_full_time_count=10,
                 nys_part_time_count=0,
-                nys_conversion_start_month=9,
+                nys_start_date=date(2026, 9, 1),
             ),
             [_cohort(headcount=3, nys_eligible_count=3)],
             [],
@@ -213,6 +217,103 @@ class ProjectionTests(SimpleTestCase):
         august, september = result["committed"]["months"][:2]
         self.assertEqual(august["subsidy_relief"], Decimal("0.00"))
         self.assertEqual(september["subsidy_relief"], Decimal("300.00"))
+
+    def test_nys_and_sef_share_capacity_without_overlap(self):
+        result = youth_budget.project(
+            _scenario(
+                nys_full_time_count=2,
+                nys_part_time_count=0,
+                nys_start_date=date(2026, 9, 1),
+                sef_full_time_count=2,
+                sef_part_time_count=0,
+                sef_start_date=date(2026, 10, 1),
+            ),
+            [_cohort(headcount=3, nys_eligible_count=3)],
+            [],
+            date(2026, 9, 1),
+        )
+
+        plan = result["subsidy_plan"]
+        self.assertEqual(plan["eligible_current_youth"], 3)
+        self.assertEqual(plan["requested_total"], 4)
+        self.assertEqual(plan["modelled_total"], 3)
+        self.assertEqual(plan["unmodelled_total"], 1)
+        self.assertEqual(plan["schemes"]["nys"]["modelled_total"], 2)
+        self.assertEqual(plan["schemes"]["sef"]["modelled_total"], 1)
+
+    def test_nys_wins_same_date_capacity_tie(self):
+        result = youth_budget.project(
+            _scenario(
+                nys_full_time_count=1,
+                nys_part_time_count=0,
+                nys_start_date=date(2026, 10, 1),
+                sef_full_time_count=1,
+                sef_part_time_count=0,
+                sef_start_date=date(2026, 10, 1),
+            ),
+            [_cohort(headcount=1, nys_eligible_count=1)],
+            [],
+            date(2026, 10, 1),
+        )
+
+        plan = result["subsidy_plan"]["schemes"]
+        self.assertEqual(plan["nys"]["modelled_total"], 1)
+        self.assertEqual(plan["sef"]["modelled_total"], 0)
+
+    def test_part_time_allocates_before_full_time_within_scheme(self):
+        result = youth_budget.project(
+            _scenario(
+                nys_full_time_count=1,
+                nys_part_time_count=1,
+                nys_start_date=date(2026, 9, 1),
+            ),
+            [_cohort(headcount=1, nys_eligible_count=1)],
+            [],
+            date(2026, 9, 1),
+        )
+
+        nys = result["subsidy_plan"]["schemes"]["nys"]
+        self.assertEqual(nys["modelled_part_time"], 1)
+        self.assertEqual(nys["modelled_full_time"], 0)
+
+    def test_subsidy_after_programme_end_does_not_offset_earlier_wages(self):
+        result = youth_budget.project(
+            _scenario(
+                nys_full_time_count=1,
+                nys_part_time_count=0,
+                nys_start_date=date(2026, 11, 30),
+                nys_end_date=date(2026, 12, 31),
+                last_paid_programme_date=date(2026, 11, 14),
+            ),
+            [_cohort(headcount=1, nys_eligible_count=1)],
+            [],
+            date(2026, 11, 1),
+        )
+
+        self.assertEqual(
+            result["committed"]["months"][0]["subsidy_relief"],
+            Decimal("0.00"),
+        )
+
+    def test_one_paid_boundary_date_activates_full_monthly_cap(self):
+        result = youth_budget.project(
+            _scenario(
+                nys_subsidy_contribution=Decimal("100"),
+                nys_full_time_count=1,
+                nys_part_time_count=0,
+                nys_start_date=date(2026, 11, 13),
+                nys_end_date=date(2026, 11, 13),
+                last_paid_programme_date=date(2026, 11, 14),
+            ),
+            [_cohort(headcount=1, nys_eligible_count=1)],
+            [],
+            date(2026, 11, 1),
+        )
+
+        self.assertEqual(
+            result["committed"]["months"][0]["subsidy_relief"],
+            Decimal("100.00"),
+        )
 
     def test_vacancy_uses_ecd_hours_and_starts_in_selected_month(self):
         vacancy = _cohort(
@@ -347,7 +448,7 @@ class CohortTests(TestCase):
             Decimal("2736.86"),
         )
 
-    def test_ex_sef_youth_is_not_nys_eligible(self):
+    def test_airtable_subsidy_does_not_change_theoretical_eligibility(self):
         self._youth(
             9003,
             "Literacy Coach",
@@ -360,9 +461,9 @@ class CohortTests(TestCase):
         row = cohorts["cohorts"][0]
         self.assertEqual(row["headcount"], 1)
         self.assertEqual(row["subsidised_count"], 0)
-        self.assertEqual(row["nys_eligible_count"], 0)
+        self.assertEqual(row["nys_eligible_count"], 1)
 
-    def test_active_subsidy_is_case_insensitive(self):
+    def test_airtable_subsidy_is_not_injected_into_projection_cohorts(self):
         self._youth(
             9004,
             "Literacy Coach",
@@ -371,7 +472,34 @@ class CohortTests(TestCase):
             subsidy_start_date=date(2026, 7, 1),
         )
         cohorts = youth_budget.build_cohorts(today=date(2026, 7, 27))
-        self.assertEqual(cohorts["cohorts"][0]["subsidised_count"], 1)
+        self.assertEqual(cohorts["cohorts"][0]["subsidised_count"], 0)
+
+    def test_airtable_subsidy_fields_do_not_change_any_projection_money(self):
+        youth = self._youth(9008, "Literacy Coach")
+        before = youth_budget.project(
+            _scenario(nys_full_time_count=0, nys_part_time_count=0),
+            youth_budget.build_cohorts(today=date(2026, 9, 1)),
+            [],
+            date(2026, 9, 1),
+        )
+        youth.subsidy_funder = "NYS"
+        youth.subsidy_status = "Active"
+        youth.subsidy_start_date = date(2026, 9, 1)
+        youth.subsidy_end_date = date(2026, 12, 31)
+        youth.save(update_fields=[
+            "subsidy_funder",
+            "subsidy_status",
+            "subsidy_start_date",
+            "subsidy_end_date",
+        ])
+        after = youth_budget.project(
+            _scenario(nys_full_time_count=0, nys_part_time_count=0),
+            youth_budget.build_cohorts(today=date(2026, 9, 1)),
+            [],
+            date(2026, 9, 1),
+        )
+
+        self.assertEqual(before, after)
 
     def test_school_less_note_counts_all_active_youth_without_a_school(self):
         Youth.objects.create(
@@ -714,11 +842,19 @@ class ModelAndSyncTests(TestCase):
         )
         self.assertFalse(pot.is_ringfenced)
 
-    def test_budget_scenario_defaults_use_august_levers(self):
-        scenario = BudgetScenario.objects.create(year=2026)
+    def test_budget_scenario_defaults_use_current_subsidy_levers(self):
+        scenario = BudgetScenario.objects.create(
+            year=2026,
+            **youth_budget.default_scenario_values(2026),
+        )
         self.assertEqual(scenario.wage_rate, Decimal("32.01"))
-        self.assertEqual(scenario.subsidy_contribution, Decimal("1400"))
-        self.assertEqual(scenario.nys_conversion_start_month, 8)
+        self.assertEqual(scenario.nys_subsidy_contribution, Decimal("1900"))
+        self.assertEqual(scenario.nys_start_date, date(2026, 9, 1))
+        self.assertEqual(scenario.nys_end_date, date(2026, 12, 31))
+        self.assertEqual(scenario.sef_subsidy_contribution, Decimal("1400"))
+        self.assertEqual(scenario.sef_full_time_count, 200)
+        self.assertEqual(scenario.sef_start_date, date(2026, 10, 1))
+        self.assertEqual(scenario.sef_end_date, date(2027, 3, 31))
         self.assertEqual(scenario.vacancy_start_month, 8)
         self.assertEqual(scenario.last_paid_programme_date, date(2026, 11, 30))
 
@@ -789,11 +925,13 @@ class YouthBudgetEndpointTests(TestCase):
                 "notes",
                 "school_options",
                 "spend_forecast",
+                "subsidy_plan",
+                "source_subsidies",
             },
         )
         for option in body["school_options"]:
             self.assertEqual(set(option), {"id", "name"})
-        self.assertEqual(body["scenario"]["nys_conversion_start_month"], 8)
+        self.assertEqual(body["scenario"]["nys_conversion_start_month"], 9)
         self.assertEqual(body["scenario"]["vacancy_start_month"], 8)
         self.assertEqual(
             body["scenario"]["last_paid_programme_date"],
@@ -802,6 +940,10 @@ class YouthBudgetEndpointTests(TestCase):
         self.assertEqual(
             body["scenario"]["hours_matrix"],
             youth_budget.HOURS_MATRIX_DEFAULTS,
+        )
+        self.assertFalse(body["source_subsidies"]["available"])
+        self.assertIsNone(
+            body["source_subsidies"]["nys_tagged_active_employees"]
         )
         self.assertEqual(
             set(body["notes"]),
@@ -824,7 +966,13 @@ class YouthBudgetEndpointTests(TestCase):
         )
         self.assertEqual(
             set(projections["committed"]),
-            {"months", "total", "costed_youth", "open_posts"},
+            {
+                "months",
+                "total",
+                "costed_youth",
+                "current_core_youth",
+                "open_posts",
+            },
         )
         self.assertEqual(
             set(response.json()["spend_forecast"]),
@@ -970,10 +1118,102 @@ class YouthBudgetEndpointTests(TestCase):
         scenario = BudgetScenario.objects.get(year=2026)
         self.assertEqual(scenario.nys_full_time_count, 175)
         self.assertEqual(scenario.nys_conversion_start_month, 9)
+        self.assertEqual(scenario.nys_start_date, date(2026, 9, 1))
         self.assertEqual(scenario.vacancy_start_month, 10)
         self.assertEqual(scenario.holiday_pay, Decimal("2500.50"))
         self.assertEqual(scenario.last_paid_programme_date, date(2026, 11, 14))
         self.assertEqual(scenario.updated_by, user.username)
+
+    def test_legacy_nys_write_updates_canonical_field_and_alias(self):
+        self._auth("ADMIN")
+        response = self.client.patch(
+            "/api/youth-budget/scenario/",
+            {
+                "year": 2026,
+                "subsidy_contribution": "1775",
+                "nys_conversion_start_month": 10,
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        scenario = BudgetScenario.objects.get(year=2026)
+        self.assertEqual(scenario.nys_subsidy_contribution, Decimal("1775"))
+        self.assertEqual(scenario.subsidy_contribution, Decimal("1775"))
+        self.assertEqual(scenario.nys_start_date, date(2026, 10, 1))
+        self.assertEqual(scenario.nys_conversion_start_month, 10)
+        self.assertEqual(response.json()["nys_subsidy_contribution"], 1775.0)
+        self.assertEqual(response.json()["subsidy_contribution"], 1775.0)
+
+    def test_conflicting_legacy_and_canonical_fields_are_rejected(self):
+        self._auth("ADMIN")
+        response = self.client.patch(
+            "/api/youth-budget/scenario/",
+            {
+                "year": 2026,
+                "subsidy_contribution": "1775",
+                "nys_subsidy_contribution": "1900",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(BudgetScenario.objects.filter(year=2026).exists())
+
+    def test_partial_date_update_validates_against_saved_end_date(self):
+        self._auth("ADMIN")
+        self.client.get("/api/youth-budget/?year=2026")
+        response = self.client.patch(
+            "/api/youth-budget/scenario/",
+            {"year": 2026, "nys_start_date": "2026-12-31"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        invalid = self.client.patch(
+            "/api/youth-budget/scenario/",
+            {"year": 2026, "nys_end_date": "2026-12-01"},
+            format="json",
+        )
+        self.assertEqual(invalid.status_code, 400)
+
+    def test_complete_source_receipt_exposes_bounded_airtable_counts(self):
+        self._auth("MENTOR")
+        Youth.objects.create(
+            employee_id=9301,
+            full_name="NYS Source",
+            employment_status="Active",
+            subsidy_funder="NYS",
+        )
+        Youth.objects.create(
+            employee_id=9302,
+            full_name="SEF Source",
+            employment_status="Active",
+            subsidy_funder="SEF",
+            subsidy_status="Active",
+        )
+        receipt = AirtableSyncLog.objects.create(
+            sync_type="youth",
+            details={
+                "subsidy_enrichment": {
+                    "contract_version": "youth_subsidy_enrichment_v1",
+                    "complete": True,
+                    "matched": 2,
+                    "missing_link": 0,
+                    "multiple_links": 0,
+                    "missing_target": 0,
+                }
+            },
+        )
+        receipt.mark_complete(success=True)
+
+        source = self.client.get(
+            "/api/youth-budget/?year=2026"
+        ).json()["source_subsidies"]
+
+        self.assertTrue(source["available"])
+        self.assertTrue(source["latest_attempt_succeeded"])
+        self.assertEqual(source["nys_tagged_active_employees"], 1)
+        self.assertEqual(source["sef_active_status_employees"], 1)
 
     def test_scenario_rejects_invalid_month_and_negative_money(self):
         self._auth("ADMIN")
@@ -993,7 +1233,10 @@ class YouthBudgetEndpointTests(TestCase):
     @patch("api.views.youth_budget.timezone.localdate", return_value=date(2026, 9, 1))
     def test_authenticated_preview_recalculates_without_saving(self, _localdate):
         self._auth("MENTOR")
-        saved = BudgetScenario.objects.create(year=2026)
+        saved = BudgetScenario.objects.create(
+            year=2026,
+            **youth_budget.default_scenario_values(2026),
+        )
         for month, amount in ((5, "10"), (6, "20"), (7, "40"), (8, "60")):
             MonthlyYouthExpenditure.objects.create(
                 year=2026,
@@ -1020,6 +1263,7 @@ class YouthBudgetEndpointTests(TestCase):
                 "ringfenced_pots",
                 "spend_forecast",
                 "feasibility",
+                "subsidy_plan",
             },
         )
         self.assertEqual(
@@ -1279,13 +1523,21 @@ class SubsidyOnlyLeverTests(SimpleTestCase):
 
     def test_subsidy_only_converts_leave_the_costed_population(self):
         base = youth_budget.project(
-            _scenario(nys_full_time_count=0, nys_part_time_count=0),
+            _scenario(
+                nys_full_time_count=0,
+                nys_part_time_count=0,
+                nys_start_date=date(2026, 8, 1),
+            ),
             [_cohort(headcount=4, nys_eligible_count=4)],
             [],
             date(2026, 8, 1),
         )
         with_lever = youth_budget.project(
-            _scenario(nys_full_time_count=0, nys_part_time_count=2),
+            _scenario(
+                nys_full_time_count=0,
+                nys_part_time_count=2,
+                nys_start_date=date(2026, 8, 1),
+            ),
             [_cohort(headcount=4, nys_eligible_count=4)],
             [],
             date(2026, 8, 1),
@@ -1300,9 +1552,10 @@ class SubsidyOnlyLeverTests(SimpleTestCase):
     def test_split_between_zero_cost_and_topup_conversions(self):
         result = youth_budget.project(
             _scenario(
-                subsidy_contribution=Decimal("100"),
+                nys_subsidy_contribution=Decimal("100"),
                 nys_full_time_count=2,
                 nys_part_time_count=1,
+                nys_start_date=date(2026, 8, 1),
             ),
             [_cohort(headcount=4, nys_eligible_count=4)],
             [],
@@ -1312,7 +1565,11 @@ class SubsidyOnlyLeverTests(SimpleTestCase):
         # 1 youth vanishes from payroll; 2 of the remaining 3 earn relief.
         self.assertEqual(august["subsidy_relief"], Decimal("200.00"))
         full_gross = youth_budget.project(
-            _scenario(nys_full_time_count=0, nys_part_time_count=0),
+            _scenario(
+                nys_full_time_count=0,
+                nys_part_time_count=0,
+                nys_start_date=date(2026, 8, 1),
+            ),
             [_cohort(headcount=4, nys_eligible_count=4)],
             [],
             date(2026, 8, 1),
@@ -1326,7 +1583,7 @@ class SubsidyOnlyLeverTests(SimpleTestCase):
             _scenario(
                 nys_full_time_count=0,
                 nys_part_time_count=5,
-                nys_conversion_start_month=9,
+                nys_start_date=date(2026, 9, 1),
             ),
             [_cohort(headcount=2, nys_eligible_count=2)],
             [],
@@ -1342,6 +1599,30 @@ class SubsidyOnlyLeverTests(SimpleTestCase):
         self.assertEqual(august["gross"], base[0]["gross"])
         self.assertEqual(september["gross"], Decimal("0.00"))
         self.assertEqual(september["subsidy_relief"], Decimal("0.00"))
+
+    def test_part_time_end_date_does_not_reenter_masi_payroll(self):
+        common = {
+            "nys_full_time_count": 0,
+            "nys_part_time_count": 1,
+            "nys_start_date": date(2026, 9, 1),
+        }
+        september_end = youth_budget.project(
+            _scenario(**common, nys_end_date=date(2026, 9, 30)),
+            [_cohort(headcount=1, nys_eligible_count=1)],
+            [],
+            date(2026, 10, 1),
+        )
+        december_end = youth_budget.project(
+            _scenario(**common, nys_end_date=date(2026, 12, 31)),
+            [_cohort(headcount=1, nys_eligible_count=1)],
+            [],
+            date(2026, 10, 1),
+        )
+
+        self.assertEqual(
+            september_end["committed"]["months"],
+            december_end["committed"]["months"],
+        )
 
 
 class UtilisationLeverTests(SimpleTestCase):
@@ -1374,7 +1655,8 @@ class UtilisationLeverTests(SimpleTestCase):
                 nys_full_time_count=1,
                 nys_part_time_count=0,
                 utilisation_pct=10,
-                subsidy_contribution=Decimal("1600"),
+                nys_subsidy_contribution=Decimal("1600"),
+                nys_start_date=date(2026, 8, 1),
             ),
             [_cohort(headcount=1, nys_eligible_count=1)],
             [],

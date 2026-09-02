@@ -133,15 +133,24 @@ def school_days_in_month(year, month, start_from=None, end_on=None):
     )
 
 
-def default_scenario_values():
+def default_scenario_values(year=2026):
     """Defaults used when the shared scenario is first created."""
     return {
         "wage_rate": Decimal("32.01"),
-        "subsidy_contribution": Decimal("1400"),
+        # Legacy aliases remain populated during the expand-contract release.
+        "subsidy_contribution": Decimal("1900"),
+        "nys_subsidy_contribution": Decimal("1900"),
         "hours_matrix": deepcopy(HOURS_MATRIX_DEFAULTS),
-        "nys_full_time_count": 160,
-        "nys_part_time_count": 40,
-        "nys_conversion_start_month": 8,
+        "nys_full_time_count": 127,
+        "nys_part_time_count": 41,
+        "nys_conversion_start_month": 9,
+        "nys_start_date": date(year, 9, 1),
+        "nys_end_date": date(year, 12, 31),
+        "sef_subsidy_contribution": Decimal("1400"),
+        "sef_full_time_count": 200,
+        "sef_part_time_count": 0,
+        "sef_start_date": date(year, 10, 1),
+        "sef_end_date": date(year + 1, 3, 31),
         "vacancy_start_month": 8,
         "last_paid_programme_date": HORIZON_END,
         "holiday_pay": Decimal("0"),
@@ -197,23 +206,10 @@ def build_cohorts(today=None, ringfenced_school_ids=frozenset()):
         site_type = _site_type(youth.school.type if youth.school else None)
         job_title = _job_title(youth.job_title)
         programme = programme_for_job_title(job_title)
-        status_active = (
-            (youth.subsidy_status or "").strip().lower() == "active"
-            and (
-                youth.subsidy_end_date is None
-                or youth.subsidy_end_date >= today
-            )
-        )
-        never_sef = all(
-            _is_empty(value)
-            for value in (
-                youth.subsidy_funder,
-                youth.subsidy_status,
-                youth.subsidy_start_date,
-                youth.subsidy_end_date,
-            )
-        )
-        nys_eligible = never_sef and programme != YEBO
+        # V1 projections are deliberately theoretical. Airtable subsidy tags
+        # feed a separate source summary and never change costing or capacity.
+        status_active = False
+        nys_eligible = programme != YEBO
 
         notes["active_total"] += 1
         if youth.school_id is None:
@@ -235,14 +231,12 @@ def build_cohorts(today=None, ringfenced_school_ids=frozenset()):
                 False,
             )
             ringfenced_detailed[detailed_key]["headcount"] += 1
-            ringfenced_detailed[detailed_key]["subsidised_count"] += int(
-                status_active
-            )
+            ringfenced_detailed[detailed_key]["subsidised_count"] += 0
             continue
 
         public_key = (site_type, job_title, programme)
         public[public_key]["headcount"] += 1
-        public[public_key]["subsidised_count"] += int(status_active)
+        public[public_key]["subsidised_count"] += 0
         public[public_key]["nys_eligible_count"] += int(nys_eligible)
 
         detailed_key = (
@@ -256,7 +250,7 @@ def build_cohorts(today=None, ringfenced_school_ids=frozenset()):
             nys_eligible,
         )
         detailed[detailed_key]["headcount"] += 1
-        detailed[detailed_key]["subsidised_count"] += int(status_active)
+        detailed[detailed_key]["subsidised_count"] += 0
         detailed[detailed_key]["nys_eligible_count"] += int(nys_eligible)
 
     public_rows = []
@@ -402,19 +396,6 @@ def _projection_months(year, as_of, end_on):
     return list(range(start_month, effective_end.month + 1))
 
 
-def _actual_subsidised_count(row, year, month):
-    count = int(row.get("subsidised_count") or 0)
-    end_date = row.get("subsidy_end_date")
-    if isinstance(end_date, str):
-        try:
-            end_date = date.fromisoformat(end_date)
-        except ValueError:
-            end_date = None
-    if end_date is not None and end_date < date(year, month, 1):
-        return 0
-    return count
-
-
 def _allocate_proportionally(eligible_counts, requested):
     """Largest-remainder allocation of `requested` slots across cohorts."""
     eligible_total = sum(eligible_counts)
@@ -443,15 +424,92 @@ def _allocate_proportionally(eligible_counts, requested):
     return allocated
 
 
-def _nys_conversions(rows, requested, subsidy_only=0):
-    """Split NYS conversions into zero-cost and top-up allocations per row.
+def _scenario_date(scenario, field, fallback):
+    value = _scenario_value(scenario, field, fallback)
+    if isinstance(value, str):
+        try:
+            value = date.fromisoformat(value)
+        except ValueError:
+            value = fallback
+    return value if isinstance(value, date) else fallback
 
-    Subsidy-only part-timers work only the hours the subsidy pays for and
-    never touch Masi payroll, so they leave the costed population entirely
-    (no gross, no UIF) rather than merely earning the R1,600 relief. They are
-    allocated first; the remaining conversions get standard top-up relief
-    from the pool that is left.
-    """
+
+def _subsidy_schemes(scenario, year):
+    """Return canonical theoretical subsidy inputs with legacy NYS fallbacks."""
+    legacy_month = int(
+        _scenario_value(scenario, "nys_conversion_start_month", 9) or 9
+    )
+    nys_start = _scenario_date(
+        scenario,
+        "nys_start_date",
+        date(year, legacy_month, 1),
+    )
+    return [
+        {
+            "key": "nys",
+            "order": 0,
+            "contribution": _decimal(
+                _scenario_value(
+                    scenario,
+                    "nys_subsidy_contribution",
+                    _scenario_value(
+                        scenario,
+                        "subsidy_contribution",
+                        Decimal("1900"),
+                    ),
+                ),
+                Decimal("1900"),
+            ),
+            "requested_full_time": max(
+                int(_scenario_value(scenario, "nys_full_time_count", 127) or 0),
+                0,
+            ),
+            "requested_part_time": max(
+                int(_scenario_value(scenario, "nys_part_time_count", 41) or 0),
+                0,
+            ),
+            "start_date": nys_start,
+            "end_date": _scenario_date(
+                scenario,
+                "nys_end_date",
+                date(year, 12, 31),
+            ),
+        },
+        {
+            "key": "sef",
+            "order": 1,
+            "contribution": _decimal(
+                _scenario_value(
+                    scenario,
+                    "sef_subsidy_contribution",
+                    Decimal("1400"),
+                ),
+                Decimal("1400"),
+            ),
+            "requested_full_time": max(
+                int(_scenario_value(scenario, "sef_full_time_count", 200) or 0),
+                0,
+            ),
+            "requested_part_time": max(
+                int(_scenario_value(scenario, "sef_part_time_count", 0) or 0),
+                0,
+            ),
+            "start_date": _scenario_date(
+                scenario,
+                "sef_start_date",
+                date(year, 10, 1),
+            ),
+            "end_date": _scenario_date(
+                scenario,
+                "sef_end_date",
+                date(year + 1, 3, 31),
+            ),
+        },
+    ]
+
+
+def _subsidy_allocations(rows, scenario, year):
+    """Allocate complete theoretical schemes from one non-overlapping pool."""
     eligible_counts = []
     for row in rows:
         eligible = 0
@@ -459,18 +517,64 @@ def _nys_conversions(rows, requested, subsidy_only=0):
             eligible = max(int(row.get("nys_eligible_count") or 0), 0)
         eligible_counts.append(eligible)
 
-    requested_total = max(int(requested or 0), 0)
-    zero_target = min(max(int(subsidy_only or 0), 0), requested_total)
-    zero_cost = _allocate_proportionally(eligible_counts, zero_target)
-    remaining_eligible = [
-        eligible - converted
-        for eligible, converted in zip(eligible_counts, zero_cost)
-    ]
-    relief = _allocate_proportionally(
-        remaining_eligible,
-        requested_total - sum(zero_cost),
-    )
-    return zero_cost, relief
+    remaining = list(eligible_counts)
+    allocations = {}
+    schemes = {}
+    for scheme in sorted(
+        _subsidy_schemes(scenario, year),
+        key=lambda item: (item["start_date"], item["order"]),
+    ):
+        part_time = _allocate_proportionally(
+            remaining,
+            scheme["requested_part_time"],
+        )
+        remaining = [
+            available - allocated
+            for available, allocated in zip(remaining, part_time)
+        ]
+        full_time = _allocate_proportionally(
+            remaining,
+            scheme["requested_full_time"],
+        )
+        remaining = [
+            available - allocated
+            for available, allocated in zip(remaining, full_time)
+        ]
+        modelled_part_time = sum(part_time)
+        modelled_full_time = sum(full_time)
+        requested_total = (
+            scheme["requested_full_time"] + scheme["requested_part_time"]
+        )
+        modelled_total = modelled_full_time + modelled_part_time
+        allocations[scheme["key"]] = {
+            "part_time": part_time,
+            "full_time": full_time,
+            "spec": scheme,
+        }
+        schemes[scheme["key"]] = {
+            "contribution": scheme["contribution"],
+            "start_date": scheme["start_date"],
+            "end_date": scheme["end_date"],
+            "requested_full_time": scheme["requested_full_time"],
+            "requested_part_time": scheme["requested_part_time"],
+            "requested_total": requested_total,
+            "modelled_full_time": modelled_full_time,
+            "modelled_part_time": modelled_part_time,
+            "modelled_total": modelled_total,
+            "unmodelled_total": requested_total - modelled_total,
+        }
+
+    requested_total = sum(row["requested_total"] for row in schemes.values())
+    modelled_total = sum(row["modelled_total"] for row in schemes.values())
+    plan = {
+        "policy": "theoretical_only",
+        "eligible_current_youth": sum(eligible_counts),
+        "requested_total": requested_total,
+        "modelled_total": modelled_total,
+        "unmodelled_total": requested_total - modelled_total,
+        "schemes": schemes,
+    }
+    return allocations, plan
 
 
 def _project_rows(scenario, rows, as_of, include_holiday_pay=True):
@@ -480,13 +584,6 @@ def _project_rows(scenario, rows, as_of, include_holiday_pay=True):
         _scenario_value(scenario, "wage_rate"),
         Decimal("32.01"),
     )
-    contribution = _decimal(
-        _scenario_value(scenario, "subsidy_contribution"),
-        Decimal("1400"),
-    )
-    conversion_month = int(
-        _scenario_value(scenario, "nys_conversion_start_month", 8)
-    )
     vacancy_month = int(_scenario_value(scenario, "vacancy_start_month", 8))
     utilisation = _decimal(
         _scenario_value(scenario, "utilisation_pct", 100),
@@ -494,16 +591,8 @@ def _project_rows(scenario, rows, as_of, include_holiday_pay=True):
     ) / Decimal("100")
     if utilisation < 0:
         utilisation = Decimal("1")
-    full_time = max(int(_scenario_value(scenario, "nys_full_time_count", 160) or 0), 0)
-    part_time = max(int(_scenario_value(scenario, "nys_part_time_count", 40) or 0), 0)
     last_paid_programme_date = _scenario_last_paid_programme_date(scenario)
-    # The split is additive: total conversions = FT + PT, of which the PT
-    # youth cost R0 (they never touch payroll).
-    zero_cost_converted, relief_converted = _nys_conversions(
-        rows,
-        full_time + part_time,
-        part_time,
-    )
+    allocations, subsidy_plan = _subsidy_allocations(rows, scenario, year)
 
     months = []
     school_totals = defaultdict(lambda: Decimal("0"))
@@ -526,10 +615,16 @@ def _project_rows(scenario, rows, as_of, include_holiday_pay=True):
             if row.get("_vacancy") and month < vacancy_month:
                 continue
             headcount = max(int(row.get("headcount") or 0), 0)
-            # Subsidy-only converts leave the costed population from their
-            # start month: no gross, no UIF, not merely relief.
-            if not row.get("_vacancy") and month >= conversion_month:
-                headcount = max(headcount - zero_cost_converted[index], 0)
+            # Subsidy-only youth leave payroll from their first qualifying paid
+            # date onward and never automatically re-enter after scheme end.
+            if not row.get("_vacancy"):
+                for allocation in allocations.values():
+                    if any(
+                        working_date >= allocation["spec"]["start_date"]
+                        for working_date in working_dates
+                    ):
+                        headcount -= allocation["part_time"][index]
+                headcount = max(headcount, 0)
             if headcount == 0:
                 continue
 
@@ -547,14 +642,19 @@ def _project_rows(scenario, rows, as_of, include_holiday_pay=True):
             )
             gross = gross_each * headcount
             uif = gross * (UIF_FACTOR - Decimal("1"))
-            subsidised = 0
+            relief = Decimal("0")
             if not row.get("_vacancy"):
-                subsidised = _actual_subsidised_count(row, year, month)
-                if month >= conversion_month:
-                    subsidised += relief_converted[index]
-                subsidised = min(subsidised, headcount)
-            relief_each = min(contribution, gross_each * UIF_FACTOR)
-            relief = relief_each * subsidised
+                for allocation in allocations.values():
+                    spec = allocation["spec"]
+                    if any(
+                        spec["start_date"] <= working_date <= spec["end_date"]
+                        for working_date in working_dates
+                    ):
+                        relief_each = min(
+                            spec["contribution"],
+                            gross_each * UIF_FACTOR,
+                        )
+                        relief += relief_each * allocation["full_time"][index]
             net = gross + uif - relief
 
             month_gross += gross
@@ -589,6 +689,7 @@ def _project_rows(scenario, rows, as_of, include_holiday_pay=True):
             school_id: _money(total)
             for school_id, total in school_totals.items()
         },
+        "subsidy_plan": subsidy_plan,
     }
 
 
@@ -612,12 +713,20 @@ def project(scenario, cohorts, vacancies, as_of):
     )
 
     committed = _project_rows(scenario, active_rows, as_of)
+    subsidy_plan = committed.pop("subsidy_plan")
     committed["costed_youth"] = costed_youth
+    committed["current_core_youth"] = costed_youth
     committed["open_posts"] = 0
     at_plan = _project_rows(scenario, active_rows + vacancy_rows, as_of)
+    at_plan.pop("subsidy_plan")
     at_plan["costed_youth"] = costed_youth + open_posts
+    at_plan["current_core_youth"] = costed_youth
     at_plan["open_posts"] = open_posts
-    return {"committed": committed, "at_plan": at_plan}
+    return {
+        "committed": committed,
+        "at_plan": at_plan,
+        "subsidy_plan": subsidy_plan,
+    }
 
 
 def project_ringfenced(

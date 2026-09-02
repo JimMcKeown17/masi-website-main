@@ -4,6 +4,107 @@ Last updated: 1 September 2026
 
 This is the project-level implementation and release log for the Django repository. It starts with the current work rather than reconstructing older history. Domain history and source topology remain in `data_map.md` and `airtable_pipeline_sync.md`.
 
+## 1 September 2026 - Independent NYS and SEF theoretical subsidy scenarios
+
+Status: specification adversarially reviewed and local backend implementation verified.
+The changes are uncommitted, undeployed, not migrated in production, and have not changed
+the production Airtable snapshot or saved Budget Scenario.
+
+### Contract and projection policy
+
+- Added an expand-contract `BudgetScenario` schema for independent NYS and SEF
+  contribution, full-time count, part-time count, exact start date, and exact end date.
+  Migration `0048_budgetscenario_subsidy_schemes` copies existing NYS values into the
+  canonical NYS fields and preserves the temporary legacy aliases. Existing rows migrate
+  with zero SEF jobs, so the suggested 200-job SEF plan cannot silently alter a shared
+  scenario. New unsaved defaults expose the suggested 200 full-time SEF jobs to the UI.
+- NYS defaults to R1,900, 127 full-time jobs, 41 part-time jobs, 1 September through
+  31 December. SEF defaults to R1,400, 200 full-time jobs, zero part-time jobs,
+  1 October through 31 March of the following year. Defaults are derived from the
+  scenario year rather than hardcoded to 2026.
+- Airtable NYS and SEF assignments are deliberately excluded from V1 projected relief.
+  The scenario is a complete theoretical plan applied to current, non-Yebo, non-ringfenced
+  core youth. A single shared capacity pool prevents the same modelled youth from
+  receiving both subsidies. Requests above current eligible capacity are reported as a
+  future-hire shortfall and do not reduce the projection.
+- Scheme allocation is deterministic: earlier start dates allocate first, NYS wins an
+  exact-date tie, and part-time allocations precede full-time allocations. Proportional
+  largest-remainder assignment avoids accidental school-order bias when capacity is
+  constrained.
+- A scheme contributes its full monthly cap only when its inclusive date interval overlaps
+  at least one exact paid school date in that projection month. Contributions are capped
+  by earned gross plus UIF and are not prorated by working-day share. A part-time scheme
+  removes the youth from Masi payroll from its first qualifying paid date and does not put
+  the youth back on Masi payroll after the scheme ends.
+- `POST /api/youth-budget/preview/`, the saved scenario endpoint, summary, and projection
+  serializers expose canonical scheme fields and backend-authored requested, modelled,
+  and shortfall values. Legacy NYS names remain accepted during the compatibility window;
+  conflicting canonical and legacy writes fail validation rather than choosing one.
+- `Vacancy Start Month` remains an open-post hiring-plan input and is intentionally not
+  used to allocate theoretical subsidies to current youth.
+
+### Airtable source-information lane
+
+- Extended `sync_airtable_youth` with a bounded Combined Youth fetch and a one-to-one
+  enrichment join. The Combined table's direct `Funder`, `SEF (Current Status)`,
+  `SEF Start Date`, and `SEF End Date` fields populate canonical source-only fields on
+  `Youth`. The original Basic Airtable record ID remains the local source identity.
+- Enrichment is fail-closed. Missing Combined configuration, fetch/schema failures,
+  missing links, multiple links, or missing targets do not erase a previously complete
+  subsidy snapshot. Basic creates and updates may still publish, but subsidy fields remain
+  unchanged for existing rows, new rows remain unknown, and the command exits nonzero.
+- The success or failure receipt is versioned. The summary endpoint uses the latest
+  complete receipt for source counts and freshness; if the latest attempt failed it keeps
+  the last complete counts and reports the warning. A missing complete receipt produces
+  unavailable values, never fabricated zeroes.
+- Source counts are organisation-wide informational totals: active employees whose
+  `Funder` is NYS, and active employees whose `Funder` is SEF with active SEF status.
+  They are not combined with the theoretical scenario and do not affect funding verdicts.
+- The command now rejects an empty canonical Airtable result before orphan calculations,
+  performs creates, updates, and orphan deletion in one transaction, requests only the
+  required stable fields, and makes a dry run execute the complete transform and report
+  all would-change and enrichment counts without writing.
+
+### Verification
+
+- `env DATABASE_URL=sqlite:///:memory: PYTHONDONTWRITEBYTECODE=1 venv/bin/python manage.py test api.tests_youth_budget api.tests_sync_airtable_youth api.tests_youth_budget_migrations`:
+  all 93 focused projection, API, Airtable, and migration tests passed.
+- `env DATABASE_URL=sqlite:///:memory: PYTHONDONTWRITEBYTECODE=1 venv/bin/python manage.py test api`:
+  all 579 API tests passed after the final Combined-field correction.
+- `env DATABASE_URL=sqlite:///:memory: PYTHONDONTWRITEBYTECODE=1 venv/bin/python manage.py check`:
+  system check passed with no issues.
+- `env DATABASE_URL=sqlite:///:memory: PYTHONDONTWRITEBYTECODE=1 venv/bin/python manage.py makemigrations --check --dry-run`:
+  no model changes beyond checked-in migration `0048` were detected.
+- A fresh disposable SQLite database migrated from zero through `0048` successfully,
+  including the legacy-to-canonical data copy.
+- A real read-only Airtable dry run initially failed closed because the draft requested
+  old lookup-style field names from the Combined table. A field-name-only inspection
+  identified the direct Combined fields, the mapping was corrected, and the complete
+  backend suite was rerun.
+- The final real Airtable dry run fetched and enriched 1,898 canonical youth: all 1,898
+  links matched one-to-one, with zero missing links, multiple links, or missing targets.
+  Against the disposable 12-row fixture it reported 1,886 would-create, 12 would-update,
+  zero would-skip, and zero would-delete. Those database deltas describe only the
+  disposable fixture, not production. The command ended with `DRY RUN`; no local fixture
+  or production database rows changed.
+
+### Release work still required
+
+1. Review and commit the backend and frontend changes without including unrelated local
+   work, then deploy the backward-compatible backend and apply migration `0048` before
+   deploying the frontend.
+2. Confirm `AIRTABLE_COMBINED_YOUTH_DATA_TABLE_ID` in the effective production command
+   environment. Run the canonical production dry run, review its exact create, update,
+   skip, delete, and enrichment counts, and obtain fresh count-specific authorization
+   before any `--apply` invocation.
+3. Read back the complete source receipt and source-only NYS/SEF counts after an authorized
+   apply. Do not infer publication from a successful dry run.
+4. Verify authenticated production preview, save, responsive rendering, exact date
+   boundaries, old/new alias compatibility, unavailable/stale source states, and the
+   explicit `Use planned 200` action.
+5. Treat activating 200 SEF jobs in the shared Budget Scenario as a separate scenario
+   write requiring explicit operator intent; the migration and deployment do not do it.
+
 ## 1 September 2026 - Budget horizon, working-date provenance, and preview API
 
 Status: backend commit `4392964` and frontend commit `39ff288` are on their respective
