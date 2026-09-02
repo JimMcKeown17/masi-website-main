@@ -29,8 +29,7 @@ from api.finance_snapshot import (
     payload_digest,
     validate_snapshot,
 )
-# Restored in Task 2 when the model lands.
-# from api.models import FinanceSnapshot
+from api.models import FinanceSnapshot
 
 FIXTURE = Path(__file__).resolve().parent / "test_data" / "finance-snapshot-example.json"
 MASI_FINANCE_SCHEMA = Path("/Users/jimmckeown/Development/masi-finance/src/publish/schema/finance-snapshot-1.0.0.json")
@@ -100,3 +99,25 @@ class FinanceSnapshotContractTests(SimpleTestCase):
     def test_timestamp_and_date_parsing(self):
         self.assertEqual(parse_timestamp("2026-09-01T12:00:00Z"), datetime(2026, 9, 1, 12, 0, 0, tzinfo=timezone.utc))
         self.assertEqual(parse_date("2026-08-31"), date(2026, 8, 31))
+
+# api/tests_finance_snapshot.py (append)
+
+class FinanceSnapshotModelTests(TestCase):
+    def test_one_row_per_accounting_year_with_provenance(self):
+        row = FinanceSnapshot.objects.create(
+            accounting_year=2026, schema_version="1.0.0", run_id="2026-09-01T12:00:00Z-0a1b2c",
+            workbook_name="20260831 - Fixture Management Accounts.xlsx", workbook_date=date(2026, 8, 31),
+            workbook_modified_at=datetime(2026, 9, 1, 11, 59, tzinfo=timezone.utc),
+            workbook_sha256="0" * 64, payload_sha256="f" * 64,
+            published_at=datetime(2026, 9, 1, 12, tzinfo=timezone.utc), payload=fixture(),
+        )
+        self.assertIsNotNone(row.loaded_at)
+        self.assertEqual(str(row), "Finance snapshot 2026 from 20260831 - Fixture Management Accounts.xlsx (2026-09-01T12:00:00Z-0a1b2c)")
+        from django.db import IntegrityError
+        with self.assertRaises(IntegrityError):
+            FinanceSnapshot.objects.create(
+                accounting_year=2026, schema_version="1.0.0", run_id="x", workbook_name="y",
+                workbook_date=date(2026, 8, 31), workbook_modified_at=datetime(2026, 9, 1, 11, 59, tzinfo=timezone.utc),
+                workbook_sha256="1" * 64, payload_sha256="f" * 64,
+                published_at=datetime(2026, 9, 1, 12, tzinfo=timezone.utc), payload={},
+            )

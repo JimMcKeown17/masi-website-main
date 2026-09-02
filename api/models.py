@@ -1999,3 +1999,34 @@ class NumeracyOnTheProgramme2026(models.Model):
 
     def __str__(self):
         return f"{self.child_uid} ({self.programme_status or 'unknown'})"
+
+
+class FinanceSnapshot(models.Model):
+    """The published finance snapshot for one accounting year.
+
+    masi-finance's `publish finance` writes a versioned JSON artifact from
+    the management workbook; `load_finance_snapshot` stores it here whole
+    (the ZaziOverviewSnapshot precedent: one row, one JSONField, because
+    the only consumer is a read-only page that wants the entire document).
+    Provenance is structured rather than a note string so the API and the
+    anti-rollback guard can read it.
+    """
+
+    accounting_year = models.IntegerField(unique=True)
+    schema_version = models.CharField(max_length=16)
+    run_id = models.CharField(max_length=64)
+    workbook_name = models.CharField(max_length=255)
+    workbook_date = models.DateField(help_text="YYYYMMDD prefix of the source workbook; first anti-rollback key")
+    workbook_modified_at = models.DateTimeField(help_text="The workbook file's mtime when published; second anti-rollback key")
+    workbook_sha256 = models.CharField(max_length=64)
+    payload_sha256 = models.CharField(max_length=64, help_text="Canonical digest of the figures; the same-workbook idempotence key")
+    published_at = models.DateTimeField(help_text="When masi-finance produced the artifact")
+    payload = models.JSONField(default=dict)
+    loaded_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Finance Snapshot"
+        verbose_name_plural = "Finance Snapshots"
+
+    def __str__(self):
+        return f"Finance snapshot {self.accounting_year} from {self.workbook_name} ({self.run_id})"
