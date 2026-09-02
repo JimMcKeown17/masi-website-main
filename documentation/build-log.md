@@ -4,6 +4,34 @@ Last updated: 1 September 2026
 
 This is the project-level implementation and release log for the Django repository. It starts with the current work rather than reconstructing older history. Domain history and source topology remain in `data_map.md` and `airtable_pipeline_sync.md`.
 
+## 1 September 2026 - Finance snapshot loader and API
+
+- Added `FinanceSnapshot` (migration 0049): one row per accounting year holding the masi-finance
+  finance snapshot (schema 1.0.0, `api/contracts/finance-snapshot-1.0.0.json`) with structured
+  provenance (run id, workbook name/date/mtime/sha256, payload sha256, published_at, loaded_at).
+- Added `load_finance_snapshot <path> [--apply] [--force]`. Read-only preview by default: prints
+  provenance, per-contract lifetime / in-year / remaining with deltas against the published row,
+  removed contracts, and finding counts. `--apply` re-checks under a row lock inside the write
+  transaction and restates the year. An artifact with an older workbook date is refused unless `--force`;
+  the same date with a different workbook hash is refused too, since neither publish time nor file mtime
+  proves which content is newer; the same workbook with different figures (payload digest) is refused as
+  well. Unknown `schema_version` and a payload digest that does not match the figures are refused. The
+  schema and fixture copies are pinned by content digest. Run files in masi-finance `outputs/publish/` are
+  the publication history.
+- Added `GET /api/finance/snapshot/` behind `IsFinanceReader` (ADMIN / PROJECT MANAGER). Negative
+  matrix tested: anonymous, VIEWER, FUNDER, STAFF, MENTOR, YOUTH, and profile-less users are refused.
+- Golden fixture `api/test_data/finance-snapshot-example.json` is shared with masi-finance and the
+  Next.js dashboard; content-digest constants pin both copies in every suite, and a second test compares
+  the schema copy with the masi-finance checkout when present.
+- Verification: the 29-test finance module passed with one optional sibling-checkout comparison skipped;
+  `makemigrations --check --dry-run` reported no changes, a fresh SQLite database migrated through 0049,
+  and `check` reported no issues. The full 608-test API run had 605 passes, two skips, and one unrelated
+  worktree-location-sensitive literacy-export path failure; that exact test passed on unchanged main in
+  its canonical checkout. All database checks used SQLite in memory. This is not production proof.
+- Operational follow-ups: migrate production (`scripts/prod_manage.sh migrate`), then publish the first
+  real snapshot with `scripts/prod_manage.sh load_finance_snapshot <path>` dry run, review, and only
+  then `--apply` with explicit authorisation.
+
 ## 1 September 2026 - Independent NYS and SEF theoretical subsidy scenarios
 
 Status: backend commit `5f418f9` and frontend commit `bbcf24b` are on `main` and

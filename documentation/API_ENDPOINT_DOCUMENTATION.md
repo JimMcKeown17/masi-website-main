@@ -21,6 +21,7 @@ All endpoints require authentication using **ClerkAuthentication** or **SessionA
 8. [Canonical Data Model](#canonical-data-model)
 9. [ETL Status & Preview Endpoints](#etl-status--preview-endpoints)
 10. [2026 Session Tables](#2026-session-tables)
+11. [Finance Dashboard](#finance-dashboard)
 
 ---
 
@@ -956,6 +957,23 @@ const mentors = await fetch('/api/mentors/').then(r => r.json());
 
 ---
 
+## Finance Dashboard
+
+### Finance snapshot
+
+**Base: ADMIN or PROJECT MANAGER only (`IsFinanceReader`). Read-only.**
+
+```text
+GET    /api/finance/snapshot/?year=2026    - The published finance snapshot for a year (default: latest).
+                                             Response: {accounting_year, run_id, workbook_name, workbook_date,
+                                             workbook_modified_at, workbook_sha256, published_at, loaded_at,
+                                             available_years, snapshot}.
+                                             `snapshot` is the masi-finance artifact, schema 1.0.0
+                                             (api/contracts/finance-snapshot-1.0.0.json). 404 when unpublished.
+```
+
+---
+
 ## Additional Resources
 
 ### Swagger/OpenAPI Documentation
@@ -989,4 +1007,3 @@ This API serves two layers:
 - Data flows: Airtable -> management commands -> PostgreSQL -> API -> frontend
 
 All endpoints require Clerk or Session authentication. Visit endpoints support CRUD; canonical/session endpoints are read-only from the frontend.
-
