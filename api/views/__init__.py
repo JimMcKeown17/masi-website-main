@@ -32,6 +32,7 @@ from .youth_budget import (
     create_youth_budget_expenditure,
     update_youth_budget_expenditure,
 )
+from .finance import finance_snapshot
 from .closures import (
     ClosureListCreateAPIView, ClosureDetailAPIView, closures_bulk, closures_bulk_set, closures_export,
     closures_lookups, identity_export,
@@ -82,6 +83,7 @@ __all__ = [
     'update_youth_budget_pot',
     'create_youth_budget_expenditure',
     'update_youth_budget_expenditure',
+    'finance_snapshot',
     'ClosureListCreateAPIView',
     'ClosureDetailAPIView',
     'closures_bulk',

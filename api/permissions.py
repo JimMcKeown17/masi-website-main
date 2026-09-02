@@ -23,6 +23,15 @@ class IsAdminOrProjectManager(BasePermission):
         return bool(profile and profile.role in WIG_ALLOWED_ROLES)
 
 
+class IsFinanceReader(IsAdminOrProjectManager):
+    """Finance dashboards: the same ADMIN / PROJECT MANAGER rule, with a
+    message that names the resource. The Clerk gate in the frontend is
+    defence in depth; this class is the trust boundary (spec section 8).
+    """
+
+    message = 'Finance dashboards are limited to admins and project managers.'
+
+
 class IsInternalService(BasePermission):
     """Service-to-service auth (no user identity): a matching X-Internal-Auth
     shared secret. Used by the Zazi backend to pull the closure/absence export.

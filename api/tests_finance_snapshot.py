@@ -273,3 +273,92 @@ class LoadFinanceSnapshotCommandTests(TestCase):
     def test_missing_file_is_a_command_error(self):
         with self.assertRaisesRegex(CommandError, "does not exist"):
             self._run(self.directory / "missing.json")
+
+# api/tests_finance_snapshot.py (append)
+
+def _make_user(username, role):
+    """Use the existing profile signal so permission tests match production."""
+    user = User.objects.create_user(username=username, password="x")
+    user.profile.role = role
+    user.profile.save()
+    return user
+
+
+def _publish(year=2026, workbook_date=date(2026, 8, 31), run_id="2026-09-01T12:00:00Z-0a1b2c"):
+    payload = fixture()
+    payload["accounting_year"] = year
+    return FinanceSnapshot.objects.create(
+        accounting_year=year, schema_version="1.0.0", run_id=run_id,
+        workbook_name="20260831 - Fixture Management Accounts.xlsx", workbook_date=workbook_date,
+        workbook_modified_at=datetime(2026, 9, 1, 11, 59, tzinfo=timezone.utc),
+        workbook_sha256="0" * 64, payload_sha256=payload["payload_sha256"],
+        published_at=datetime(2026, 9, 1, 12, tzinfo=timezone.utc), payload=payload,
+    )
+
+
+class FinanceSnapshotEndpointTests(TestCase):
+    URL = "/api/finance/snapshot/"
+
+    def setUp(self):
+        self.client = APIClient()
+        _publish()
+
+    def _auth(self, role):
+        user = _make_user(f"fin_{role.replace(' ', '_').lower()}_{User.objects.count()}", role)
+        self.client.force_authenticate(user=user)
+        return user
+
+    def test_anonymous_is_rejected(self):
+        self.assertIn(self.client.get(self.URL).status_code, (401, 403))
+
+    def test_every_other_role_is_forbidden(self):
+        for role in ("VIEWER", "FUNDER", "STAFF", "MENTOR", "YOUTH"):
+            with self.subTest(role=role):
+                self._auth(role)
+                response = self.client.get(self.URL)
+                self.assertEqual(response.status_code, 403)
+                self.assertIn("Finance", response.json()["detail"])
+
+    def test_user_without_profile_is_forbidden(self):
+        user = User.objects.create_user(username="orphan", password="x")
+        user.profile.delete()
+        user = User.objects.get(pk=user.pk)
+        self.client.force_authenticate(user=user)
+        self.assertEqual(self.client.get(self.URL).status_code, 403)
+
+    def test_admin_and_project_manager_get_the_snapshot(self):
+        for role in ("ADMIN", "PROJECT MANAGER"):
+            with self.subTest(role=role):
+                self._auth(role)
+                response = self.client.get(self.URL + "?year=2026")
+                self.assertEqual(response.status_code, 200)
+                body = response.json()
+                self.assertEqual(set(body), {
+                    "accounting_year", "run_id", "workbook_name", "workbook_date", "workbook_modified_at",
+                    "workbook_sha256", "published_at", "loaded_at", "available_years", "snapshot",
+                })
+                self.assertEqual(body["accounting_year"], 2026)
+                self.assertEqual(body["workbook_date"], "2026-08-31")
+                self.assertEqual(body["available_years"], [2026])
+                self.assertEqual(body["snapshot"]["funder_contracts"][0]["id"], "1f5047ecae02")
+                self.assertEqual(body["snapshot"]["funder_contracts"][0]["budget_total"], "7000.00")
+
+    def test_year_defaults_to_the_latest_published(self):
+        _publish(year=2025, run_id="2026-09-01T12:00:00Z-000000")
+        self._auth("ADMIN")
+        body = self.client.get(self.URL).json()
+        self.assertEqual(body["accounting_year"], 2026)
+        self.assertEqual(body["available_years"], [2026, 2025])
+        self.assertEqual(self.client.get(self.URL + "?year=2025").json()["accounting_year"], 2025)
+
+    def test_unpublished_year_is_404_and_bad_year_is_400(self):
+        self._auth("PROJECT MANAGER")
+        self.assertEqual(self.client.get(self.URL + "?year=2024").status_code, 404)
+        self.assertEqual(self.client.get(self.URL + "?year=abc").status_code, 400)
+
+    def test_nothing_published_at_all_is_404(self):
+        FinanceSnapshot.objects.all().delete()
+        self._auth("ADMIN")
+        response = self.client.get(self.URL)
+        self.assertEqual(response.status_code, 404)
+        self.assertIn("No finance snapshot", response.json()["detail"])
