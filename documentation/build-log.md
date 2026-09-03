@@ -1,8 +1,27 @@
 # Backend Build Log
 
-Last updated: 1 September 2026
+Last updated: 2 September 2026
 
 This is the project-level implementation and release log for the Django repository. It starts with the current work rather than reconstructing older history. Domain history and source topology remain in `data_map.md` and `airtable_pipeline_sync.md`.
+
+## 2 September 2026 - Finance snapshot local PostgreSQL proof
+
+- Created the isolated local PostgreSQL database `masi_finance_dashboard_local`, owned by the existing
+  local `jim` role. The existing `masi_db` data was not changed, and no production, internal, or external
+  database URL was used.
+- Applied the backend migration graph through `api.0049_finance_snapshot`, previewed
+  `api/test_data/finance-snapshot-example.json` with no write, then applied that reviewed fixture.
+  ORM readback returned exactly one `FinanceSnapshot`: accounting year 2026, run id
+  `2026-09-01T12:00:00Z-0a1b2c`.
+- `manage.py check` against that PostgreSQL database reported no issues. This is local PostgreSQL proof,
+  not production migration, deployment, authentication, browser, or real-workbook publication proof.
+- The local `.env` database password contains a URI-reserved character that must be percent-encoded for
+  ordinary Django/psql URL parsing. These commands normalized it only in process; the secret was neither
+  printed nor rewritten.
+- Real-workbook publication remains blocked in the publisher before any artifact or database load. After
+  correcting the Zazi gross-salary semantics, its dry run reports 14 current-year errors: five missing KWF
+  contract keys and nine independently over-allocated expenditure rows. Production follow-ups below remain
+  intentionally unperformed.
 
 ## 1 September 2026 - Finance snapshot loader and API
 
