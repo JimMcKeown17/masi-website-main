@@ -1,8 +1,37 @@
 # Backend Build Log
 
-Last updated: 2 September 2026
+Last updated: 3 September 2026
 
 This is the project-level implementation and release log for the Django repository. It starts with the current work rather than reconstructing older history. Domain history and source topology remain in `data_map.md` and `airtable_pipeline_sync.md`.
+
+## 3 September 2026 - Real finance snapshot loaded into isolated PostgreSQL
+
+- The corrected `20260901 - Masinyusane Management Accounts.xlsx` published as run
+  `2026-09-03T16:37:09Z-31ed61`. The source workbook SHA-256 is
+  `31ed6169075fcd90f4c29e0d3dda0f3ff22583a48cfcec59156357d81d722b09`; the canonical
+  figures SHA-256 is `6c50654af4903ba6c38991cfcb17086f9948646bf488c02d57f5205bf579c7e8`.
+- The loader's read-only preview accepted the forward move from the 31 August fixture to the
+  1 September real workbook. `--apply` then restated only accounting year 2026 in
+  `masi_finance_dashboard_local`. PostgreSQL readback returned exactly one snapshot with the
+  same run ID, both hashes, schema 1.0.0, 50 contracts, 342 lines, 32 coverage groups, and 733
+  findings. The existing `masi_db` and all production, internal, and external databases were
+  untouched.
+- Current-year findings were deliberately preserved in the stored payload: nine acknowledged
+  `OVER_ALLOCATED_ROW` errors (R14,611.82 excess), six `CATEGORY_NOT_IN_BLOCK` warnings, one
+  `STALE_CACHED_SPENT` warning, five `ASSERTED_LINE` notices, and five `MISSING_BUDGET` notices.
+  There are no current-year orphan or missing contract keys, and all 50 contract codes are
+  present and unique.
+- The six category warnings remain operator-visible: GYD travel/meetings/other fees; KWF
+  interns/field monitors; KWF travel/meetings/other fees; Tsitsikamma Skills Development
+  books/laptops/printing/T-shirts; Tsitsikamma Skills Development ad-hoc support; and Zazi NMB
+  travel. The stale-cache warning is TSI Skills `Other`: recomputed R4,400 versus cached R0;
+  published figures use the recomputed value.
+- `KWF-NGO-26` currently records an R80,000 budget and R160,000 allocated across three ledger
+  rows (R79,900, R100, and R80,000), so its published remaining balance is negative R80,000.
+  This was preserved as source truth rather than silently corrected.
+- An anonymous request to the local finance endpoint returned 403. The authenticated browser
+  proof and responsive rendering are recorded in the frontend build log. This is local evidence
+  only: no production migration/load, merge, push, deployment, or production API check occurred.
 
 ## 2 September 2026 - Finance snapshot local PostgreSQL proof
 
