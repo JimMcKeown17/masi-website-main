@@ -6,8 +6,10 @@ This is the project-level implementation and release log for the Django reposito
 
 ## 4 September 2026 - Finance read capability
 
-Status: the backend release candidate is locally verified. It has not yet been pushed,
-deployed, migrated, or checked against production in this record.
+Status: implementation commit `eeab6526a1b47e2babf9993995365d7c38b12b4b` is on
+`main` and `origin/main`. Render deployment `dep-dadhtj95efls7395vrm0` reached
+`Live` for that exact commit in 1m38s, applied migration `0050`, and passed the
+approved production role and capability checks.
 
 - One evaluator table maps Django permission `api.read_finance` to application capability
   `finance.read`. `finance.publish` is reserved in the capability vocabulary but has no
@@ -30,7 +32,17 @@ deployed, migrated, or checked against production in this record.
 - Focused finance capability and snapshot endpoint checks: 20 tests passed. Full
   `manage.py test api`: 626 tests passed with two existing skips. `manage.py check` passed,
   and `makemigrations --check --dry-run` reported no changes. These automated checks used
-  in-memory SQLite; they are not deployment, migration, or production evidence.
+  in-memory SQLite; the Render and production checks below are separate evidence.
+- Render's exact deployment log showed
+  `Applying api.0050_finance_read_capability... OK`. A privacy-safe production readback
+  then confirmed migration `0050` is recorded, `Finance Managers` has
+  `api.read_finance`, the group has zero members, and `api.publish_finance` does not
+  exist.
+- The read-only production role check used existing active profiles and the deployed
+  source views without printing identities or finance payloads. `STAFF` received HTTP
+  403 from `/api/finance/snapshot/` and an empty finance capability list from `/api/me/`;
+  `PROJECT MANAGER` received 403 and an empty list; `ADMIN` received 200 and
+  `["finance.read"]`. No production row was changed.
 
 ## 4 September 2026 - Youth Budget reads restricted to programme managers
 
