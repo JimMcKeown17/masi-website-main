@@ -6,8 +6,10 @@ This is the project-level implementation and release log for the Django reposito
 
 ## 4 September 2026 - Finance access hotfix: ADMIN only
 
-Status: implementation and local verification are complete on the isolated hotfix branch.
-Commit, push, Render deployment, and authenticated production verification are pending.
+Status: hotfix commit `dc74019` is on `main` and `origin/main`. Render deployment
+`dep-dadglenavr4c73asv8b0` reached `Live` for that exact commit in 1m39s. The backend
+trust boundary is production-verified; the paired Project Manager Clerk/browser check is
+recorded as pending in the frontend release log.
 
 - `GET /api/finance/snapshot/` now admits only an authenticated user whose Django
   `UserProfile.role` is `ADMIN`. `PROJECT MANAGER`, every other role, a missing profile,
@@ -20,7 +22,11 @@ Commit, push, Render deployment, and authenticated production verification are p
 - `api.tests_finance_snapshot`: 30 tests passed with one optional fixture check skipped.
 - Full `manage.py test api`: 609 tests passed with two existing skips.
 - `manage.py check` passed and `makemigrations --check --dry-run` reported no changes.
-- All tests used in-memory SQLite. This is local proof, not deployment or production-role proof.
+- All automated tests used in-memory SQLite. Separately, a privacy-safe read-only check ran
+  the deployed finance view against the production database with an existing Project Manager
+  profile and returned HTTP 403 with `Finance dashboards are limited to admins.` No identity
+  fields were printed and no production row was changed. This proves the backend permission
+  trust boundary; it does not substitute for a real Clerk/browser session.
 
 ## 4 September 2026 - Finance snapshot production release
 
