@@ -4,6 +4,24 @@ Last updated: 4 September 2026
 
 This is the project-level implementation and release log for the Django repository. It starts with the current work rather than reconstructing older history. Domain history and source topology remain in `data_map.md` and `airtable_pipeline_sync.md`.
 
+## 4 September 2026 - Finance access hotfix: ADMIN only
+
+Status: implementation and local verification are complete on the isolated hotfix branch.
+Commit, push, Render deployment, and authenticated production verification are pending.
+
+- `GET /api/finance/snapshot/` now admits only an authenticated user whose Django
+  `UserProfile.role` is `ADMIN`. `PROJECT MANAGER`, every other role, a missing profile,
+  and anonymous access fail closed. WIG, closures, School Programme Grid, and youth-budget
+  permissions are unchanged in this release.
+- RED: the new Project Manager endpoint test received HTTP 200 instead of the required 403.
+  GREEN: after separating `IsFinanceReader` from `IsAdminOrProjectManager`, the same test
+  received 403 and the response retained a finance-specific denial message.
+- `api.tests_finance_snapshot.FinanceSnapshotEndpointTests`: 8 tests passed.
+- `api.tests_finance_snapshot`: 30 tests passed with one optional fixture check skipped.
+- Full `manage.py test api`: 609 tests passed with two existing skips.
+- `manage.py check` passed and `makemigrations --check --dry-run` reported no changes.
+- All tests used in-memory SQLite. This is local proof, not deployment or production-role proof.
+
 ## 4 September 2026 - Finance snapshot production release
 
 Status: finance API commit `e0a0267` is on `main` and `origin/main`. Render deployment

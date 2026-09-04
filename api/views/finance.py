@@ -1,4 +1,4 @@
-"""Finance dashboard endpoints (ADMIN / PROJECT MANAGER only).
+"""Finance dashboard endpoints (ADMIN only until capability grants ship).
 
 Serves the finance snapshot masi-finance published and load_finance_snapshot
 stored. Read-only; the workbook is never read here.

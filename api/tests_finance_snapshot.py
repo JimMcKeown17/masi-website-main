@@ -311,6 +311,12 @@ class FinanceSnapshotEndpointTests(TestCase):
     def test_anonymous_is_rejected(self):
         self.assertIn(self.client.get(self.URL).status_code, (401, 403))
 
+    def test_project_manager_is_forbidden(self):
+        self._auth("PROJECT MANAGER")
+        response = self.client.get(self.URL)
+        self.assertEqual(response.status_code, 403)
+        self.assertIn("Finance", response.json()["detail"])
+
     def test_every_other_role_is_forbidden(self):
         for role in ("VIEWER", "FUNDER", "STAFF", "MENTOR", "YOUTH"):
             with self.subTest(role=role):
@@ -326,22 +332,20 @@ class FinanceSnapshotEndpointTests(TestCase):
         self.client.force_authenticate(user=user)
         self.assertEqual(self.client.get(self.URL).status_code, 403)
 
-    def test_admin_and_project_manager_get_the_snapshot(self):
-        for role in ("ADMIN", "PROJECT MANAGER"):
-            with self.subTest(role=role):
-                self._auth(role)
-                response = self.client.get(self.URL + "?year=2026")
-                self.assertEqual(response.status_code, 200)
-                body = response.json()
-                self.assertEqual(set(body), {
-                    "accounting_year", "run_id", "workbook_name", "workbook_date", "workbook_modified_at",
-                    "workbook_sha256", "published_at", "loaded_at", "available_years", "snapshot",
-                })
-                self.assertEqual(body["accounting_year"], 2026)
-                self.assertEqual(body["workbook_date"], "2026-08-31")
-                self.assertEqual(body["available_years"], [2026])
-                self.assertEqual(body["snapshot"]["funder_contracts"][0]["id"], "1f5047ecae02")
-                self.assertEqual(body["snapshot"]["funder_contracts"][0]["budget_total"], "7000.00")
+    def test_admin_gets_the_snapshot(self):
+        self._auth("ADMIN")
+        response = self.client.get(self.URL + "?year=2026")
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(set(body), {
+            "accounting_year", "run_id", "workbook_name", "workbook_date", "workbook_modified_at",
+            "workbook_sha256", "published_at", "loaded_at", "available_years", "snapshot",
+        })
+        self.assertEqual(body["accounting_year"], 2026)
+        self.assertEqual(body["workbook_date"], "2026-08-31")
+        self.assertEqual(body["available_years"], [2026])
+        self.assertEqual(body["snapshot"]["funder_contracts"][0]["id"], "1f5047ecae02")
+        self.assertEqual(body["snapshot"]["funder_contracts"][0]["budget_total"], "7000.00")
 
     def test_year_defaults_to_the_latest_published(self):
         _publish(year=2025, run_id="2026-09-01T12:00:00Z-000000")
@@ -352,7 +356,7 @@ class FinanceSnapshotEndpointTests(TestCase):
         self.assertEqual(self.client.get(self.URL + "?year=2025").json()["accounting_year"], 2025)
 
     def test_unpublished_year_is_404_and_bad_year_is_400(self):
-        self._auth("PROJECT MANAGER")
+        self._auth("ADMIN")
         self.assertEqual(self.client.get(self.URL + "?year=2024").status_code, 404)
         self.assertEqual(self.client.get(self.URL + "?year=abc").status_code, 400)
 

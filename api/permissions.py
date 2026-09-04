@@ -23,13 +23,21 @@ class IsAdminOrProjectManager(BasePermission):
         return bool(profile and profile.role in WIG_ALLOWED_ROLES)
 
 
-class IsFinanceReader(IsAdminOrProjectManager):
-    """Finance dashboards: the same ADMIN / PROJECT MANAGER rule, with a
-    message that names the resource. The Clerk gate in the frontend is
-    defence in depth; this class is the trust boundary (spec section 8).
+class IsFinanceReader(BasePermission):
+    """Finance dashboards are ADMIN-only until capability grants ship.
+
+    The frontend guard is defence in depth; this class is the trust boundary.
+    Missing profiles and every non-ADMIN role fail closed.
     """
 
-    message = 'Finance dashboards are limited to admins and project managers.'
+    message = 'Finance dashboards are limited to admins.'
+
+    def has_permission(self, request, view):
+        user = getattr(request, 'user', None)
+        if not user or not user.is_authenticated:
+            return False
+        profile = getattr(user, 'profile', None)
+        return bool(profile and profile.role == 'ADMIN')
 
 
 class IsInternalService(BasePermission):
