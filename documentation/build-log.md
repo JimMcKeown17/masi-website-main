@@ -4,6 +4,34 @@ Last updated: 4 September 2026
 
 This is the project-level implementation and release log for the Django repository. It starts with the current work rather than reconstructing older history. Domain history and source topology remain in `data_map.md` and `airtable_pipeline_sync.md`.
 
+## 4 September 2026 - Youth Budget reads restricted to programme managers
+
+Status: implementation commit `8e8c2fe` is on `main` and `origin/main`. Render deployment
+`dep-dadhba3m8hqs73fheen0` reached `Live` for that exact commit in 1m58s, with no
+migrations to apply. The approved production role check passed.
+
+- `GET /api/youth-budget/` and `POST /api/youth-budget/preview/` now use the same
+  `IsAdminOrProjectManager` trust boundary as the Youth Budget write endpoints. The
+  permission message is generic because the class protects WIG, School Programme, and
+  Youth Budget surfaces rather than WIG alone.
+- RED was captured separately for each endpoint before its implementation change:
+  `VIEWER` received HTTP 200 from summary, then HTTP 200 from preview, while each new
+  acceptance test required HTTP 403. Each test turned green after only its endpoint's
+  permission decorator changed.
+- The final endpoint tests deny `VIEWER`, `STAFF`, `MENTOR`, `FUNDER`, `YOUTH`, an
+  unknown role, an authenticated user without a profile, and an anonymous request.
+  Both `ADMIN` and `PROJECT MANAGER` are positively covered on both endpoints.
+- `YouthBudgetEndpointTests`: 22 tests passed. The focused Youth Budget plus shared
+  permission regression set: 210 tests passed with one optional fixture skip. Full
+  `manage.py test api`: 614 tests passed with two existing skips. `manage.py check`
+  passed, and `makemigrations --check --dry-run` reported no changes. These automated
+  checks used in-memory SQLite.
+- The production check used existing active profiles and invoked the deployed source
+  views against the production database without printing identities or payloads. A
+  `STAFF` profile received HTTP 403 from both summary and preview; a `PROJECT MANAGER`
+  profile received HTTP 200 from both. The saved 2026 scenario already existed before
+  the summary calls, so the check was read-only and changed no production row.
+
 ## 4 September 2026 - Finance access hotfix: ADMIN only
 
 Status: hotfix commit `dc74019` is on `main` and `origin/main`. Render deployment
