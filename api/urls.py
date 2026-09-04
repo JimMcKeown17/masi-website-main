@@ -71,7 +71,7 @@ urlpatterns = [
     path('youth-budget/expenditure/', views.create_youth_budget_expenditure, name='youth_budget_expenditure'),
     path('youth-budget/expenditure/<int:pk>/', views.update_youth_budget_expenditure, name='youth_budget_expenditure_detail'),
 
-    # Finance dashboard (ADMIN only until capability grants ship)
+    # Finance dashboard (finance.read capability)
     path('finance/snapshot/', views.finance_snapshot, name='finance_snapshot'),
 
     # Closure calendar (authoring: ADMIN / PROJECT MANAGER; export: shared-secret)

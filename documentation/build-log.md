@@ -4,6 +4,34 @@ Last updated: 4 September 2026
 
 This is the project-level implementation and release log for the Django repository. It starts with the current work rather than reconstructing older history. Domain history and source topology remain in `data_map.md` and `airtable_pipeline_sync.md`.
 
+## 4 September 2026 - Finance read capability
+
+Status: the backend release candidate is locally verified. It has not yet been pushed,
+deployed, migrated, or checked against production in this record.
+
+- One evaluator table maps Django permission `api.read_finance` to application capability
+  `finance.read`. `finance.publish` is reserved in the capability vocabulary but has no
+  Django permission until WP2. The evaluator returns a sorted list, gives `ADMIN` an
+  explicit application override, reads direct and group permissions without Django's
+  `has_perm` superuser shortcut, and fails closed for anonymous, inactive, or profile-less
+  users.
+- Migration `0050_finance_read_capability` declares the custom permission and idempotently
+  creates `Finance Managers` with that grant. It assigns no users and preserves existing
+  memberships and unrelated group grants. Its reverse removes only this grant from the
+  group, preserving the group and any members.
+- `/api/me/` now returns the evaluator's sorted `capabilities` list alongside the existing
+  profile fields. `IsFinanceReader` uses the same evaluator, so the UI contract and API
+  trust boundary cannot drift into separate role rules. `/api/finance/snapshot/` remains
+  the single response endpoint; no per-surface endpoint or permission was introduced.
+- RED evidence was captured before implementation: the ADMIN `/api/me/` contract failed
+  with missing `capabilities`, and the fresh-database group contract failed because
+  `Finance Managers` did not exist. Each turned green after its corresponding evaluator
+  and migration slice.
+- Focused finance capability and snapshot endpoint checks: 20 tests passed. Full
+  `manage.py test api`: 626 tests passed with two existing skips. `manage.py check` passed,
+  and `makemigrations --check --dry-run` reported no changes. These automated checks used
+  in-memory SQLite; they are not deployment, migration, or production evidence.
+
 ## 4 September 2026 - Youth Budget reads restricted to programme managers
 
 Status: implementation commit `8e8c2fe` is on `main` and `origin/main`. Render deployment

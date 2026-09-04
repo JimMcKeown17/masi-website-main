@@ -70,6 +70,7 @@ All endpoints require authentication using **ClerkAuthentication** or **SessionA
 {
   "email": "user@example.com",
   "role": "ADMIN",
+  "capabilities": ["finance.read"],
   "first_name": "John",
   "last_name": "Doe",
   "username": "johndoe"
@@ -78,7 +79,7 @@ All endpoints require authentication using **ClerkAuthentication** or **SessionA
 
 **Use Cases:**
 - Display user profile information in the frontend
-- Determine user permissions/role for conditional UI rendering
+- Use sorted application capability strings for conditional UI rendering
 - Verify authentication status
 - Personalize user experience
 
@@ -961,7 +962,10 @@ const mentors = await fetch('/api/mentors/').then(r => r.json());
 
 ### Finance snapshot
 
-**Base: ADMIN or PROJECT MANAGER only (`IsFinanceReader`). Read-only.**
+**Base: `finance.read` capability (`IsFinanceReader`). Read-only.** ADMIN receives
+this capability through the explicit application evaluator override. Other users need
+the `api.read_finance` permission directly or through the `Finance Managers` group;
+Django `is_superuser` alone grants no finance capability.
 
 ```text
 GET    /api/finance/snapshot/?year=2026    - The published finance snapshot for a year (default: latest).

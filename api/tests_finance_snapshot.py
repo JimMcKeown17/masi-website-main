@@ -12,7 +12,7 @@ from io import StringIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from django.contrib.auth.models import User
+from django.contrib.auth.models import Group, User
 from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.test import SimpleTestCase, TestCase
@@ -332,6 +332,13 @@ class FinanceSnapshotEndpointTests(TestCase):
         self.client.force_authenticate(user=user)
         self.assertEqual(self.client.get(self.URL).status_code, 403)
 
+    def test_non_admin_django_superuser_is_forbidden_without_an_explicit_grant(self):
+        user = self._auth("STAFF")
+        user.is_superuser = True
+        user.save(update_fields=["is_superuser"])
+
+        self.assertEqual(self.client.get(self.URL).status_code, 403)
+
     def test_admin_gets_the_snapshot(self):
         self._auth("ADMIN")
         response = self.client.get(self.URL + "?year=2026")
@@ -346,6 +353,14 @@ class FinanceSnapshotEndpointTests(TestCase):
         self.assertEqual(body["available_years"], [2026])
         self.assertEqual(body["snapshot"]["funder_contracts"][0]["id"], "1f5047ecae02")
         self.assertEqual(body["snapshot"]["funder_contracts"][0]["budget_total"], "7000.00")
+
+    def test_finance_managers_group_member_gets_the_snapshot(self):
+        user = self._auth("STAFF")
+        user.groups.add(Group.objects.get(name="Finance Managers"))
+
+        response = self.client.get(self.URL + "?year=2026")
+
+        self.assertEqual(response.status_code, 200)
 
     def test_year_defaults_to_the_latest_published(self):
         _publish(year=2025, run_id="2026-09-01T12:00:00Z-000000")

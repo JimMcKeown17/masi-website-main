@@ -2,6 +2,7 @@ from rest_framework import permissions
 from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes, authentication_classes
 from ..authentication import ClerkAuthentication
+from ..permissions import finance_capabilities_for
 
 
 @api_view(['GET'])
@@ -35,8 +36,8 @@ def me(request):
     return Response({
         "email": user.email,
         "role": role,
+        "capabilities": finance_capabilities_for(user),
         "first_name": user.first_name,
         "last_name": user.last_name,
         "username": user.username,
     })
-

@@ -2027,6 +2027,9 @@ class FinanceSnapshot(models.Model):
     class Meta:
         verbose_name = "Finance Snapshot"
         verbose_name_plural = "Finance Snapshots"
+        permissions = [
+            ("read_finance", "Can read the finance dashboard"),
+        ]
 
     def __str__(self):
         return f"Finance snapshot {self.accounting_year} from {self.workbook_name} ({self.run_id})"
