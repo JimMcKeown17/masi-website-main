@@ -1,8 +1,37 @@
 # Backend Build Log
 
-Last updated: 3 September 2026
+Last updated: 4 September 2026
 
 This is the project-level implementation and release log for the Django repository. It starts with the current work rather than reconstructing older history. Domain history and source topology remain in `data_map.md` and `airtable_pipeline_sync.md`.
+
+## 4 September 2026 - Finance snapshot production release
+
+Status: finance API commit `e0a0267` is on `main` and `origin/main`. Render deployment
+`dep-dadg0uqjnfac73fm00vg` reached `Live` for that exact commit in 1m43s. The
+production database contains the approved 2026 finance snapshot.
+
+### Deployment and migration proof
+
+- Render's build completed successfully and deployed the finance model, loader, and protected
+  endpoint. The subsequent explicit production `migrate --noinput` reported `No migrations to
+  apply`, proving the build had already advanced production through migration
+  `0049_finance_snapshot`.
+- An anonymous production request to `/api/finance/snapshot/?year=2026` returned 403, proving
+  the deployed route is present and retains its role gate. Authenticated production UI proof
+  remains a separate boundary; the available browser was signed out.
+
+### Publication proof
+
+- The source workbook SHA-256 was
+  `9784baa19fc5b2288e7b5afdc81f8a653109bb571ff4cfbc619cfd1e49f8f532`.
+  Candidate run `2026-09-04T17:29:01Z-9784ba` carried payload SHA-256
+  `6c50654af4903ba6c38991cfcb17086f9948646bf488c02d57f5205bf579c7e8`.
+- The production dry run found no existing 2026 snapshot and matched schema 1.0.0, 50
+  contracts, 342 contract lines, 32 coverage groups, 733 findings, 26 in-scope findings, and
+  nine in-scope errors. It emitted no anti-rollback refusal, so `--force` was not used.
+- The exact previewed file was applied with `--apply`. Privacy-safe ORM readback returned
+  exactly one 2026 row and reproduced both full hashes, the run ID, all structural counts, and
+  every per-code/severity/scope finding count.
 
 ## 3 September 2026 - Real finance snapshot loaded into isolated PostgreSQL
 
