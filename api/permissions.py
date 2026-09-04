@@ -13,7 +13,7 @@ class IsAdminOrProjectManager(BasePermission):
     any other role is denied. Applies equally to Clerk and Session auth users.
     """
 
-    message = 'WIG dashboard access is limited to admins and project managers.'
+    message = 'Access is limited to admins and project managers.'
 
     def has_permission(self, request, view):
         user = getattr(request, 'user', None)

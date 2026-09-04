@@ -62,7 +62,7 @@ urlpatterns = [
     path('school-programme-grid/stats/<int:pk>/', views.update_grid_stats, name='spg_update_stats'),
     path('school-programme-grid/rollover/', views.rollover_grid, name='spg_rollover'),
 
-    # Youth Budget Calculator
+    # Youth Budget Calculator (ADMIN / PROJECT MANAGER only)
     path('youth-budget/', views.youth_budget_summary, name='youth_budget'),
     path('youth-budget/preview/', views.preview_youth_budget_scenario, name='youth_budget_preview'),
     path('youth-budget/scenario/', views.update_youth_budget_scenario, name='youth_budget_scenario'),

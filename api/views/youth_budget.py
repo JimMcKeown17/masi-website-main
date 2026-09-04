@@ -1,7 +1,7 @@
 """Youth Budget Calculator endpoints.
 
-Reads are available to authenticated users. Every write is restricted to
-ADMIN and PROJECT MANAGER roles and runs inside a database transaction.
+The summary, preview, and every write are restricted to ADMIN and PROJECT
+MANAGER roles. Writes run inside database transactions.
 """
 from datetime import date
 from decimal import Decimal, InvalidOperation
@@ -15,7 +15,6 @@ from rest_framework.decorators import (
     authentication_classes,
     permission_classes,
 )
-from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from .. import youth_budget
@@ -659,7 +658,7 @@ def _schools_from_ids(value):
 
 @api_view(["GET"])
 @authentication_classes(AUTH_CLASSES)
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAdminOrProjectManager])
 def youth_budget_summary(request):
     """Return the saved scenario and its current committed and at-plan forecast."""
     try:
@@ -725,7 +724,7 @@ def youth_budget_summary(request):
 
 @api_view(["POST"])
 @authentication_classes(AUTH_CLASSES)
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAdminOrProjectManager])
 def preview_youth_budget_scenario(request):
     """Recalculate a draft scenario without changing shared database state."""
     try:

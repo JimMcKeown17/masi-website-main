@@ -904,8 +904,8 @@ class YouthBudgetEndpointTests(TestCase):
         self.client.force_authenticate(user=user)
         return user
 
-    def test_authenticated_user_can_read_and_scenario_is_created(self):
-        self._auth("MENTOR")
+    def test_admin_can_read_and_scenario_is_created(self):
+        self._auth("ADMIN")
         response = self.client.get("/api/youth-budget/?year=2026")
         self.assertEqual(response.status_code, 200)
         body = response.json()
@@ -952,7 +952,7 @@ class YouthBudgetEndpointTests(TestCase):
         self.assertTrue(BudgetScenario.objects.filter(year=2026).exists())
 
     def test_projection_response_has_the_frontend_contract(self):
-        self._auth("MENTOR")
+        self._auth("PROJECT MANAGER")
         response = self.client.get("/api/youth-budget/?year=2026")
         projections = response.json()["projections"]
         self.assertEqual(
@@ -980,7 +980,7 @@ class YouthBudgetEndpointTests(TestCase):
         )
 
     def test_summary_segregates_ringfenced_money_youth_and_vacancies(self):
-        self._auth("MENTOR")
+        self._auth("ADMIN")
         FundingPot.objects.create(
             year=2026,
             funder_name="Core Funder",
@@ -1069,9 +1069,70 @@ class YouthBudgetEndpointTests(TestCase):
         self.assertFalse(serialized["Core Funder"]["is_ringfenced"])
         self.assertTrue(serialized["Rural Wind Farm"]["is_ringfenced"])
 
-    def test_unauthenticated_read_is_rejected(self):
+    def test_unauthenticated_summary_and_preview_are_rejected(self):
+        summary = self.client.get("/api/youth-budget/?year=2026")
+        preview = self.client.post(
+            "/api/youth-budget/preview/",
+            {"year": 2026},
+            format="json",
+        )
+
+        self.assertIn(summary.status_code, (401, 403))
+        self.assertIn(preview.status_code, (401, 403))
+
+    def test_viewer_cannot_read_summary(self):
+        self._auth("VIEWER")
+
         response = self.client.get("/api/youth-budget/?year=2026")
-        self.assertIn(response.status_code, (401, 403))
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_every_other_profile_role_is_denied_both_read_endpoints(self):
+        for role in ("STAFF", "MENTOR", "FUNDER", "YOUTH", "OUTSIDE_POLICY"):
+            with self.subTest(role=role):
+                self._auth(role)
+                summary = self.client.get("/api/youth-budget/?year=2026")
+                preview = self.client.post(
+                    "/api/youth-budget/preview/",
+                    {"year": 2026},
+                    format="json",
+                )
+
+                self.assertEqual(summary.status_code, 403)
+                self.assertEqual(preview.status_code, 403)
+
+    def test_authenticated_user_without_profile_is_denied_both_read_endpoints(self):
+        user = _make_user("yb_missing_profile", "ADMIN")
+        user.profile.delete()
+        self.client.force_authenticate(user=User.objects.get(pk=user.pk))
+
+        summary = self.client.get("/api/youth-budget/?year=2026")
+        preview = self.client.post(
+            "/api/youth-budget/preview/",
+            {"year": 2026},
+            format="json",
+        )
+
+        self.assertEqual(summary.status_code, 403)
+        self.assertEqual(preview.status_code, 403)
+
+    def test_admin_and_project_manager_can_use_both_read_endpoints(self):
+        BudgetScenario.objects.create(
+            year=2026,
+            **youth_budget.default_scenario_values(2026),
+        )
+        for role in ("ADMIN", "PROJECT MANAGER"):
+            with self.subTest(role=role):
+                self._auth(role)
+                summary = self.client.get("/api/youth-budget/?year=2026")
+                preview = self.client.post(
+                    "/api/youth-budget/preview/",
+                    {"year": 2026},
+                    format="json",
+                )
+
+                self.assertEqual(summary.status_code, 200)
+                self.assertEqual(preview.status_code, 200)
 
     def test_non_manager_cannot_write_any_budget_resource(self):
         self._auth("MENTOR")
@@ -1177,7 +1238,7 @@ class YouthBudgetEndpointTests(TestCase):
         self.assertEqual(invalid.status_code, 400)
 
     def test_complete_source_receipt_exposes_bounded_airtable_counts(self):
-        self._auth("MENTOR")
+        self._auth("ADMIN")
         Youth.objects.create(
             employee_id=9301,
             full_name="NYS Source",
@@ -1231,8 +1292,8 @@ class YouthBudgetEndpointTests(TestCase):
         self.assertEqual(negative.status_code, 400)
 
     @patch("api.views.youth_budget.timezone.localdate", return_value=date(2026, 9, 1))
-    def test_authenticated_preview_recalculates_without_saving(self, _localdate):
-        self._auth("MENTOR")
+    def test_project_manager_preview_recalculates_without_saving(self, _localdate):
+        self._auth("PROJECT MANAGER")
         saved = BudgetScenario.objects.create(
             year=2026,
             **youth_budget.default_scenario_values(2026),
@@ -1285,8 +1346,19 @@ class YouthBudgetEndpointTests(TestCase):
         saved.refresh_from_db()
         self.assertEqual(saved.last_paid_programme_date, date(2026, 11, 30))
 
+    def test_viewer_cannot_preview_scenario(self):
+        self._auth("VIEWER")
+
+        response = self.client.post(
+            "/api/youth-budget/preview/",
+            {"year": 2026},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 403)
+
     def test_preview_rejects_an_end_date_after_the_supported_horizon(self):
-        self._auth("MENTOR")
+        self._auth("ADMIN")
         response = self.client.post(
             "/api/youth-budget/preview/",
             {
