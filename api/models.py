@@ -1,4 +1,5 @@
 from decimal import Decimal
+import uuid
 from datetime import date
 
 from django.db import models
@@ -2033,3 +2034,102 @@ class FinanceSnapshot(models.Model):
 
     def __str__(self):
         return f"Finance snapshot {self.accounting_year} from {self.workbook_name} ({self.run_id})"
+
+
+class FinanceRun(models.Model):
+    """Immutable finance artifact; only checked services change approval state."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    kind = models.CharField(max_length=24, choices=[('funders', 'Funders')], default='funders')
+    accounting_year = models.PositiveSmallIntegerField()
+    status = models.CharField(max_length=16, choices=[(s, s.title()) for s in ('candidate', 'approved', 'superseded', 'failed')])
+    source_name = models.CharField(max_length=255)
+    source_date = models.DateField()
+    source_sha256 = models.CharField(max_length=64, db_index=True)
+    source_size_bytes = models.PositiveBigIntegerField()
+    schema_version = models.CharField(max_length=16)
+    producer_version = models.CharField(max_length=32, null=True)
+    payload_sha256 = models.CharField(max_length=64, null=True)
+    facts_sha256 = models.CharField(max_length=64, null=True)
+    manifest = models.JSONField(default=dict)
+    payload = models.JSONField(null=True)
+    failure = models.JSONField(null=True)
+    uploaded_by = models.ForeignKey(User, on_delete=models.PROTECT, related_name='uploaded_finance_runs')
+    uploaded_at = models.DateTimeField(default=timezone.now, editable=False)
+    approved_by = models.ForeignKey(User, on_delete=models.PROTECT, null=True, related_name='approved_finance_runs')
+    approved_at = models.DateTimeField(null=True)
+    previous_approved = models.ForeignKey('self', on_delete=models.PROTECT, null=True, related_name='successors')
+    approval_overrode_rollback = models.BooleanField(default=False)
+    approval_acknowledged_findings = models.BooleanField(default=False)
+    approval_note = models.TextField(blank=True, default='')
+    demoted_by = models.ForeignKey(User, on_delete=models.PROTECT, null=True, related_name='demoted_finance_runs')
+    demoted_at = models.DateTimeField(null=True)
+    demotion_note = models.TextField(blank=True, default='')
+    parse_duration_ms = models.PositiveBigIntegerField(default=0)
+    total_duration_ms = models.PositiveBigIntegerField(default=0)
+    peak_memory_bytes = models.PositiveBigIntegerField(default=0)
+    fact_row_count = models.PositiveIntegerField(default=0)
+    allocation_count = models.PositiveIntegerField(default=0)
+    finding_count = models.PositiveIntegerField(default=0)
+    in_scope_error_count = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        permissions = [('read_finance', 'Can read the finance dashboard'), ('publish_finance', 'Can publish finance runs')]
+        indexes = [models.Index(fields=['kind', 'accounting_year', 'status', '-uploaded_at'], name='finance_run_status_idx')]
+        constraints = [
+            models.UniqueConstraint(fields=['kind', 'accounting_year'], condition=models.Q(status='approved'), name='finance_one_approved'),
+            models.UniqueConstraint(fields=['kind', 'accounting_year', 'source_sha256', 'producer_version'], name='finance_upload_identity'),
+            models.CheckConstraint(condition=models.Q(kind='funders', accounting_year__gte=1, status__in=['candidate', 'approved', 'superseded', 'failed']), name='finance_closed_state'),
+            models.CheckConstraint(condition=(
+                models.Q(status__in=['candidate', 'approved', 'superseded'], schema_version='2.0.0', producer_version__isnull=False, payload__isnull=False, payload_sha256__isnull=False, facts_sha256__isnull=False, failure__isnull=True)
+                | models.Q(status__in=['approved', 'superseded'], schema_version='1.0.0', producer_version__isnull=True, payload__isnull=False, payload_sha256__isnull=False, facts_sha256__isnull=True, fact_row_count=0, allocation_count=0, failure__isnull=True)
+                | models.Q(status='failed', schema_version='2.0.0', producer_version__isnull=False, payload__isnull=True, payload_sha256__isnull=True, facts_sha256__isnull=True, failure__isnull=False, fact_row_count=0, allocation_count=0)
+            ), name='finance_version_payload'),
+            models.CheckConstraint(condition=(
+                models.Q(status__in=['approved', 'superseded'], approved_by__isnull=False, approved_at__isnull=False)
+                | models.Q(status__in=['candidate', 'failed'], approved_by__isnull=True, approved_at__isnull=True, previous_approved__isnull=True)
+            ), name='finance_approval_audit'),
+            models.CheckConstraint(condition=(
+                models.Q(demoted_by__isnull=True, demoted_at__isnull=True, demotion_note='')
+                | (models.Q(demoted_by__isnull=False, demoted_at__isnull=False) & ~models.Q(demotion_note=''))
+            ), name='finance_demotion_audit'),
+        ]
+
+
+class LedgerRow(models.Model):
+    run = models.ForeignKey(FinanceRun, on_delete=models.CASCADE, related_name='ledger_rows')
+    row_key = models.TextField()
+    sheet_row = models.PositiveIntegerField()
+    date = models.DateField()
+    year = models.IntegerField()
+    description = models.TextField()
+    paid_by = models.TextField(null=True)
+    category_1 = models.TextField(null=True)
+    category_2 = models.TextField(null=True)
+    category_3 = models.TextField(null=True)
+    bc = models.TextField(null=True)
+    amount = models.DecimalField(max_digits=18, decimal_places=2)
+    coverage_amount = models.DecimalField(max_digits=18, decimal_places=2)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['run', 'row_key'], name='finance_row_identity')]
+        indexes = [models.Index(fields=['run', field], name=f'finance_row_{field}_idx') for field in ('date', 'year', 'bc', 'category_2')]
+
+
+class LedgerAllocation(models.Model):
+    ledger_row = models.ForeignKey(LedgerRow, on_delete=models.CASCADE, related_name='allocations')
+    ordinal = models.PositiveIntegerField()
+    amount_column_letter = models.CharField(max_length=3)
+    key_column_letter = models.CharField(max_length=3, null=True)
+    key_value = models.TextField(null=True)
+    contract_code = models.TextField(null=True, db_index=True)
+    budget_line_id = models.TextField(null=True)
+    amount = models.DecimalField(max_digits=18, decimal_places=2)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['ledger_row', 'amount_column_letter'], name='finance_allocation_stream'),
+            models.CheckConstraint(condition=~models.Q(amount=0) & models.Q(ordinal__gte=1), name='finance_allocation_nonzero'),
+            models.CheckConstraint(condition=models.Q(budget_line_id__isnull=True) | models.Q(contract_code__isnull=False), name='finance_line_has_owner'),
+        ]
+        indexes = [models.Index(fields=['ledger_row', 'ordinal'], name='finance_allocation_order_idx')]

@@ -73,6 +73,11 @@ urlpatterns = [
 
     # Finance dashboard (finance.read capability)
     path('finance/snapshot/', views.finance_snapshot, name='finance_snapshot'),
+    path('finance/runs/', views.FinanceRunList.as_view(), name='finance_run_list'),
+    path('finance/runs/<uuid:run_id>/', views.FinanceRunDetail.as_view(), name='finance_run_detail'),
+    path('finance/runs/<uuid:run_id>/approve/', views.FinanceRunApprove.as_view(), name='finance_run_approve'),
+    path('finance/runs/<uuid:run_id>/demote/', views.FinanceRunDemote.as_view(), name='finance_run_demote'),
+    path('finance/current/', views.FinanceCurrent.as_view(), name='finance_current'),
 
     # Closure calendar (authoring: ADMIN / PROJECT MANAGER; export: shared-secret)
     path('closures/', views.ClosureListCreateAPIView.as_view(), name='closures'),

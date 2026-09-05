@@ -630,3 +630,301 @@ This slice incrementally ingests newly created records. The Airtable session tab
 - Add a suitable Airtable last-modified field and extend the watermark to incremental edits.
 - Design guarded fact-record retirement or deletion reconciliation with anomaly thresholds and explicit recovery behavior.
 - Add external alert delivery for stale/failed `AirtableSyncLog` health; the endpoint and UI now expose the state, but no paging channel is configured here.
+
+## 2026-09-05 WP2a stage 2A: finance runs foundation
+
+Status: stage 2A implemented and verified on SQLite; PostgreSQL release evidence remains PENDING.
+Approved revision 4 at `/tmp/wp2-plan-for-backend.md`; stage 2B is excluded.
+The previous localhost:5544 sandbox denial is superseded by the authorized SQLite
+workflow. No PostgreSQL or production evidence is claimed.
+
+### SQLite RED evidence (before implementation)
+
+Every module below ran separately with the exact command pattern
+`DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py test api.tests_finance_<module> --noinput --verbosity=2`.
+Complete logs are in gitignored `venv/wp2-evidence/sqlite-red-<module>.log`.
+Missing implementation errors below occurred inside tests, after SQLite database
+creation; they are not environment failures. Assertion failures are distinguished
+from those prerequisite errors. PostgreSQL-only tests are intentionally skipped.
+
+#### capabilities
+
+```text
+FAIL: test_fresh_database_has_an_empty_finance_managers_group_with_the_read_grant (api.tests_finance_capabilities.FinanceManagerMigrationContractTests.test_fresh_database_has_an_empty_finance_managers_group_with_the_read_grant)
+AssertionError: False is not true
+FAIL: test_exact_released_mapping (api.tests_finance_capabilities.FinancePublishMappingTests.test_exact_released_mapping)
+AssertionError: {'api.read_finance': 'finance.read'} != {'api.read_finance': 'finance.read', 'api.publish_finance': 'finance.publish'}
+FAIL: test_admin_receives_finance_read_without_a_django_permission_grant (api.tests_finance_capabilities.MeFinanceCapabilitiesTests.test_admin_receives_finance_read_without_a_django_permission_grant)
+AssertionError: Lists differ: ['finance.read'] != ['finance.publish', 'finance.read']
+Ran 11 tests in 1.133s
+FAILED (failures=3)
+```
+
+#### capability_migrations
+
+```text
+ERROR: test_upgrade_copies_all_read_grants_no_publish_and_reverse_restores (api.tests_finance_capability_migrations.CapabilityMigrationTests.test_upgrade_copies_all_read_grants_no_publish_and_reverse_restores)
+django.db.migrations.exceptions.NodeNotFoundError: Node ('api', '0051_finance_runs_foundation') not a valid node
+FAIL: test_fresh_install_permissions (api.tests_finance_capability_migrations.CapabilityMigrationTests.test_fresh_install_permissions)
+AssertionError: False is not true
+Ran 2 tests in 0.083s
+FAILED (failures=1, errors=1)
+```
+
+#### current
+
+```text
+ERROR: test_audit_unknown_fields_and_unsupported_methods_rejected (api.tests_finance_current.FinanceCurrentTests.test_audit_unknown_fields_and_unsupported_methods_rejected)
+ImportError: cannot import name 'FinanceRun' from 'api.models'
+ERROR: test_compatibility_equal_mismatch_missing_dependency (api.tests_finance_current.FinanceCurrentTests.test_compatibility_equal_mismatch_missing_dependency)
+ImportError: cannot import name 'FinanceRun' from 'api.models'
+ERROR: test_current_only_approved_and_single_kind_compatible (api.tests_finance_current.FinanceCurrentTests.test_current_only_approved_and_single_kind_compatible)
+ImportError: cannot import name 'FinanceRun' from 'api.models'
+ERROR: test_list_visibility_detail_and_cursor (api.tests_finance_current.FinanceCurrentTests.test_list_visibility_detail_and_cursor)
+ImportError: cannot import name 'FinanceRun' from 'api.models'
+ERROR: test_negative_matrix_api_service_commands_and_candidate_visibility (api.tests_finance_current.FinanceCurrentTests.test_negative_matrix_api_service_commands_and_candidate_visibility)
+ImportError: cannot import name 'FinanceRun' from 'api.models'
+ERROR: test_publish_only_does_not_gain_approved_read (api.tests_finance_current.FinanceCurrentTests.test_publish_only_does_not_gain_approved_read)
+ImportError: cannot import name 'FinanceRun' from 'api.models'
+Ran 6 tests in 0.009s
+FAILED (errors=6)
+```
+
+#### facts
+
+```text
+ERROR: test_bad_attribution_rolls_back_all_inserts (api.tests_finance_facts.FactsTests.test_bad_attribution_rolls_back_all_inserts)
+ModuleNotFoundError: No module named 'api.services'
+ERROR: test_duplicate_row_and_stream_constraints (api.tests_finance_facts.FactsTests.test_duplicate_row_and_stream_constraints)
+ModuleNotFoundError: No module named 'api.services'
+ERROR: test_golden_counts_order_digest_and_attribution (api.tests_finance_facts.FactsTests.test_golden_counts_order_digest_and_attribution)
+ModuleNotFoundError: No module named 'api.services'
+ERROR: test_insert_failure_rolls_back_rows (api.tests_finance_facts.FactsTests.test_insert_failure_rolls_back_rows)
+ModuleNotFoundError: No module named 'api.services'
+ERROR: test_materialisation_refuses_failed_and_existing_facts (api.tests_finance_facts.FactsTests.test_materialisation_refuses_failed_and_existing_facts)
+ModuleNotFoundError: No module named 'api.services'
+ERROR: test_nonzero_and_owned_line_constraints (api.tests_finance_facts.FactsTests.test_nonzero_and_owned_line_constraints)
+ModuleNotFoundError: No module named 'api.services'
+Ran 6 tests in 0.003s
+FAILED (errors=6)
+```
+
+#### import
+
+```text
+ERROR: test_command_actor_required_and_active (api.tests_finance_import.LegacyImportTests.test_command_actor_required_and_active)
+ModuleNotFoundError: No module named 'api.services'
+ERROR: test_command_imports_and_exact_preview_writes_nothing (api.tests_finance_import.LegacyImportTests.test_command_imports_and_exact_preview_writes_nothing)
+ModuleNotFoundError: No module named 'api.services'
+ERROR: test_existing_run_refuses_import (api.tests_finance_import.LegacyImportTests.test_existing_run_refuses_import)
+ModuleNotFoundError: No module named 'api.services'
+ERROR: test_import_verbatim_provenance_actor_and_replay_after_overwrite (api.tests_finance_import.LegacyImportTests.test_import_verbatim_provenance_actor_and_replay_after_overwrite)
+ModuleNotFoundError: No module named 'api.services'
+ERROR: test_invalid_provenance_digest_and_insert_failure_write_nothing (api.tests_finance_import.LegacyImportTests.test_invalid_provenance_digest_and_insert_failure_write_nothing)
+ModuleNotFoundError: No module named 'api.services'
+ERROR: test_snapshot_view_never_reads_legacy_table (api.tests_finance_import.LegacyImportTests.test_snapshot_view_never_reads_legacy_table)
+ModuleNotFoundError: No module named 'api.services'
+Ran 6 tests in 0.004s
+FAILED (errors=6)
+```
+
+#### runs_approval
+
+```text
+ERROR: test_all_three_rollback_guards_and_override_notes (api.tests_finance_runs_approval.ApprovalTests.test_all_three_rollback_guards_and_override_notes)
+ModuleNotFoundError: No module named 'api.services'
+ERROR: test_candidate_approval_records_actor (api.tests_finance_runs_approval.ApprovalTests.test_candidate_approval_records_actor)
+ModuleNotFoundError: No module named 'api.services'
+ERROR: test_current_cannot_be_approved_again (api.tests_finance_runs_approval.ApprovalTests.test_current_cannot_be_approved_again)
+ModuleNotFoundError: No module named 'api.services'
+ERROR: test_digest_count_pair_and_structural_corruption_refused (api.tests_finance_runs_approval.ApprovalTests.test_digest_count_pair_and_structural_corruption_refused)
+ModuleNotFoundError: No module named 'api.services'
+ERROR: test_failed_and_never_approved_superseded_refuse (api.tests_finance_runs_approval.ApprovalTests.test_failed_and_never_approved_superseded_refuse)
+ModuleNotFoundError: No module named 'api.services'
+ERROR: test_failure_injection_keeps_old_current (api.tests_finance_runs_approval.ApprovalTests.test_failure_injection_keeps_old_current)
+ModuleNotFoundError: No module named 'api.services'
+ERROR: test_findings_require_acknowledgement_and_nonblank_note (api.tests_finance_runs_approval.ApprovalTests.test_findings_require_acknowledgement_and_nonblank_note)
+ModuleNotFoundError: No module named 'api.services'
+ERROR: test_reapproval_sequence_preserves_uploader_and_acyclic_chain (api.tests_finance_runs_approval.ApprovalTests.test_reapproval_sequence_preserves_uploader_and_acyclic_chain)
+ModuleNotFoundError: No module named 'api.services'
+ERROR: test_self_cross_tuple_and_existing_cycles_refuse (api.tests_finance_runs_approval.ApprovalTests.test_self_cross_tuple_and_existing_cycles_refuse)
+ModuleNotFoundError: No module named 'api.services'
+Ran 9 tests in 0.004s
+FAILED (errors=9)
+```
+
+#### runs_concurrency
+
+```text
+Ran 3 tests in 0.000s
+OK (skipped=3)
+```
+
+#### runs_demote
+
+```text
+ERROR: test_command_uses_same_guards_and_audit (api.tests_finance_runs_demote.DemoteTests.test_command_uses_same_guards_and_audit)
+ModuleNotFoundError: No module named 'api.services'
+ERROR: test_demote_integrity_failure_is_atomic (api.tests_finance_runs_demote.DemoteTests.test_demote_integrity_failure_is_atomic)
+ModuleNotFoundError: No module named 'api.services'
+ERROR: test_first_real_run_restores_import_and_reapproves (api.tests_finance_runs_demote.DemoteTests.test_first_real_run_restores_import_and_reapproves)
+ModuleNotFoundError: No module named 'api.services'
+ERROR: test_missing_predecessor_candidate_and_blank_note_refuse (api.tests_finance_runs_demote.DemoteTests.test_missing_predecessor_candidate_and_blank_note_refuse)
+ModuleNotFoundError: No module named 'api.services'
+Ran 4 tests in 0.003s
+FAILED (errors=4)
+```
+
+#### runs_model
+
+```text
+ERROR: test_actor_and_predecessor_are_protected (api.tests_finance_runs_model.FinanceRunModelTests.test_actor_and_predecessor_are_protected)
+ImportError: cannot import name 'FinanceRun' from 'api.models'
+ERROR: test_approval_audit_is_paired_and_required (api.tests_finance_runs_model.FinanceRunModelTests.test_approval_audit_is_paired_and_required)
+ImportError: cannot import name 'FinanceRun' from 'api.models'
+ERROR: test_failed_requires_failure_and_zero_facts (api.tests_finance_runs_model.FinanceRunModelTests.test_failed_requires_failure_and_zero_facts)
+ImportError: cannot import name 'FinanceRun' from 'api.models'
+ERROR: test_legacy_cannot_be_a_candidate_or_have_producer (api.tests_finance_runs_model.FinanceRunModelTests.test_legacy_cannot_be_a_candidate_or_have_producer)
+ImportError: cannot import name 'FinanceRun' from 'api.models'
+ERROR: test_status_kind_and_year_are_closed (api.tests_finance_runs_model.FinanceRunModelTests.test_status_kind_and_year_are_closed)
+ImportError: cannot import name 'FinanceRun' from 'api.models'
+ERROR: test_success_requires_payload_and_digests (api.tests_finance_runs_model.FinanceRunModelTests.test_success_requires_payload_and_digests)
+ImportError: cannot import name 'FinanceRun' from 'api.models'
+ERROR: test_upload_identity (api.tests_finance_runs_model.FinanceRunModelTests.test_upload_identity)
+ImportError: cannot import name 'FinanceRun' from 'api.models'
+Ran 8 tests in 0.007s
+FAILED (errors=7, skipped=1)
+```
+
+#### snapshot
+
+```text
+FAIL: test_every_invocation_refuses_before_io_or_database (api.tests_finance_snapshot.LoadFinanceSnapshotCommandTests.test_every_invocation_refuses_before_io_or_database) (args=[], options={})
+AssertionError: "retired; use the Upload page" does not match "Error: the following arguments are required: path"
+FAIL: test_every_invocation_refuses_before_io_or_database (api.tests_finance_snapshot.LoadFinanceSnapshotCommandTests.test_every_invocation_refuses_before_io_or_database) (args=['missing.json'], options={})
+AssertionError: expected retired-command refusal; got Snapshot file does not exist: <clone>/missing.json
+FAIL: test_every_invocation_refuses_before_io_or_database (api.tests_finance_snapshot.LoadFinanceSnapshotCommandTests.test_every_invocation_refuses_before_io_or_database) (args=['missing.json'], options={'apply': True, 'force': True})
+AssertionError: expected retired-command refusal; got Snapshot file does not exist: <clone>/missing.json
+Ran 22 tests in 1.520s
+FAILED (failures=3, skipped=1)
+```
+
+#### snapshot_compat
+
+```text
+ERROR: test_backend_schema_copy_is_packaged_schema (api.tests_finance_snapshot_compat.SnapshotCompatTests.test_backend_schema_copy_is_packaged_schema)
+FileNotFoundError: [Errno 2] No such file or directory: '/private/tmp/claude-501/-Users-jimmckeown-Development-masi-finance/ad6dc3ff-eeee-4bc4-995b-e7cdd68661bd/scratchpad/backend-clone/api/contracts/finance-snapshot-1.1.0.json'
+ERROR: test_golden_projection_schema_digest_identity_and_new_codes (api.tests_finance_snapshot_compat.SnapshotCompatTests.test_golden_projection_schema_digest_identity_and_new_codes)
+ModuleNotFoundError: No module named 'api.finance_snapshot_compat'
+Ran 2 tests in 0.004s
+FAILED (errors=2)
+```
+
+### Implemented
+
+- Added `FinanceRun`, `LedgerRow`, and `LedgerAllocation` in migration
+  `0051_finance_runs_foundation`, with version/status/audit checks, one approved run
+  per tuple, upload/fact identities, protected audit references, and query indexes.
+- Migration creates read/publish permissions, copies every direct and group legacy
+  read grant, and grants publish to nobody. Reversal copies current read grants back
+  before deleting the new permissions; explicit auth/contenttypes dependencies make
+  the reverse historical model state accurate.
+- Added only `api.publish_finance -> finance.publish` to the capability evaluator and
+  `IsFinancePublisher`; ADMIN receives both registered capabilities. Neither
+  superuser nor PROJECT MANAGER/STAFF roles imply grants, and publish does not imply read.
+- Shared transactional services use PostgreSQL tuple advisory locks followed by row
+  locks. Approval revalidates stored supported versions, facts and summary counts,
+  then enforces all three rollback guards, including the same-schema-major payload
+  comparison. Demotion approves only the recorded predecessor, records the actor,
+  and preserves acyclic multi-step recovery. Injected transition errors roll back.
+- Materialisation uses the installed publisher's schema and arithmetic validators,
+  then reconstructs persisted facts and reconciles counts/digests, line/contract
+  lifetime and accounting-year totals, owned unbound amounts, and adjusted coverage.
+  Matched, owned-unbound, and ownerless allocations remain distinct. Empty verified
+  ledgers approve successfully. Callers creating candidates must wrap creation and
+  materialisation in the same transaction (the stage 2B upload path).
+- Exact-target legacy import validates original schema/digest/invariants/provenance,
+  retains unknown producer as null, and preserves the original document and timestamps.
+  Command preview writes nothing. Replay returns the existing UUID/status/audit from
+  FinanceRun without querying FinanceSnapshot, even after legacy-row deletion.
+- Snapshot serving reads approved FinanceRun only. Imported 1.0.0 is verbatim with
+  its original wrapper; 2.0.0 projects to packaged 1.1.0 with binding-digest identities,
+  all findings, legacy-format run ID, UTC timestamps, and a recomputed flat digest.
+- Added list/detail/approve/demote/current endpoints and the import/demote commands.
+  Read/publish visibility is independent, mutations reject audit/unknown fields and
+  malformed options, and list history uses bounded cursor pagination.
+- Retired `load_finance_snapshot` before input/database I/O. A test-only copy of its
+  exact pre-WP2 source from `bbfd714` actually executes against a changed synthetic
+  artifact: the legacy table changes while snapshot/current/year serving and recovery
+  to the import remain unchanged. No live database or workbook was used.
+- Added exact `.gitignore` exceptions for the packaged 1.1.0 schema copy and supplied
+  synthetic 2.0.0 golden artifact. Their installed-package parity is checked.
+
+### Draft corrections and GREEN evidence
+
+- Replaced the PostgreSQL-only `setUp` assertion with vendor skips. Split upload
+  identity (both vendors) from the approved partial-unique constraint (PostgreSQL).
+- Original endpoint fixtures now import valid legacy provenance. Replaced the optional
+  sibling-checkout schema comparison with the installed-package comparison, removing
+  that optional skip and external-checkout dependency.
+- The supplied golden artifact does not contain every new finding code; a separate
+  synthetic variant checks TEXT_DATE, MISSING_CONTRACT_PERIOD and ORPHAN_CONTRACT_CODE.
+- Initial focused GREEN attempt: 54 tests, 1 failure, 3 errors, 1 skip. Fixed the
+  serializer's non-field error shape and migration reverse dependencies. Explicitly
+  registered compatible producer pairs reuse their registered schema shape while
+  validating the stored producer; unregistered pairs still refuse.
+- Follow-up focused run: 48 tests passed. Extended tests initially exposed an invalid
+  coverage-test assumption: the first golden row is out of accounting year. The
+  negative fixture now changes an in-year row; out-of-year facts remain faithfully
+  stored. `api.tests_finance_runs_approval api.tests_finance_facts`: 18 tests passed,
+  including explicit ANTI_ROLLBACK assertions for each of the three guards.
+- `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py test api --noinput`:
+  **Ran 675 tests in 17.862s; OK (skipped=7)**. No failures/errors.
+- Final exact implementation/test tree, with named skip inventory:
+  `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py test api --noinput --verbosity=2`:
+  **Ran 675 tests in 18.013s; OK (skipped=7)** — 668 passed. Full log:
+  gitignored `venv/wp2-evidence/sqlite-full-suite-final.log`.
+- `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py check`:
+  **System check identified no issues (0 silenced).**
+- `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py makemigrations --check --dry-run`:
+  **No changes detected.**
+- `git diff --check`: passed. The pre-existing WhiteNoise missing `staticfiles/`
+  warning remains in RED and GREEN logs; stage 2A introduced no new warning.
+- Initial Git staging and the tests/resources commit succeeded:
+  `6037593 test(finance): cover run foundation contracts`. The subsequent
+  `git add documentation/build-log.md` and foundation commit were both denied at
+  `.git/index.lock` with `Operation not permitted`. Implementation remains staged
+  but uncommitted; this updated log also has unstaged evidence changes. The tree is
+  intact. No alternate checkout, Git-metadata workaround, push or deployment was used.
+
+### PostgreSQL-only tests (supervisor must execute, not skip)
+
+- `api.tests_finance_runs_model.FinanceRunModelTests.test_partial_unique_current`
+- `api.tests_finance_runs_concurrency.FinanceConcurrencyTests.test_two_concurrent_approvals_one_wins_one_refuses`
+- `api.tests_finance_runs_concurrency.FinanceConcurrencyTests.test_different_tuples_do_not_share_lock`
+- `api.tests_finance_runs_concurrency.FinanceConcurrencyTests.test_import_uses_same_lock_and_replays_after_release`
+- `api.tests_finance_runs_concurrency.FinanceConcurrencyTests.test_transition_select_for_update_locks_existing_rows`
+- `api.tests_finance_runs_concurrency.FinanceConcurrencyTests.test_concurrent_imports_serialize_before_first_insert`
+
+### Remaining PENDING and evidence boundary
+
+- **PENDING — commit the staged foundation and latest build-log evidence** when Git
+  metadata writes are available. Only the tests/resources commit `6037593` exists;
+  HEAD alone does not contain the foundation implementation tested in this tree.
+- **PENDING — PostgreSQL full-suite execution belongs to the supervisor and is the
+  required release evidence**, including the conditional unique constraint, separate
+  connections, advisory-lock contention, and `select_for_update`. SQLite is functional
+  evidence only. No PostgreSQL connection was attempted in this continuation.
+- **PENDING — existing private-fixture integration test**:
+  `api.tests_youth_budget.RealLedgerSeedTests.test_real_csv_parses_june_total_and_trimmed_april`
+  is the seventh skip, with reason `real payroll ledger not on this machine`.
+  The CSV is absent from this clone. The requested zero-non-PostgreSQL-skips condition
+  therefore remains unmet; no fixture was fabricated or copied from another checkout.
+- **PENDING — stage 2B** upload endpoint, preflight, benchmarks, dependency pin and
+  build.sh integration remain explicitly out of this change. Stage 2A's run-list POST
+  returns 405. No new environment variable or schedule is required by the foundation.
+- **PENDING — release/cutover**: deploy and apply migration 0051; perform the approved
+  exact-target legacy import/year inventory before run-only readers serve existing
+  data; finish stage 2B/capacity gates, real upload/approval, and role/browser probes.
+  No production database, script, migration, deployment, import or credentials were
+  accessed or changed. This log is not production, browser, or release proof.

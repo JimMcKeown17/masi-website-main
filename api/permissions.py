@@ -12,10 +12,10 @@ WIG_ALLOWED_ROLES = {'ADMIN', 'PROJECT MANAGER'}
 # Django permission names. Future finance read capabilities are added here.
 FINANCE_PERMISSION_CAPABILITIES = {
     "api.read_finance": "finance.read",
+    "api.publish_finance": "finance.publish",
 }
 FINANCE_CAPABILITY_VOCABULARY = frozenset({
     *FINANCE_PERMISSION_CAPABILITIES.values(),
-    "finance.publish",  # Reserved for WP2; no Django permission exists yet.
 })
 
 
@@ -89,3 +89,12 @@ class IsInternalService(BasePermission):
         secret = getattr(settings, 'MASI_INTERNAL_API_SECRET', '') or ''
         provided = request.headers.get('X-Internal-Auth', '') or ''
         return bool(secret) and hmac.compare_digest(secret, provided)
+
+
+class IsFinancePublisher(BasePermission):
+    """Publish is an explicit capability, independent of finance.read."""
+
+    message = 'Finance publishing access is not granted for this account.'
+
+    def has_permission(self, request, view):
+        return "finance.publish" in finance_capabilities_for(getattr(request, "user", None))
