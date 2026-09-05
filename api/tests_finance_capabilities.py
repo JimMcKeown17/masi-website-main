@@ -30,7 +30,7 @@ class MeFinanceCapabilitiesTests(TestCase):
         response = self.client.get("/api/me/")
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json()["capabilities"], ["finance.read"])
+        self.assertEqual(response.json()["capabilities"], ["finance.publish", "finance.read"])
 
     def test_non_admin_superuser_receives_no_finance_capability(self):
         user = make_user("django_superuser", "STAFF")
@@ -58,6 +58,7 @@ class MeFinanceCapabilitiesTests(TestCase):
         user.user_permissions.add(
             Permission.objects.get(
                 content_type__app_label="api",
+                content_type__model="financesnapshot",
                 codename="read_finance",
             )
         )
@@ -110,6 +111,7 @@ class MeFinanceCapabilitiesTests(TestCase):
         user.user_permissions.add(
             Permission.objects.get(
                 content_type__app_label="api",
+                content_type__model="financesnapshot",
                 codename="read_finance",
             ),
             permission,
@@ -138,12 +140,8 @@ class FinanceManagerMigrationContractTests(TestCase):
             {("api", "read_finance")},
         )
         self.assertFalse(group.user_set.exists())
-        self.assertFalse(
-            Permission.objects.filter(
-                content_type__app_label="api",
-                codename="publish_finance",
-            ).exists()
-        )
+        self.assertTrue(Permission.objects.filter(content_type__model="financerun", codename="publish_finance").exists())
+        self.assertFalse(Group.objects.filter(permissions__codename="publish_finance").exists())
 
     def test_forward_migration_preserves_existing_members_and_unrelated_grants(self):
         group = Group.objects.get(name="Finance Managers")
@@ -161,3 +159,9 @@ class FinanceManagerMigrationContractTests(TestCase):
         self.assertTrue(group.user_set.filter(pk=member.pk).exists())
         self.assertTrue(group.permissions.filter(pk=unrelated.pk).exists())
         self.assertTrue(group.permissions.filter(codename="read_finance").exists())
+
+
+class FinancePublishMappingTests(TestCase):
+    def test_exact_released_mapping(self):
+        self.assertEqual(FINANCE_PERMISSION_CAPABILITIES, {
+            'api.read_finance':'finance.read', 'api.publish_finance':'finance.publish'})

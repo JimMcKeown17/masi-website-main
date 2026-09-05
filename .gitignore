@@ -108,3 +108,6 @@ moonlit-botany-454016-b5-e20993bb54e0.json
 !package.json
 
 teampact_users_june10.csv
+# Reviewed finance contract resources (no credentials or real ledger data).
+!api/contracts/finance-snapshot-1.1.0.json
+!api/tests_data/finance-run-2.0.0.json
