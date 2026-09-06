@@ -26,6 +26,8 @@ MAX_TOTAL_EXPANDED = 512 * 1024 * 1024
 MAX_METADATA_EXPANDED = 1024 * 1024
 MAX_SHARED_STRINGS_EXPANDED = 64 * 1024 * 1024
 MAX_SHARED_STRINGS = 4000000
+MAX_SHARED_STRING_CHILDREN = 1024
+MAX_SHARED_STRING_NODES = 2 * MAX_SHARED_STRINGS
 MAX_STRING_LENGTH = 32767
 MAX_ENTRIES = 256
 MAX_RATIO = 100
@@ -180,7 +182,6 @@ def _events(archive, path):
 
 def _xml_events(stream):
     stack = []
-    retained = {NS + name for name in ('t', 'v', 'f', 'is', 'r', 'rPr')}
     for event, element in iterparse(stream, events=('start', 'end'), forbid_dtd=True,
                                     forbid_entities=True, forbid_external=True):
         if event == 'start':
@@ -188,7 +189,8 @@ def _xml_events(stream):
         yield event, element
         if event == 'end':
             stack.pop()
-            if stack and element.tag not in retained and element in stack[-1]:
+            element.clear()
+            if stack:
                 stack[-1].remove(element)
 
 
@@ -212,17 +214,29 @@ def _shared_strings(archive):
     if 'xl/sharedStrings.xml' not in archive.namelist():
         return values
     _check_declarations(archive, 'xl/sharedStrings.xml', 'XML_INVALID')
-    root = None
+    nodes = children = length = 0
+    texts = None
     for event, element in _events(archive, 'xl/sharedStrings.xml'):
-        if root is None:
-            root = element
-        if event == 'end' and element.tag == NS + 'si':
-            require(len(values) < MAX_SHARED_STRINGS, 'SHARED_STRING_LIMIT')
-            texts = [t.text or '' for t in element.iter(NS + 't')]
-            require(sum(map(len, texts)) <= MAX_STRING_LENGTH, 'SHARED_STRING_LIMIT')
-            values.append(_label(''.join(texts)))
-            element.clear()
-            root.clear()
+        if event == 'start':
+            nodes += 1
+            require(nodes <= MAX_SHARED_STRING_NODES, 'SHARED_STRING_LIMIT')
+            if texts is not None:
+                children += 1
+                require(children <= MAX_SHARED_STRING_CHILDREN, 'SHARED_STRING_LIMIT')
+            if element.tag == NS + 'si':
+                require(texts is None, 'XML_INVALID')
+                require(len(values) < MAX_SHARED_STRINGS, 'SHARED_STRING_LIMIT')
+                texts = []
+                children = length = 0
+        elif texts is not None:
+            if element.tag == NS + 't':
+                text = element.text or ''
+                length += len(text)
+                require(length <= MAX_STRING_LENGTH, 'SHARED_STRING_LIMIT')
+                texts.append(text)
+            elif element.tag == NS + 'si':
+                values.append(_label(''.join(texts)))
+                texts = None
     return values
 
 
@@ -255,13 +269,22 @@ def _scan_sheet_xml(archive, path, name, strings):
     extent = header_width = header_rows = max_data_col = 0
     headers = {}
     row_values = {}
-    root = sheet_data = None
+    value = None
+    formula = False
+    inline = []
     for event, element in _events(archive, path):
-        if root is None:
-            root = element
         tag = element.tag
-        if event == 'start' and tag == NS + 'sheetData':
-            sheet_data = element
+        if event == 'start' and tag == NS + 'c':
+            value = None
+            formula = False
+            inline = []
+        if event == 'end':
+            if tag == NS + 'v':
+                value = element.text or ''
+            elif tag == NS + 'f':
+                formula = True
+            elif tag == NS + 't':
+                inline.append(element.text or '')
         if event == 'start' and tag == NS + 'dimension':
             coordinates = element.get('ref', '').split(':')
             require(1 <= len(coordinates) <= 2, 'SHEET_BOUNDS')
@@ -278,20 +301,18 @@ def _scan_sheet_xml(archive, path, name, strings):
             row, col = _coordinate(element.get('r'))
             require(row <= limit and col <= 256, 'SHEET_BOUNDS')
             extent = max(extent, row)
-            value = element.find(NS + 'v')
-            formula = element.find(NS + 'f')
             if element.get('t') == 's':
                 try:
-                    index = int(value.text)
+                    index = int(value)
                     require(0 <= index < len(strings), 'XML_INVALID')
                     label = strings[index]
                 except (ValueError, TypeError, AttributeError):
                     raise WorkbookError('XML_INVALID') from None
             elif element.get('t') == 'inlineStr':
-                label = _label(''.join(t.text or '' for t in element.iter(NS + 't')))
+                label = _label(''.join(inline))
             else:
-                label = _label(value.text or '') if value is not None else False
-            nonblank = bool(label) or formula is not None
+                label = _label(value) if value is not None else False
+            nonblank = bool(label) or formula
             if name == 'Expenditure':
                 if row == 1 and nonblank:
                     require(col <= 128, 'LEDGER_HEADER_LIMIT')
@@ -304,16 +325,10 @@ def _scan_sheet_xml(archive, path, name, strings):
             elif label:
                 require(col not in row_values, 'CONTRACT_KEY_HEADER')
                 row_values[col] = label
-            element.clear()
         if event == 'end' and tag == NS + 'row':
             if name == 'Funder Budgets' and all(h in row_values.values() for h in CONTRACT_HEADERS):
                 require(all(list(row_values.values()).count(h) == 1 for h in CONTRACT_HEADERS), 'CONTRACT_KEY_HEADER')
                 header_rows += 1
-            element.clear()
-            if sheet_data is not None:
-                sheet_data.clear()
-        if event == 'end' and tag == NS + 'sheetData':
-            root.clear()
     if name == 'Expenditure':
         require(all(list(headers.values()).count(h) == 1 for h in LEDGER_HEADERS), 'LEDGER_REQUIRED_HEADER')
         require(extent * header_width <= 4000000, 'LEDGER_CELL_LIMIT')

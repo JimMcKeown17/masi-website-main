@@ -1711,3 +1711,108 @@ Git: staging the four named files failed creating `.git/index.lock` with
 four changes remain intact and uncommitted. The pre-existing untracked
 `.review-detached.pid` is untouched. Final documentation-inclusive
 `git diff --check` passed.
+
+### Review fixes, round 5
+
+Scope: local standalone clone at `51bd114`, plan 3.8 and supplied
+D15/D29–D31/D38 constraints. No network or production access.
+
+RED first, before parser changes: activate `venv/bin/activate`, then
+`DATABASE_URL=sqlite:///:memory: python manage.py test api.tests_finance_upload_safety.SharedStringComplexityTests api.tests_finance_upload_safety.SharedStringComplexityHTTPTests --noinput`.
+**Ran 8 tests in 1.279s; FAILED (failures=7, errors=1)**.
+Recorded output: `venv/review-r5-red.log`. Named regressions:
+
+- `test_millions_empty_runs_rejected_early_under_200_mib`
+- `test_1024_empty_runs_accepted_1025_rejected`
+- `test_all_descendants_count_together`
+- `test_text_length_rejected_at_offending_t_end`
+- `test_part_node_budget_includes_root_and_every_element`
+- `test_completed_elements_cleared_and_detached`
+- `test_plain_strings_and_accepted_string_heavy_openpyxl_under_512_mib`
+  (passing control)
+- `test_node_limit_http_400_no_run_producer_or_openpyxl`
+
+The malicious fixture contains all 2,200,000 runs in a ZIP_STORED workbook,
+constructed incrementally in BytesIO with hand-written metadata and headers.
+The RED event wrapper aborts at event 2,061 to avoid reproducing a 585 MiB
+allocation. HTTP RED reaches the mocked producer and errors, proving the absent
+early rejection. RSS tests run in fresh venv Python subprocesses so earlier tests'
+process-wide high-water marks cannot contaminate their measurements; no disk
+fixture, temporary file or network is used.
+
+Implementation: each `si` admits at most 1,024 descendant elements, counted on
+start events regardless of tag (including `r`, `t`, `rPh`, `phoneticPr`, `rPr`
+and formatting descendants). The 1,025th child rejects immediately. Text length
+is accumulated at each `t` end event, when ElementTree makes its complete text
+available, and the offending `t` rejects above 32,767 characters. Entry count is
+checked at `si` start. All three use `SHARED_STRING_LIMIT`; existing HTTP mapping
+returns 400 without a run or producer/openpyxl invocation. Nested `si` is invalid.
+
+The supplied review's Excel rich-text-run practical limit is far below 1,024,
+and the supplied real-workbook shared strings are plain; this generous complexity
+allowance protects openpyxl's later per-entry materialization as well as the
+scanner. This is supplied context, not a fresh workbook or Excel-spec inspection.
+Clarification of conflicting deliverable wording: 1,024 `<r><t/></r>` runs contain
+2,048 child elements and cannot pass a 1,024-child cap. Tests therefore accept
+1,024 empty `<r/>` runs and reject 1,025, and separately accept 512 `<r><t/></r>`
+runs (exactly 1,024 children) and reject any additional descendant. The explicit
+all-child-elements cap takes precedence; no cap is relaxed.
+
+The part budget is `2 * MAX_SHARED_STRINGS = 8,000,000` elements, including the
+root and all entries/descendants. Two nodes per plain `si/t` entry ties total XML
+complexity to the 4,000,000-cell/entry envelope; rich formatting consumes that
+same budget, rather than multiplying four million entries by 1,024. Because the
+root also counts, four million plain `si/t` entries are not jointly admissible.
+The existing entry count and 64 MiB expanded-part limits remain independent.
+A reduced-budget exact-boundary test also asserts the production constant.
+
+The shared iterparse loop now clears every completed element and removes it from
+its parent after the consumer handles its end event. Both string and worksheet
+scanners consume leaf values before removal; they no longer retain XML subtrees
+until the enclosing entry, cell, row or part closes. Shared-string text retained
+per entry is bounded by the text cap; only labels/boolean markers survive across
+entries. ElementTree also has bounded input-chunk read-ahead. The worksheet
+scanner retains cell values and row/header summaries instead of XML trees.
+
+Focused GREEN: `DATABASE_URL=sqlite:///:memory: python manage.py test api.tests_finance_upload_safety --noinput`
+— **49 tests in 14.769s; OK, no skips** (`venv/review-r5-focused.log`).
+The 2,200,000-run rejected scan consumed **2,051 iterparse events** and peaked at
+**116,113,408 bytes (110.734375 MiB)**, below the unchanged 200 MiB rejection gate.
+The accepted synthetic fixture (1,000 plain 24,000-character strings and 100
+strings with 512 `r/t` runs each) passed ZIP preflight, scan and real openpyxl
+read-only loading/content assertions at **146,210,816 bytes (139.4375 MiB)**,
+below the unchanged 512 MiB gate. These isolated-process RSS values include
+fixture creation, imports, preflight and scan (plus openpyxl for the accepted
+case); they are not scoped Python-allocation peaks or successful producer/facts
+full-path release evidence. Real-workbook paths and producer package are unchanged.
+
+Final GREEN (venv activated, `DATABASE_URL=sqlite:///:memory:`):
+
+- `python manage.py test --noinput` — **763 tests in 43.384s; OK (skipped=9)**,
+  **754 passed**, zero failures/errors (`venv/review-r5-full-green.log`).
+  Fresh subprocess measurements in this full run: rejected peak **119,652,352
+  bytes (114.109375 MiB)** at **2,051 events**; accepted peak **145,162,240 bytes
+  (138.4375 MiB)**. Both unchanged memory gates pass.
+- `python manage.py check` — **System check identified no issues (0 silenced).**
+- `python manage.py makemigrations --check --dry-run` — **No changes detected.**
+- `git diff --check` — **passed**, including the documentation update.
+
+PENDING — supervisor PostgreSQL full-suite/check/migration-drift gate. Seven
+concurrency tests skip with `Requires PostgreSQL advisory locks and separate
+connections.` The unique-current test skips with `Requires PostgreSQL conditional
+unique constraint release evidence.` The ninth skip remains `real payroll ledger
+not on this machine`. Existing missing-staticfiles warnings remain.
+
+PENDING — supervisor real-workbook re-benchmark and successful PostgreSQL
+producer/facts full-path measurements, including maximum-envelope/string-heavy,
+duplicate-heavy and concurrent-reader capacity cases against the unchanged
+512 MiB worker gate. The accepted synthetic openpyxl measurement above covers
+only its stated fixture/path. No deployment, production or real-workbook proof
+is claimed. No migrations, environment changes, schedules or one-off operations
+are required by this change. Only the parser, safety tests and this log change;
+the pre-existing `.review-detached.pid` is untouched.
+
+Git: staging the three named files was denied creating `.git/index.lock` with
+`Operation not permitted`. No commit or workaround was attempted; the three
+changed files remain intact and uncommitted. Final documentation-inclusive
+`git diff --check` passed.

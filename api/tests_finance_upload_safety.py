@@ -548,3 +548,183 @@ class WorkbookSelectionHTTPTests(TestCase):
         producer.assert_not_called()
         loader.assert_not_called()
         self.assertFalse(FinanceRun.objects.exists())
+
+
+def string_complexity_workbook(chunks):
+    """Hand-written ZIP_STORED XLSX, streamed into memory without disk fixtures."""
+    from api.parsers import finance_workbook as p
+    ns = p.NS[1:-1]
+    rel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships'
+    with BytesIO() as buffer:
+        with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_STORED) as archive:
+            archive.writestr('[Content_Types].xml',
+                '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+                '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'
+                '<Override PartName="/xl/sharedStrings.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/></Types>')
+            archive.writestr('xl/workbook.xml', f'<workbook xmlns="{ns}" xmlns:r="{rel}"><sheets>'
+                '<sheet name="Expenditure" sheetId="1" r:id="s1"/>'
+                '<sheet name="Funder Budgets" sheetId="2" r:id="s2"/></sheets></workbook>')
+            archive.writestr('xl/_rels/workbook.xml.rels',
+                '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+                + ''.join(f'<Relationship Id="s{i}" Type="{rel}/worksheet" Target="worksheets/sheet{i}.xml"/>' for i in (1, 2))
+                + '</Relationships>')
+            for i, headers in enumerate((p.LEDGER_HEADERS, p.CONTRACT_HEADERS), 1):
+                archive.writestr(f'xl/worksheets/sheet{i}.xml', f'<worksheet xmlns="{ns}"><sheetData><row r="1">'
+                    + ''.join(f'<c r="{chr(65+j)}1" t="inlineStr"><is><t>{h}</t></is></c>' for j, h in enumerate(headers))
+                    + '</row></sheetData></worksheet>')
+            with archive.open('xl/sharedStrings.xml', 'w') as part:
+                part.write(f'<sst xmlns="{ns}">'.encode())
+                for chunk in chunks:
+                    part.write(chunk)
+                part.write(b'</sst>')
+        return buffer.getvalue()
+
+
+def rejected_string_rss_probe():
+    import resource
+    import sys
+    from itertools import chain, repeat
+    from api.parsers import finance_workbook as p
+    data = string_complexity_workbook(chain([b'<si>'], repeat(b'<r><t/></r>' * 1000, 2200), [b'</si>']))
+    original = p.iterparse
+    consumed = 0
+    def counted(*args, **kwargs):
+        nonlocal consumed
+        for item in original(*args, **kwargs):
+            consumed += 1
+            # RED fails safely instead of materializing millions of elements.
+            assert consumed <= 2060, 'shared-string rejection consumed too many events'
+            yield item
+    with patch.object(p, 'iterparse', counted):
+        try:
+            with p.preflight(BytesIO(data), source_name=NAME, content_type=MIME) as upload:
+                p.scan_workbook(upload)
+        except p.WorkbookError as error:
+            assert error.code == 'SHARED_STRING_LIMIT', error.code
+        else:
+            raise AssertionError('complex string accepted')
+    peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    peak = peak if sys.platform == 'darwin' else peak * 1024
+    print(f'REJECTED_STRING_PEAK_RSS_BYTES={peak}; EVENTS={consumed}', flush=True)
+    assert peak < 200 * 1024 * 1024, peak
+
+
+class SharedStringComplexityTests(SimpleTestCase):
+    def scan(self, entries):
+        from api.parsers import finance_workbook as p
+        data = string_complexity_workbook(entries)
+        with p.preflight(BytesIO(data), source_name=NAME, content_type=MIME) as upload:
+            p.scan_workbook(upload)
+
+    def test_millions_empty_runs_rejected_early_under_200_mib(self):
+        import subprocess
+        import sys
+        result = subprocess.run([sys.executable, '-c',
+            'from api.tests_finance_upload_safety import rejected_string_rss_probe; rejected_string_rss_probe()'],
+            capture_output=True, text=True, timeout=60)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        print(result.stdout.strip())
+
+    def test_1024_empty_runs_accepted_1025_rejected(self):
+        from api.parsers import finance_workbook as p
+        self.scan([b'<si>' + b'<r/>' * 1024 + b'</si>'])
+        with self.assertRaises(p.WorkbookError) as caught:
+            self.scan([b'<si>' + b'<r/>' * 1025 + b'</si>'])
+        self.assertEqual(caught.exception.code, 'SHARED_STRING_LIMIT')
+
+    def test_all_descendants_count_together(self):
+        from api.parsers import finance_workbook as p
+        self.scan([b'<si>' + b'<r><t/></r>' * 512 + b'</si>'])
+        for extra in (b'<t/>', b'<rPh/>', b'<phoneticPr/>', b'<rPr><b/></rPr>'):
+            with self.subTest(extra=extra), self.assertRaises(p.WorkbookError) as caught:
+                self.scan([b'<si>' + b'<r><t/></r>' * 512 + extra + b'</si>'])
+            self.assertEqual(caught.exception.code, 'SHARED_STRING_LIMIT')
+
+    def test_text_length_rejected_at_offending_t_end(self):
+        from api.parsers import finance_workbook as p
+        original = p.iterparse
+        last = None
+        def counted(*args, **kwargs):
+            nonlocal last
+            for event, element in original(*args, **kwargs):
+                last = (event, element.tag)
+                yield event, element
+        with patch.object(p, 'iterparse', counted), self.assertRaises(p.WorkbookError) as caught:
+            self.scan([b'<si><r><t>' + b'x' * 16384 + b'</t></r><r><t>' + b'x' * 16384 + b'</t></r></si>'])
+        self.assertEqual(caught.exception.code, 'SHARED_STRING_LIMIT')
+        self.assertEqual(last, ('end', p.NS + 't'))
+
+    def test_part_node_budget_includes_root_and_every_element(self):
+        from api.parsers import finance_workbook as p
+        self.assertEqual(getattr(p, 'MAX_SHARED_STRING_NODES', None), 8000000)
+        with patch.object(p, 'MAX_SHARED_STRING_NODES', 5):
+            self.scan([b'<si><t>A</t></si><si><t>B</t></si>'])
+            with self.assertRaises(p.WorkbookError) as caught:
+                self.scan([b'<si><t>A</t></si><si><t>B</t></si><si/>'])
+            self.assertEqual(caught.exception.code, 'SHARED_STRING_LIMIT')
+
+    def test_completed_elements_cleared_and_detached(self):
+        from api.parsers import finance_workbook as p
+        stream = BytesIO(f'<sst xmlns="{p.NS[1:-1]}"><si><r><t>abc</t></r></si></sst>'.encode())
+        stack = []
+        ended = None
+        for event, element in p._xml_events(stream):
+            if ended is not None:
+                previous, parent = ended
+                self.assertEqual(len(previous), 0)
+                self.assertIsNone(previous.text)
+                if parent is not None:
+                    self.assertNotIn(previous, parent)
+            ended = None
+            if event == 'start':
+                stack.append(element)
+            else:
+                stack.pop()
+                ended = element, stack[-1] if stack else None
+
+    def test_plain_strings_and_accepted_string_heavy_openpyxl_under_512_mib(self):
+        import subprocess
+        import sys
+        result = subprocess.run([sys.executable, '-c', '''
+import resource, sys
+from itertools import chain, repeat
+from io import BytesIO
+from api.tests_finance_upload_safety import string_complexity_workbook, NAME, MIME
+from api.parsers import finance_workbook as p
+from openpyxl import load_workbook
+# 24 MB of plain strings plus entries at the accepted rich-text node boundary.
+data = string_complexity_workbook(chain(repeat(b'<si><t>' + b'x' * 24000 + b'</t></si>', 1000),
+    repeat(b'<si>' + b'<r><t>x</t></r>' * 512 + b'</si>', 100)))
+with p.preflight(BytesIO(data), source_name=NAME, content_type=MIME) as upload:
+    p.scan_workbook(upload)
+    wb = load_workbook(upload.buffer, read_only=True)
+    assert len(wb['Expenditure']._shared_strings) == 1100
+    assert wb['Expenditure']._shared_strings[0] == 'x' * 24000
+    assert wb['Expenditure']._shared_strings[-1] == 'x' * 512
+    wb.close()
+peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+peak = peak if sys.platform == 'darwin' else peak * 1024
+print(f'ACCEPTED_STRING_PEAK_RSS_BYTES={peak}', flush=True)
+assert peak < 512 * 1024 * 1024, peak
+'''], capture_output=True, text=True, timeout=60)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        print(result.stdout.strip())
+
+
+class SharedStringComplexityHTTPTests(TestCase):
+    def test_node_limit_http_400_no_run_producer_or_openpyxl(self):
+        from rest_framework.test import APIClient
+        from urllib.parse import urlencode
+        from api.finance_run_test_utils import actor
+        from api.models import FinanceRun
+        client = APIClient()
+        client.force_authenticate(actor())
+        data = string_complexity_workbook([b'<si>' + b'<r><t/></r>' * 513 + b'</si>'])
+        with patch('api.services.finance_runs.build_run_artifact') as producer, patch('openpyxl.load_workbook') as loader:
+            response = client.post('/api/finance/runs/?' + urlencode(
+                dict(kind='funders', year=2026, source_name=NAME)), data, content_type=MIME)
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data, {'code': 'SHARED_STRING_LIMIT'})
+        self.assertFalse(FinanceRun.objects.exists())
+        producer.assert_not_called()
+        loader.assert_not_called()
