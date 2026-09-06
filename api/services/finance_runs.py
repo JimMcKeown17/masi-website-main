@@ -16,6 +16,7 @@ from masi_finance.publish.run_artifact import validate_facts
 from masi_finance.publish.run_schema import load_schema, FORMAT_CHECKER
 
 from api.finance_snapshot import parse_timestamp
+from api.finance_snapshot_compat import project_snapshot
 from api.models import FinanceRun, FinanceSnapshot, LedgerRow, LedgerAllocation
 from api.permissions import finance_capabilities_for
 
@@ -234,13 +235,20 @@ def _approve_locked(target, current, rows, actor, *, override_anti_rollback, ack
     if current and target.pk not in _chain(current, rows):
         target.previous_approved = current
     _chain(target, rows)
+    # Use the exact prospective approval timestamp for validation and persistence.
+    # The shared projection validates the 1.1.0 schema and invariants before either
+    # current or target is written, including on re-approval and demotion.
+    target.approved_at = timezone.now()
+    try:
+        project_snapshot(target)
+    except (ValueError, KeyError, TypeError, OverflowError):
+        raise FinanceRunError('SNAPSHOT_PROJECTION_INVALID') from None
     if current:
         current.status = 'superseded'
         current.save(update_fields=['status'])
     _transition_checkpoint('after_supersede')
     target.status = 'approved'
     target.approved_by = actor
-    target.approved_at = timezone.now()
     target.approval_overrode_rollback = override_anti_rollback
     target.approval_acknowledged_findings = acknowledge_findings
     target.approval_note = note.strip()

@@ -847,7 +847,7 @@ FAILED (errors=2)
   retains unknown producer as null, and preserves the original document and timestamps.
   Command preview writes nothing. Replay returns the existing UUID/status/audit from
   FinanceRun without querying FinanceSnapshot, even after legacy-row deletion.
-- Snapshot serving reads approved FinanceRun only. Imported 1.0.0 is verbatim with
+- Original implementation (superseded by D32 below) read approved FinanceRun only. Imported 1.0.0 is verbatim with
   its original wrapper; 2.0.0 projects to packaged 1.1.0 with binding-digest identities,
   all findings, legacy-format run ID, UTC timestamps, and a recomputed flat digest.
 - Added list/detail/approve/demote/current endpoints and the import/demote commands.
@@ -908,9 +908,8 @@ FAILED (errors=2)
 
 ### Remaining PENDING and evidence boundary
 
-- **PENDING — commit the staged foundation and latest build-log evidence** when Git
-  metadata writes are available. Only the tests/resources commit `6037593` exists;
-  HEAD alone does not contain the foundation implementation tested in this tree.
+- **Historical commit state:** the supervisor subsequently committed the original
+  foundation as `55af11d`; round 1 below starts from that clean tip.
 - **PENDING — PostgreSQL full-suite execution belongs to the supervisor and is the
   required release evidence**, including the conditional unique constraint, separate
   connections, advisory-lock contention, and `select_for_update`. SQLite is functional
@@ -920,11 +919,116 @@ FAILED (errors=2)
   is the seventh skip, with reason `real payroll ledger not on this machine`.
   The CSV is absent from this clone. The requested zero-non-PostgreSQL-skips condition
   therefore remains unmet; no fixture was fabricated or copied from another checkout.
-- **PENDING — stage 2B** upload endpoint, preflight, benchmarks, dependency pin and
-  build.sh integration remain explicitly out of this change. Stage 2A's run-list POST
-  returns 405. No new environment variable or schedule is required by the foundation.
+- **PENDING — stage 2B** upload endpoint, preflight and benchmarks remain excluded.
+  Stage 2A's run-list POST returns 405. D32 moves the dependency pin, build check,
+  and required Render token environment variable into the foundation (round 1 below).
+  No schedule change is required.
 - **PENDING — release/cutover**: deploy and apply migration 0051; perform the approved
   exact-target legacy import/year inventory before run-only readers serve existing
   data; finish stage 2B/capacity gates, real upload/approval, and role/browser probes.
   No production database, script, migration, deployment, import or credentials were
   accessed or changed. This log is not production, browser, or release proof.
+
+### Review fixes, round 1
+
+Binding supervisor decisions D32/D33 supersede the original stage 2A reader and
+release split above. Starting tree: clean `feat/wp2a-finance-runs` at `55af11d`;
+the prior pending-foundation-commit note is historical.
+
+RED, before implementation:
+`DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py test api.tests_finance_review --noinput`
+reported **Ran 7 tests in 0.198s; FAILED (failures=6, errors=1)**.
+Exact names in `api.tests_finance_review` and observed assertions:
+
+- `DependencyReleaseTests.test_publisher_pin_is_in_deployment_requirements`:
+  `AssertionError: Missing pinned publisher deployment dependency` (pin absent).
+- `DependencyReleaseTests.test_build_checks_publisher_immediately_after_install`:
+  `AssertionError: '' !=` the required import/version check.
+- `FoundationSnapshotTests.test_legacy_endpoint_is_unchanged_before_and_after_import`:
+  `AssertionError: 404 != 200` before import.
+- `ApprovalServabilityTests.test_lowercase_timestamp_approves_and_projects`:
+  `ValueError: Invalid isoformat string: '2026-09-01t10:00:00z'`.
+- `ApprovalServabilityTests.test_projection_failure_refuses_before_superseding_with_value_free_code`:
+  `AssertionError: 200 != 409`.
+- `ApprovalServabilityTests.test_projection_schema_failure_refuses_before_superseding`:
+  `AssertionError: 200 != 409`.
+- `CutoverTimestampTests.test_lowercase_timestamp_approve_then_snapshot_get_200`:
+  approval returned 200, then snapshot GET gave `AssertionError: 500 != 200`.
+
+Full RED output: gitignored `venv/wp2-review/red.log`. The first diagnostic run
+had 5 tests; its two failure-injection subtests shared a promoted candidate, so
+they were separated before the definitive 7-test RED run above.
+
+Foundation changes and GREEN evidence:
+
+- Restored `api/views/finance.py` byte-for-byte from pre-WP2 `bbfd714`; verified
+  by comparing file bytes with `git show bbfd714:api/views/finance.py`. It reads
+  FinanceSnapshot exclusively. Run endpoints and the compatibility module remain
+  available. No runtime fallback was introduced.
+- Foundation endpoint fixtures now use legacy rows without importing. The new
+  before/import/after regression compares the entire response and the imported
+  compatibility wrapper, then deletes the import to prove the reader stays legacy.
+  Import/recovery tests exercise the run projection directly in the foundation;
+  the separate cutover restores their endpoint-level assertions and run-only years.
+- Added the exact D32 private Git pin and immediate post-install import/version
+  check, plus local token/manual-wheel instructions in `README.md`. Executed the
+  exact import/version check successfully against the already-installed 0.2.0
+  wheel. This is NOT a network install or tag/authentication proof; the supervisor
+  must verify the dependency install after the tag exists. Render requires the
+  `MASI_FINANCE_GITHUB_TOKEN` service secret for the foundation build.
+- `utc_seconds` is the single projection timestamp normalizer, using the same
+  `upper().replace('Z', '+00:00')` rule as the installed packaged validator.
+  Approval uses the real compatibility projection (including its schema and
+  invariants) with the exact prospective approval timestamp before demoting or
+  promoting any row. Projection failures return only `SNAPSHOT_PROJECTION_INVALID`.
+  The same precondition covers re-approval and demotion through shared approval.
+- Focused command:
+  `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py test api.tests_finance_review api.tests_finance_import api.tests_finance_current api.tests_finance_snapshot api.tests_finance_snapshot_compat api.tests_finance_runs_approval api.tests_finance_runs_demote --noinput`
+  — **Ran 62 tests in 3.329s; OK**.
+- Foundation full suite:
+  `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py test api --noinput`
+  — **Ran 681 tests in 18.276s; OK (skipped=7)** (674 passed).
+  Six PostgreSQL-only skips and the existing unavailable private payroll fixture
+  skip are the same named inventory above. No failures/errors. Full log:
+  gitignored `venv/wp2-review/foundation-full.log`.
+- `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py check`:
+  **System check identified no issues (0 silenced).**
+- `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py makemigrations --check --dry-run`:
+  **No changes detected.** Migration 0051 is unchanged.
+- `git diff --check`: passed. Existing missing-staticfiles warning remains.
+
+Required deploy order (D32): **foundation deploy -> `import_legacy_finance_snapshot`
+-> parity check -> cutover deploy**. Deploy the foundation with the dependency secret
+and migration 0051 first. Inventory existing years, preview then apply each authorized
+exact year/legacy-row/actor import, and compare the full legacy endpoint document and
+wrapper with the imported run projection before deploying the separate run-only
+reader cutover. The cutover commit title is
+`feat(finance): cut the snapshot reader over to finance runs`.
+No production access, deployment, import, network installation, PostgreSQL test, or
+schedule change was performed here. PostgreSQL execution belongs to the supervisor.
+The signed-zero digest regression remains deferred until the rebuilt publisher
+wheel is installed; this pass does not alter that contract.
+
+Git/fallback state: staging the named foundation files failed at `.git/index.lock`
+with `Operation not permitted`. No new commit was created and no Git-metadata
+workaround was attempted. Foundation fixes remain uncommitted. The separate cutover
+is supplied as `documentation/wp2a-cutover.patch`, to apply on top of the foundation
+and commit last with the title above. The delivered working tree is FOUNDATION.
+
+Separate cutover patch verification (temporarily applied locally, then restored):
+
+- `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py test api --noinput`:
+  **Ran 682 tests in 18.510s; OK (skipped=7)** (675 passed; same six PostgreSQL
+  tests and one unavailable private payroll fixture). Full log:
+  gitignored `venv/wp2-review/cutover-full.log`.
+- Includes HTTP candidate approval with `2026-09-01t10:00:00z` followed by snapshot
+  GET 200 and canonical `2026-09-01T10:00:00Z`. Legacy-only data returns 404 in the
+  cutover; imported 1.0.0 is verbatim with wrapper parity; approved 2.0.0 projects
+  to 1.1.0. Restored endpoint tests cover approved-only years, stale-loader
+  isolation, no legacy queries, and restoration to the imported predecessor.
+- `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py check`:
+  **System check identified no issues (0 silenced).**
+- `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py makemigrations --check --dry-run`:
+  **No changes detected.** `git diff --check`: passed.
+- Patch application/reversal is checked against the exact tested file bytes;
+  foundation view remains byte-for-byte `bbfd714` after restoration.

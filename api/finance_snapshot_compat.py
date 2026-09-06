@@ -9,7 +9,8 @@ from masi_finance.publish.run_schema import load_schema, FORMAT_CHECKER
 
 def utc_seconds(value):
     if isinstance(value, str):
-        value = datetime.fromisoformat(value.replace('Z', '+00:00'))
+        # Match the packaged RFC 3339 checker's normalization for both T/t and Z/z.
+        value = datetime.fromisoformat(value.upper().replace('Z', '+00:00'))
     return value.astimezone(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
 
 
