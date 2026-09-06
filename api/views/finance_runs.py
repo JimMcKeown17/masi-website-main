@@ -8,7 +8,7 @@ from rest_framework.views import APIView
 
 from api.models import FinanceRun
 from api.permissions import IsFinancePublisher, IsFinanceReader, finance_capabilities_for
-from api.services.finance_runs import FinanceRunError, approve_run, demote_run
+from api.services.finance_runs import FinanceRunError, approve_run, demote_run, upload_workbook
 from api.views.finance import AUTH_CLASSES
 
 
@@ -65,8 +65,46 @@ def year_parameter(params, *, required=False):
     return year
 
 
+class UploadMetadataSerializer(serializers.Serializer):
+    kind = serializers.ChoiceField(choices=['funders'])
+    year = serializers.IntegerField(min_value=2000, max_value=2100)
+    source_name = serializers.CharField(max_length=255, trim_whitespace=False)
+    client_modified_at = serializers.CharField(required=False, trim_whitespace=False)
+
+    def to_internal_value(self, data):
+        if set(data) - set(self.fields) or any(len(data.getlist(key)) != 1 for key in data):
+            raise ValidationError('UPLOAD_METADATA_INVALID')
+        return super().to_internal_value(data)
+
+
 class FinanceRunList(APIView):
     authentication_classes = AUTH_CLASSES
+    # No DRF body parser: POST uses the underlying request stream directly.
+    parser_classes = []
+
+    def get_permissions(self):
+        if self.request.method == 'POST':
+            return [IsFinancePublisher()]
+        return super().get_permissions()
+
+    def post(self, request):
+        serializer = UploadMetadataSerializer(data=request.query_params)
+        if not serializer.is_valid():
+            return Response({'code': 'UPLOAD_METADATA_INVALID'}, status=400)
+        try:
+            # DRF Request.stream consults Content-Length and may access body.
+            # WSGIRequest's LimitedStream also trusts Content-Length. Use the
+            # server-framed input, so missing/false lengths cannot truncate our
+            # actual-byte counter. The configured deployment is WSGI.
+            raw = request._request
+            stream = raw.environ['wsgi.input'] if hasattr(raw, 'environ') else raw
+            run, status = upload_workbook(
+                stream, request.user, **serializer.validated_data,
+                content_type=request.META.get('CONTENT_TYPE', ''),
+                content_length=request.META.get('CONTENT_LENGTH'))
+        except FinanceRunError as error:
+            return Response({'code': error.code}, status=error.status)
+        return Response(run_detail(run, request.user), status=status)
 
     def get(self, request):
         queryset = visible_runs(request.user)

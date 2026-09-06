@@ -1122,3 +1122,150 @@ documentation/build-log.md` failed creating `.git/index.lock` with
 `Operation not permitted`. No commit was created; all three files remain intact
 and uncommitted. No Git-metadata workaround or alternate checkout was used.
 Final `git diff --check`: passed.
+
+
+## 2026-09-06 WP2a stage 2B
+
+Read approved revision 4 sections 3.5, 3.6, 3.8, 3.9 and 8.1, repository guidance, prior foundation build records and finance endpoint documentation. Existing concurrency module and runs URL are extended, not replaced.
+
+RED before implementation:
+`DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py test api.tests_finance_runs_upload api.tests_finance_upload_safety api.tests_finance_runs_concurrency --noinput`
+— Ran 29 tests in 0.100s; FAILED (failures=13, errors=18, skipped=6). Subtests account for the failure/error totals. Exact failing names:
+
+```text
+ERROR: test_internal_producer_failure_and_untrusted_error_are_not_failed_rows (api.tests_finance_runs_upload.FinanceUploadTests.test_internal_producer_failure_and_untrusted_error_are_not_failed_rows) (error=<class 'RuntimeError'>)
+ERROR: test_internal_producer_failure_and_untrusted_error_are_not_failed_rows (api.tests_finance_runs_upload.FinanceUploadTests.test_internal_producer_failure_and_untrusted_error_are_not_failed_rows) (error=<class 'masi_finance.publish.run_artifact.RunArtifactError'>)
+ERROR: test_internal_producer_failure_and_untrusted_error_are_not_failed_rows (api.tests_finance_runs_upload.FinanceUploadTests.test_internal_producer_failure_and_untrusted_error_are_not_failed_rows) (error=<class 'masi_finance.publish.run_artifact.RunArtifactError'>)
+ERROR: test_known_producer_failure_creates_one_safe_failed_run (api.tests_finance_runs_upload.FinanceUploadTests.test_known_producer_failure_creates_one_safe_failed_run)
+ERROR: test_permission_before_bytes_and_unsupported_methods (api.tests_finance_runs_upload.FinanceUploadTests.test_permission_before_bytes_and_unsupported_methods)
+ERROR: test_compressed_cap_missing_lying_and_true_length_stops_at_plus_one (api.tests_finance_upload_safety.WorkbookSafetyTests.test_compressed_cap_missing_lying_and_true_length_stops_at_plus_one)
+ERROR: test_declared_length_invalid_before_read (api.tests_finance_upload_safety.WorkbookSafetyTests.test_declared_length_invalid_before_read)
+ERROR: test_declared_rows_columns_and_product (api.tests_finance_upload_safety.WorkbookSafetyTests.test_declared_rows_columns_and_product)
+ERROR: test_defused_xml_rejects_entities (api.tests_finance_upload_safety.WorkbookSafetyTests.test_defused_xml_rejects_entities)
+ERROR: test_envelope_type_and_basename (api.tests_finance_upload_safety.WorkbookSafetyTests.test_envelope_type_and_basename)
+ERROR: test_missing_duplicate_sheets_and_headers (api.tests_finance_upload_safety.WorkbookSafetyTests.test_missing_duplicate_sheets_and_headers)
+ERROR: test_spoofed_dimensions_sparse_headers_and_data_beyond_header (api.tests_finance_upload_safety.WorkbookSafetyTests.test_spoofed_dimensions_sparse_headers_and_data_beyond_header)
+ERROR: test_valid_body_above_default_django_memory_limit (api.tests_finance_upload_safety.WorkbookSafetyTests.test_valid_body_above_default_django_memory_limit)
+ERROR: test_valid_body_never_accesses_body_and_buffer_closes (api.tests_finance_upload_safety.WorkbookSafetyTests.test_valid_body_never_accesses_body_and_buffer_closes)
+ERROR: test_zip_duplicate_and_paths (api.tests_finance_upload_safety.WorkbookSafetyTests.test_zip_duplicate_and_paths)
+ERROR: test_zip_encrypted (api.tests_finance_upload_safety.WorkbookSafetyTests.test_zip_encrypted)
+ERROR: test_zip_entry_count (api.tests_finance_upload_safety.WorkbookSafetyTests.test_zip_entry_count)
+ERROR: test_zip_expanded_and_ratio_limits (api.tests_finance_upload_safety.WorkbookSafetyTests.test_zip_expanded_and_ratio_limits)
+FAIL: test_http_request_body_property_is_never_read (api.tests_finance_runs_upload.FinanceUploadTests.test_http_request_body_property_is_never_read)
+FAIL: test_mutation_metadata_rejected (api.tests_finance_runs_upload.FinanceUploadTests.test_mutation_metadata_rejected) (field='uploaded_by')
+FAIL: test_mutation_metadata_rejected (api.tests_finance_runs_upload.FinanceUploadTests.test_mutation_metadata_rejected) (field='uploaded_at')
+FAIL: test_mutation_metadata_rejected (api.tests_finance_runs_upload.FinanceUploadTests.test_mutation_metadata_rejected) (field='status')
+FAIL: test_mutation_metadata_rejected (api.tests_finance_runs_upload.FinanceUploadTests.test_mutation_metadata_rejected) (field='manifest')
+FAIL: test_mutation_metadata_rejected (api.tests_finance_runs_upload.FinanceUploadTests.test_mutation_metadata_rejected) (field='payload')
+FAIL: test_mutation_metadata_rejected (api.tests_finance_runs_upload.FinanceUploadTests.test_mutation_metadata_rejected) (field='producer_version')
+FAIL: test_mutation_metadata_rejected (api.tests_finance_runs_upload.FinanceUploadTests.test_mutation_metadata_rejected) (field='approved_by')
+FAIL: test_no_temporary_files_or_storage_and_large_http_body (api.tests_finance_runs_upload.FinanceUploadTests.test_no_temporary_files_or_storage_and_large_http_body)
+FAIL: test_raw_upload_manifest_version_digests_metrics (api.tests_finance_runs_upload.FinanceUploadTests.test_raw_upload_manifest_version_digests_metrics)
+FAIL: test_second_publisher_replay_review_approve_preserves_uploader (api.tests_finance_runs_upload.FinanceUploadTests.test_second_publisher_replay_review_approve_preserves_uploader)
+FAIL: test_sheet_failure_is_failed_history (api.tests_finance_runs_upload.FinanceUploadTests.test_sheet_failure_is_failed_history)
+FAIL: test_unexpected_failure_rolls_back_all_inserts_value_free (api.tests_finance_runs_upload.FinanceUploadTests.test_unexpected_failure_rolls_back_all_inserts_value_free)
+```
+
+Contract clarification: the installed 2.0.0 manifest forbids additional properties. Foundation stores parse_duration_ms, total_duration_ms and peak_memory_bytes in dedicated model fields. Preserve exact manifest/schema compatibility and record measurements in those fields; no migration or schema fork.
+
+Implementation and final verification:
+
+- Added a raw-stream context manager with positive declared-length validation,
+  actual-byte cap (including missing/false lengths), SHA-256, dated basename and
+  MIME checks. The HTTP view uses the configured WSGI server's framed input rather
+  than DRF Request.stream or Django's Content-Length-limited wrapper. It never
+  reads request.body or configures Django's upload-memory setting.
+- ZIP safety independently inflates bounded chunks with zlib before ZipExtFile
+  scanning: actual expanded counts, CRC and consumed compressed sizes must agree.
+  This prevents an understated central-directory file_size from hiding expansion.
+  Entry/encryption/path/duplicate/ratio/expansion checks precede the tuple lock.
+- Defused XML scans metadata, shared-string header markers and sheet coordinates
+  with incremental element removal. Required sheets/headers, declared and streamed
+  bounds, physical header position, rectangular product and nonblank cells past H
+  are checked before the producer. ZIP/XML envelope errors return safe 400 without
+  history; known sheet/domain errors create one failed run with fixed phase/code/
+  message. Generic decode errors, unknown exception codes, schema/fact corruption
+  and internal exceptions return value-free 500 after rollback.
+- Uploads use the existing nonblocking tuple lock and global source-SHA/producer
+  idempotency key. Replays bypass sheet scanning and production and preserve the
+  uploader; a second publisher reviews and approves the original candidate with
+  their own approval audit. Candidate creation reuses materialise_facts and the
+  existing schema, canonical-zero, digest and persisted-fact reconciliation checks.
+  Approval/demotion services, the cutover view, migrations and legacy commands are
+  unchanged. The existing runs route now handles POST; PUT/PATCH/DELETE remain 405.
+- Measurements include stream/ZIP/preflight/producer/fact insertion and digest
+  checks through the final transactional metrics save. Database commit and HTTP
+  rendering occur afterward; supervisor end-to-end wall timings must include them.
+  The manifest remains exactly the released artifact manifest, with metrics in the
+  foundation's existing dedicated fields. Tracemalloc starts/stops with the upload
+  scope; overlapping in-process calls conservatively share its peak rather than
+  stopping another upload's tracing. Sync upload workers provide isolated scopes;
+  absolute process RSS is a separate measurement, not a scoped allocation claim.
+- Added benchmark_finance_upload: requires a real active publisher actor, reads the
+  named local workbook through the same service (not HTTP), writes candidate/failed
+  runs, and emits basename, bytes, SHA, producer/tag, schema, run/status, service
+  status, timing/allocation peak, platform-normalized process peak RSS, fact counts
+  and DB engine. Idempotent replays are labeled and expose original stored metrics;
+  they are not successful recomputation benchmarks.
+- Added defusedxml==0.7.1, matching the installed version. build.sh is unchanged.
+  No migration, environment-variable change, schedule or one-off operation is
+  required by this code change. No network or production access was performed.
+
+Expanded acceptance includes the actual 32 MiB + one-byte stopping point; HTTP
+missing/lying lengths; a valid >2.5 MB request under default Django settings; a
+request.body property that raises; ZIP metadata understatement; the exact 4,000,000
+cell boundary and streamed product evasion; unsafe XML refusal; no temporary-file
+or storage calls on upload; real producer/facts/digest/approval and command paths.
+Synthetic XLSX/ZIP bodies are generated in tests; no real workbook is committed.
+
+The first full run found one obsolete foundation assertion that POST on runs was
+unsupported (721 tests, one failure, nine skips). Updated only that assertion to
+PUT in tests_finance_current.py; POST is now explicitly authorized by stage 2B.
+An intermediate command test over-mocked all Path.open calls, including installed
+schema resources; narrowed its mock to the synthetic input path before final GREEN.
+
+Final GREEN:
+
+- `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py test api --noinput`
+  — **Ran 724 tests in 12.277s; OK (skipped=9)**: 715 passed, no failures/errors.
+  Log: gitignored `venv/upload-full-green.log`. Existing missing-staticfiles warning
+  remains; intentionally malformed ZIP fixture warnings are locally suppressed.
+- `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py check`
+  — **System check identified no issues (0 silenced).**
+- `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py makemigrations --check --dry-run`
+  — **No changes detected.**
+- `git diff --check` — **passed**.
+
+PENDING — supervisor PostgreSQL full-suite gate. The following eight tests are
+PostgreSQL-only; concurrency skips explicitly say
+`Requires PostgreSQL advisory locks and separate connections.`:
+
+- `api.tests_finance_runs_model.FinanceRunModelTests.test_partial_unique_current`
+- `api.tests_finance_runs_concurrency.FinanceConcurrencyTests.test_two_concurrent_approvals_one_wins_one_refuses`
+- `api.tests_finance_runs_concurrency.FinanceConcurrencyTests.test_different_tuples_do_not_share_lock`
+- `api.tests_finance_runs_concurrency.FinanceConcurrencyTests.test_import_uses_same_lock_and_replays_after_release`
+- `api.tests_finance_runs_concurrency.FinanceConcurrencyTests.test_transition_select_for_update_locks_existing_rows`
+- `api.tests_finance_runs_concurrency.FinanceConcurrencyTests.test_concurrent_imports_serialize_before_first_insert`
+- `api.tests_finance_runs_concurrency.FinanceConcurrencyTests.test_first_ever_same_tuple_uploads_one_completes_one_conflicts` (new)
+- `api.tests_finance_runs_concurrency.FinanceConcurrencyTests.test_different_tuple_uploads_complete_while_first_is_locked` (new)
+
+The ninth skip is the pre-existing unavailable private payroll fixture:
+`api.tests_youth_budget.RealLedgerSeedTests.test_real_csv_parses_june_total_and_trimmed_april`.
+
+PENDING — supervisor section 3.8 benchmarks on PostgreSQL and the release build:
+largest-valid 20260829 successful full path with facts; historical 20260513 rejection;
+sparse/spoofed/product and largest allowed rectangle/string/ZIP envelopes; successful
+2,000/10,000/largest duplicate groups; exact source IDs/counts/hashes and scaling;
+<60-second full request timing, 512 MiB absolute worker RSS and the >30-second
+queue-review trigger. Real workbooks were not available in this clone.
+
+PENDING — supervisor two-upload concurrency probe: same tuple one completion/one
+409 while held; different tuples both progress; readers continue serving the prior
+approved run; actual WSGI framing/ingress behavior, worker count W>=3, instance memory,
+aggregate peak <=75%, and reader latency/status. SQLite passing/skips are not
+PostgreSQL, deployment, production-data or capacity evidence.
+
+Git/fallback: staging the twelve named change files failed creating `.git/index.lock`
+with `Operation not permitted`. No commit was created. All changes remain intact
+and uncommitted in this clone; no Git-metadata workaround or alternate checkout was
+used. Final `git diff --check`: passed.

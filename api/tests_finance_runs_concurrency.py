@@ -104,3 +104,53 @@ class FinanceConcurrencyTests(TransactionTestCase):
             imported = first.result(10)
         self.assertEqual(do_import().pk, imported.pk)
         self.assertEqual(FinanceRun.objects.count(), 1)
+
+    def test_first_ever_same_tuple_uploads_one_completes_one_conflicts(self):
+        from io import BytesIO
+        from api.tests_finance_upload_safety import workbook_bytes, MIME, NAME
+        from api.models import FinanceRun
+        data = workbook_bytes()
+        locked, release = Event(), Event()
+        producer = self.service.build_run_artifact
+        def paused(*args, **kwargs):
+            locked.set()
+            if not release.wait(10):
+                raise RuntimeError('thread timeout')
+            return producer(*args, **kwargs)
+        def upload():
+            return self.service.upload_workbook(BytesIO(data), self.user, kind='funders', year=2026,
+                                                source_name=NAME, content_type=MIME)
+        with ThreadPoolExecutor(2) as pool, patch.object(self.service, 'build_run_artifact', side_effect=paused):
+            first = pool.submit(self.worker, upload)
+            try:
+                self.assertTrue(locked.wait(10))
+                with self.assertRaisesRegex(self.service.FinanceRunError, 'UPLOAD_IN_PROGRESS'):
+                    pool.submit(self.worker, upload).result(10)
+            finally:
+                release.set()
+            self.assertEqual(first.result(10)[1], 201)
+        self.assertEqual(FinanceRun.objects.count(), 1)
+
+    def test_different_tuple_uploads_complete_while_first_is_locked(self):
+        from io import BytesIO
+        from api.tests_finance_upload_safety import workbook_bytes, MIME, NAME
+        data = workbook_bytes()
+        locked, release = Event(), Event()
+        producer = self.service.build_run_artifact
+        def paused(*args, **kwargs):
+            if kwargs['accounting_year'] == 2026:
+                locked.set()
+                if not release.wait(10):
+                    raise RuntimeError('thread timeout')
+            return producer(*args, **kwargs)
+        def upload(year):
+            return self.service.upload_workbook(BytesIO(data), self.user, kind='funders', year=year,
+                                                source_name=NAME, content_type=MIME)
+        with ThreadPoolExecutor(2) as pool, patch.object(self.service, 'build_run_artifact', side_effect=paused):
+            first = pool.submit(self.worker, lambda: upload(2026))
+            try:
+                self.assertTrue(locked.wait(10))
+                self.assertEqual(pool.submit(self.worker, lambda: upload(2025)).result(10)[1], 201)
+            finally:
+                release.set()
+            self.assertEqual(first.result(10)[1], 201)

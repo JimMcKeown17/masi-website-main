@@ -73,6 +73,7 @@ urlpatterns = [
 
     # Finance dashboard (finance.read capability)
     path('finance/snapshot/', views.finance_snapshot, name='finance_snapshot'),
+    # GET history and publisher-only raw XLSX POST share the runs resource.
     path('finance/runs/', views.FinanceRunList.as_view(), name='finance_run_list'),
     path('finance/runs/<uuid:run_id>/', views.FinanceRunDetail.as_view(), name='finance_run_detail'),
     path('finance/runs/<uuid:run_id>/approve/', views.FinanceRunApprove.as_view(), name='finance_run_approve'),

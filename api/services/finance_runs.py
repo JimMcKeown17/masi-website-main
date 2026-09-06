@@ -3,21 +3,32 @@
 PostgreSQL tuple locks also serialize creation when no row exists. SQLite supports
 functional tests only; it makes no concurrency guarantee for these services.
 """
+from contextlib import contextmanager
 from copy import deepcopy
 from datetime import date
 import hashlib
+from importlib.metadata import version as distribution_version
+import re
+from threading import Lock
 from time import perf_counter
+import tracemalloc
 
 import jsonschema
 from django.db import connection, transaction
 from django.utils import timezone
+from masi_finance.publish.budgets import BudgetSheetError
+from masi_finance.publish.contracts import ContractKeyError
 from masi_finance.publish.invariants import assert_invariants, payload_digest as flat_digest
-from masi_finance.publish.run_artifact import validate_facts
-from masi_finance.publish.run_schema import load_schema, FORMAT_CHECKER
+from masi_finance.publish.ledger import LedgerError
+from masi_finance.publish.run_artifact import (
+    build_run_artifact, RunArtifactError, payload_digest, facts_digest, validate_facts,
+)
+from masi_finance.publish.run_schema import load_schema, FORMAT_CHECKER, RunSchemaError
 
 from api.finance_snapshot import parse_timestamp
 from api.finance_snapshot_compat import project_snapshot
 from api.models import FinanceRun, FinanceSnapshot, LedgerRow, LedgerAllocation
+from api.parsers.finance_workbook import preflight, scan_workbook, WorkbookError
 from api.permissions import finance_capabilities_for
 
 # Cumulative stored-version support, independent of future upload pins.
@@ -345,3 +356,137 @@ def import_legacy_snapshots(actor, *, year=None, legacy_row_id=None, note='Legac
                                        'workbook_modified_at': source['modified_at'], 'actor_user_id': actor.pk,
                                        'imported_at': now.isoformat()}})
     return [FinanceRun.objects.create(**fields) if apply else FinanceRun(**fields)]
+
+
+# Upload pin is deliberately independent of cumulative stored-run support.
+UPLOAD_SCHEMA = '2.0.0'
+UPLOAD_PRODUCER = '0.2.0'
+
+# Fixed allowlist: never serialize exception text, even from the producer.
+_DOMAIN_CODES = frozenset('''
+BUDGET_SHEET_LIMIT CONTRACT_KEY_HEADER MISSING_CONTRACT_CODE
+DUPLICATE_CONTRACT_CODE REVERSED_CONTRACT_PERIOD UNPARSEABLE_LINE
+UNPARSEABLE_BLOCK DUPLICATE_CONTRACT_ID INVARIANT_VIOLATION
+LEDGER_REQUIRED_SHEET LEDGER_REQUIRED_HEADER LEDGER_DUPLICATE_HEADER
+LEDGER_INVALID_YEAR LEDGER_INVALID_AMOUNT LEDGER_INVALID_IDENTITY
+LEDGER_INVALID_ALLOCATION LEDGER_ROW_LIMIT LEDGER_COLUMN_LIMIT
+LEDGER_HEADER_LIMIT LEDGER_CELL_LIMIT LEDGER_DATA_BEYOND_HEADER
+LEDGER_BINDING_BEYOND_HEADER
+'''.split())
+_DOMAIN_ERRORS = (RunArtifactError, BudgetSheetError, ContractKeyError, LedgerError, RunSchemaError)
+_trace_lock = Lock()
+_trace_users = 0
+_trace_owned = False
+
+
+@contextmanager
+def _upload_measurement():
+    """Own tracing lifetime without stopping another concurrent upload's tracer.
+
+    Sync workers have one upload scope. Overlapping in-process calls conservatively
+    share the process allocation peak; RSS remains a separate benchmark measure.
+    """
+    global _trace_users, _trace_owned
+    with _trace_lock:
+        if not _trace_users:
+            _trace_owned = not tracemalloc.is_tracing()
+            if _trace_owned:
+                tracemalloc.start()
+        _trace_users += 1
+    try:
+        yield
+    finally:
+        with _trace_lock:
+            _trace_users -= 1
+            if not _trace_users and _trace_owned:
+                tracemalloc.stop()
+
+
+def _domain_code(error):
+    # UnparseableLine has an optional bounded coordinate. Persist only the code.
+    for code in _DOMAIN_CODES:
+        if error.args == (code,):
+            return code
+    if (len(error.args) == 1 and isinstance(error.args[0], str)
+            and re.fullmatch(r'UNPARSEABLE_LINE Funder Budgets!D[1-9][0-9]{0,6}', error.args[0])):
+        return 'UNPARSEABLE_LINE'
+    # Generic decode/schema/facts failures cannot certify a domain rejection.
+    raise FinanceRunError('UPLOAD_INTERNAL_ERROR', status=500) from None
+
+
+def upload_workbook(stream, actor, *, kind, year, source_name, content_type,
+                    content_length=None, client_modified_at=None):
+    """Raw bytes to one immutable run, shared by HTTP and benchmark commands."""
+    require_publisher(actor)
+    if kind != 'funders' or type(year) is not int or not 2000 <= year <= 2100:
+        raise FinanceRunError('UPLOAD_METADATA_INVALID', status=400)
+    if client_modified_at is not None:
+        if not isinstance(client_modified_at, str) or not FORMAT_CHECKER.conforms(client_modified_at, 'date-time'):
+            raise FinanceRunError('UPLOAD_METADATA_INVALID', status=400)
+    started = perf_counter()
+    try:
+        with _upload_measurement(), preflight(
+                stream, source_name=source_name, content_type=content_type,
+                content_length=content_length) as upload:
+            with transaction.atomic():
+                acquire_tuple_lock(kind, year)
+                existing = FinanceRun.objects.filter(
+                    kind=kind, accounting_year=year, source_sha256=upload.sha256,
+                    producer_version=UPLOAD_PRODUCER).first()
+                if existing:
+                    return existing, 200
+                if distribution_version('masi-finance') != UPLOAD_PRODUCER:
+                    raise FinanceRunError('UPLOAD_INTERNAL_ERROR', status=500)
+                manifest = {
+                    'producer': {'name': 'masi-finance', 'version': UPLOAD_PRODUCER},
+                    'source': {'name': upload.source_name, 'date': upload.source_date.isoformat(),
+                               'sha256': upload.sha256, 'size_bytes': upload.size_bytes,
+                               'client_modified_at': client_modified_at},
+                    'accounting_year': year, 'rule_config_sha256': None, 'dependencies': [],
+                }
+                fields = dict(kind=kind, accounting_year=year, source_name=upload.source_name,
+                              source_date=upload.source_date, source_sha256=upload.sha256,
+                              source_size_bytes=upload.size_bytes, schema_version=UPLOAD_SCHEMA,
+                              producer_version=UPLOAD_PRODUCER, uploaded_by=actor, manifest=manifest)
+                parse_started = perf_counter()
+                artifact = None
+                failure = None
+                try:
+                    scan_workbook(upload)
+                except WorkbookError as error:
+                    if error.code in ('XML_INVALID', 'WORKBOOK_METADATA_INVALID'):
+                        raise
+                    failure = {'phase': 'preflight', 'code': error.code, 'message': error.code}
+                if failure is None:
+                    try:
+                        artifact = build_run_artifact(upload.buffer, source_name=source_name,
+                                                      accounting_year=year, client_modified_at=client_modified_at)
+                    except _DOMAIN_ERRORS as error:
+                        code = _domain_code(error)
+                        failure = {'phase': 'producer', 'code': code, 'message': code}
+                fields['parse_duration_ms'] = int((perf_counter() - parse_started) * 1000)
+                if failure:
+                    run = FinanceRun.objects.create(**fields, status='failed', failure=failure)
+                else:
+                    _require(artifact['schema_version'] == UPLOAD_SCHEMA and artifact['manifest'] == manifest,
+                             'UPLOAD_ARTIFACT_INVALID')
+                    finding_count, error_count = _finding_counts(artifact['derived'])
+                    run = FinanceRun.objects.create(
+                        **fields, status='candidate', payload=artifact['derived'],
+                        payload_sha256=payload_digest(artifact), facts_sha256=facts_digest(artifact['ledger']),
+                        fact_row_count=len(artifact['ledger']['rows']),
+                        allocation_count=len(artifact['ledger']['allocations']),
+                        finding_count=finding_count, in_scope_error_count=error_count)
+                    materialise_facts(run, artifact)
+                run.total_duration_ms = int((perf_counter() - started) * 1000)
+                run.peak_memory_bytes = tracemalloc.get_traced_memory()[1]
+                run.save(update_fields=['total_duration_ms', 'peak_memory_bytes'])
+            return run, 201
+    except WorkbookError as error:
+        raise FinanceRunError(error.code, status=400) from None
+    except FinanceRunError as error:
+        if error.code == 'UPLOAD_IN_PROGRESS' or error.status in (400, 403, 500):
+            raise
+        raise FinanceRunError('UPLOAD_INTERNAL_ERROR', status=500) from None
+    except Exception:
+        raise FinanceRunError('UPLOAD_INTERNAL_ERROR', status=500) from None

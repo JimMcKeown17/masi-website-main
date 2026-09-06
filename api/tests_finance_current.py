@@ -54,7 +54,7 @@ class FinanceCurrentTests(TestCase):
         for field in ('uploaded_by','approved_by','approved_at','uploaded_at','status','manifest','payload','producer_version','approval_note','previous_approved','target_run_id'):
             response=self.client.post(f'/api/finance/runs/{self.run.pk}/approve/',{field:'spoof'},format='json')
             self.assertEqual(response.status_code,400,(field,response.data))
-        for method,url in (('post','/api/finance/runs/'),('patch',f'/api/finance/runs/{self.run.pk}/'),('delete',f'/api/finance/runs/{self.run.pk}/'),('get',f'/api/finance/runs/{self.run.pk}/approve/'),('post','/api/finance/current/')):
+        for method,url in (('put','/api/finance/runs/'),('patch',f'/api/finance/runs/{self.run.pk}/'),('delete',f'/api/finance/runs/{self.run.pk}/'),('get',f'/api/finance/runs/{self.run.pk}/approve/'),('post','/api/finance/current/')):
             self.assertEqual(getattr(self.client,method)(url).status_code,405)
 
     def test_list_visibility_detail_and_cursor(self):

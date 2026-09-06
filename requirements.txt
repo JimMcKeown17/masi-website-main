@@ -63,3 +63,4 @@ drf-spectacular
 holidays==0.98
 pyarrow==18.0.0
 masi-finance @ git+https://JimMcKeown17:${MASI_FINANCE_GITHUB_TOKEN}@github.com/JimMcKeown17/masi-finance-app.git@v0.2.0
+defusedxml==0.7.1
