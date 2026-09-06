@@ -67,6 +67,13 @@ def _require(condition, code='RUN_INTEGRITY_INVALID'):
 
 def _validate_schema(document, name, *, producer_version=None):
     schema = load_schema(name)
+    if name == 'finance-run-2.0.0.json':
+        # D33 applies to every money reference, including nullable/derived values.
+        # The final lookahead also excludes the newline accepted by Python's $.
+        schema['$defs']['money'].update(
+            pattern=r'^-?(0|[1-9][0-9]*)\.[0-9]{2}$(?![\s\S])',
+            **{'not': {'const': '-0.00'}},
+        )
     if producer_version is not None:
         # Caller has checked the cumulative pair registry. Reuse this schema shape
         # for explicitly registered compatible producers, never the upload pin.
@@ -103,18 +110,24 @@ def _validate_artifact(run, artifact):
     assert_invariants(figures)
 
 
+def _money_string(value):
+    """D33 canonical persisted money; D21 raw-cell identities are independent."""
+    rendered = format(value, '.2f')
+    return '0.00' if rendered == '-0.00' else rendered
+
+
 def reconstruct_ledger(run):
     rows = list(run.ledger_rows.order_by('sheet_row').values(*ROW_FIELDS))
     for row in rows:
         row['date'] = row['date'].isoformat()
         for field in ('amount', 'coverage_amount'):
-            row[field] = format(row[field], '.2f')
+            row[field] = _money_string(row[field])
     allocations = list(LedgerAllocation.objects.filter(ledger_row__run=run)
                        .order_by('ledger_row__sheet_row', 'ordinal')
                        .values('ledger_row__row_key', *ALLOCATION_FIELDS))
     for allocation in allocations:
         allocation['row_key'] = allocation.pop('ledger_row__row_key')
-        allocation['amount'] = format(allocation['amount'], '.2f')
+        allocation['amount'] = _money_string(allocation['amount'])
     return {'rows': rows, 'allocations': allocations}
 
 

@@ -1042,3 +1042,83 @@ The foundation delivery/patch-preparation state above is historical after applyi
 this change. Deploy this cutover only after foundation deployment, authorized
 legacy import and parity verification. The 682-test cutover verification above
 covers this code; PostgreSQL, dependency installation and deployment remain pending.
+
+### Review fixes, round 2
+
+D33 closes review round-1 finding 4. Starting tree: clean standalone clone on
+`feat/wp2a-finance-runs` at `1c3e0ad`, with foundation round 1 and D32 cutover
+committed. The earlier uncommitted/deferred-wheel notes are historical.
+Installed publisher 0.2.0 serializes negative zero as `0.00`; its packaged money
+schema still accepts signed zero and leading zeroes, so backend validation must
+explicitly enforce the binding D33 representation.
+
+Test inventory addition: `api/tests_finance_signed_zero.py`, `SignedZeroTests`:
+
+- `test_negative_subcent_amount_materialises_with_identical_digests`
+- `test_non_canonical_zero_payload_is_refused_value_free`
+- `test_reconstruction_normalises_signed_decimal_zero_in_every_money_field`
+- `test_money_pattern_refuses_noncanonical_strings`
+
+RED command, before service changes:
+`DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py test api.tests_finance_signed_zero --noinput`
+— **Ran 4 tests in 0.071s; FAILED (failures=9)**, no errors/skips.
+Failing names: `test_non_canonical_zero_payload_is_refused_value_free` (five
+subtests: row amount, coverage_amount, coverage spend, contract total, line total),
+`test_money_pattern_refuses_noncanonical_strings` (three subtests), and
+`test_reconstruction_normalises_signed_decimal_zero_in_every_money_field`.
+The real-XLSX regression already passed with released D33 publisher serialization;
+it is not claimed as a backend RED failure. Earlier fixture diagnostics used an
+unsupported formula shape, then exposed subtest transaction contamination; both
+were corrected before this definitive RED run. Log: gitignored
+`venv/signed-zero-red.log`.
+
+Implementation and verification:
+
+- `_money_string` is the single formatter for reconstructed row amount,
+  coverage_amount and allocation amount, explicitly returning `0.00` for signed
+  zero. Raw-cell row-key generation is untouched; the XLSX regression proves that
+  raw -0.004 and raw zero retain different D21 keys despite identical money strings.
+- The backend's run-2.0.0 schema validation tightens the shared money definition to
+  `^-?(0|[1-9][0-9]*)\.[0-9]{2}$`, excludes a trailing newline, and refuses `-0.00`.
+  Every referenced money field (including nullable values, derived figures and
+  totals) uses that definition. Failure remains the existing value-free
+  `SCHEMA_INVALID` / 409; no new error code or legacy schema change.
+- The real in-memory openpyxl XLSX contains Expenditure Amount=-0.004 and a
+  matching -0.004 allocation with a SUM(SUMIFS(...)) budget binding. Publisher
+  rounding omits the zero allocation (zero allocation facts are forbidden).
+  Candidate creation uses the existing fixture helper, then real service
+  materialisation and approval. Stored-row reconstruction preserves both facts
+  and payload digests and approval preserves stored hashes. Stage 2A has no upload
+  service/HTTP endpoint; refusal checks the actual service exception/code/status
+  with no log records, and the caller's transaction leaves no candidate/fact rows.
+  A separate sign-preserving Decimal seam covers every reconstruction money field
+  independently of database sign loss.
+- Focused GREEN:
+  `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py test api.tests_finance_signed_zero --noinput`
+  — **Ran 4 tests in 0.063s; OK**, no skips. Log: gitignored
+  `venv/signed-zero-green.log`.
+- Full GREEN:
+  `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py test api --noinput`
+  — **Ran 686 tests in 11.170s; OK (skipped=7)**, 679 passed, no failures/errors.
+  Log: gitignored `venv/signed-zero-full.log`.
+- `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py check`:
+  **System check identified no issues (0 silenced).**
+- `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py makemigrations --check --dry-run`:
+  **No changes detected.**
+- `git diff --check`: passed. Existing missing-staticfiles warning remains.
+
+PENDING — supervisor PostgreSQL full-suite gate, including the new real-XLSX
+materialisation/approval/digest test. None of the four new tests is PostgreSQL-only;
+all run on both databases. The six existing PostgreSQL-only tests are the exact
+model/concurrency inventory above. The seventh skip remains the unavailable private
+payroll fixture, `api.tests_youth_budget.RealLedgerSeedTests.test_real_csv_parses_june_total_and_trimmed_april`.
+This is local SQLite evidence only. No network, PostgreSQL or production access
+was attempted. Migration files, the cutover view, requirements and the build script
+are unchanged. No new migration, configuration, schedule or one-off operation is
+required; deployment/release gates remain as recorded above.
+
+Git/fallback: `git add api/services/finance_runs.py api/tests_finance_signed_zero.py
+documentation/build-log.md` failed creating `.git/index.lock` with
+`Operation not permitted`. No commit was created; all three files remain intact
+and uncommitted. No Git-metadata workaround or alternate checkout was used.
+Final `git diff --check`: passed.
