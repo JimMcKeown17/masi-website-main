@@ -7,6 +7,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import date
 import hashlib
+import posixpath
 from io import BytesIO
 import re
 import struct
@@ -103,11 +104,15 @@ def _check_zip(buffer):
             entries = archive.infolist()
             require(len(entries) <= MAX_ENTRIES, 'ZIP_ENTRY_LIMIT')
             names = set()
+            normalized_names = set()
             for entry in entries:
                 require(not entry.flag_bits & 1, 'ZIP_ENCRYPTED')
                 require(entry.filename not in names, 'ZIP_DUPLICATE_ENTRY')
                 names.add(entry.filename)
                 require(_safe_path(entry.filename), 'ZIP_PATH_INVALID')
+                normalized = posixpath.normpath(entry.filename)
+                require(normalized not in normalized_names, 'WORKBOOK_METADATA_INVALID')
+                normalized_names.add(normalized)
             total = 0
             for entry in entries:
                 require(entry.compress_type in (zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED), 'ZIP_COMPRESSION_INVALID')
@@ -198,22 +203,28 @@ def _shared_strings(archive):
 
 def _scan_sheet(archive, path, name, strings):
     require(path in archive.namelist(), 'WORKBOOK_METADATA_INVALID')
-    xml = archive.read(path)
-    # Before ANY XML parser: no DTD or entity declarations, including UTF-16/32.
-    declaration_bytes = xml.replace(b'\x00', b'') if b'\x00' in xml else xml
-    require(b'<!DOCTYPE' not in declaration_bytes and b'<!ENTITY' not in declaration_bytes,
-            'SHEET_XML_DECLARATION')
-    # One defusedxml event pass checks every cell, regardless of XML spelling.
-    _scan_sheet_xml(archive, path, name, strings, xml)
+    # Bounded declaration pass before ANY parser, including NUL-separated
+    # UTF-16/32 tokens. Keep the longest token's prefix across chunk boundaries.
+    tokens = (b'<!DOCTYPE', b'<!ENTITY')
+    overlap = max(map(len, tokens)) - 1
+    tail = b''
+    with archive.open(path) as stream:
+        while chunk := stream.read(CHUNK):
+            declaration_bytes = tail + chunk.replace(b'\x00', b'')
+            require(not any(token in declaration_bytes for token in tokens),
+                    'SHEET_XML_DECLARATION')
+            tail = declaration_bytes[-overlap:]
+    # Reopen directly into the single defusedxml scanner; never buffer a part.
+    _scan_sheet_xml(archive, path, name, strings)
 
 
-def _scan_sheet_xml(archive, path, name, strings, xml):
+def _scan_sheet_xml(archive, path, name, strings):
     limit = 50000 if name == 'Expenditure' else 5000
     extent = header_width = header_rows = max_data_col = 0
     headers = {}
     row_values = {}
     root = sheet_data = None
-    for event, element in _xml_events(BytesIO(xml)):
+    for event, element in _events(archive, path):
         if root is None:
             root = element
         tag = element.tag
@@ -334,9 +345,12 @@ def scan_workbook(upload):
                 require(element.tag == rel_ns + 'Relationship', 'WORKBOOK_METADATA_INVALID')
                 key, target = element.get('Id'), element.get('Target', '')
                 require(key and key not in relationships, 'WORKBOOK_METADATA_INVALID')
-                # For accepted safe paths these are exactly get_dependents' paths.
-                path = target[1:] if target.startswith('/') else 'xl/' + target
-                require(_safe_path(path), 'WORKBOOK_METADATA_INVALID')
+                # Match get_dependents: absolute targets lose one leading slash;
+                # relative targets normalize against the source part's directory.
+                raw_path = target[1:] if target.startswith('/') else posixpath.join('xl', target)
+                path = target[1:] if target.startswith('/') else posixpath.normpath(raw_path)
+                require(raw_path == path and not path.endswith('/')
+                        and _safe_path(path), 'WORKBOOK_METADATA_INVALID')
                 relationships[key] = (path, element.get('Type'), element.get('TargetMode'))
             strings = _shared_strings(archive)
             for name, key in sheets:

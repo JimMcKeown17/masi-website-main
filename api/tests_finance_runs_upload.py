@@ -290,6 +290,31 @@ class FinanceUploadTests(TestCase):
         self.assertEqual((rows.call_count, allocations.call_count), (3, 3))
         self.assertEqual((run.ledger_rows.count(), LedgerAllocation.objects.count()), (4002, 4002))
 
+    def test_later_fact_batch_failure_rolls_back_run_rows_and_allocations(self):
+        data = rewrite(self.data, {'xl/worksheets/sheet1.xml': lambda xml: xml.replace(
+            b'</sheetData>', b''.join(
+                re.sub(rb'([A-Z]+)2"', lambda m: m[1] + str(n).encode() + b'"',
+                    re.search(rb'<row r="2".*?</row>', xml)[0]
+                    .replace(b'<row r="2"', f'<row r="{n}"'.encode()))
+                for n in range(3, 4004)) + b'</sheetData>')})
+        for model in (LedgerRow, LedgerAllocation):
+            with self.subTest(model=model.__name__):
+                original = model.objects.bulk_create
+                counts = []
+                def fail_after_third_batch(objects, **kwargs):
+                    result = original(objects, **kwargs)
+                    counts.append(model.objects.count())
+                    if len(counts) == 3:
+                        raise RuntimeError('injected after third fact batch')
+                    return result
+                with patch.object(model.objects, 'bulk_create', side_effect=fail_after_third_batch):
+                    response = self.upload(data)
+                self.assertEqual(response.status_code, 500)
+                self.assertEqual(counts, [2000, 4000, 4002])
+                self.assertFalse(FinanceRun.objects.exists())
+                self.assertFalse(LedgerRow.objects.exists())
+                self.assertFalse(LedgerAllocation.objects.exists())
+
     def test_upload_sampler_joined_on_success_replay_and_exception(self):
         from api.services.finance_runs import _RSSMeasurement
         measurements = []

@@ -1538,3 +1538,81 @@ and earlier log entry are staged, with the final log additions unstaged. No
 Git-metadata workaround was attempted. The pre-existing untracked
 `.review-detached.pid` remains untouched and excluded. Final working-tree and
 staged `git diff --check` both passed.
+
+### Review fixes, round 3
+
+Scope: local standalone clone on `feat/wp2a-finance-runs`, starting at `75bffe1`.
+Applied the supplied round-3 findings and D38 streaming-only constraint with plan
+sections 3.5, 3.8 and 8.1. No network or production access; all Django commands
+activate `venv/bin/activate` and set `DATABASE_URL=sqlite:///:memory:`. Fixtures
+are generated in memory. No approval/demotion service, cutover view, migration,
+legacy import or publisher changes.
+
+RED, before parser implementation (`venv/review-r3-red.log`):
+
+```sh
+DATABASE_URL=sqlite:///:memory: python manage.py test api.tests_finance_upload_safety.WorkbookSelectionHTTPTests.test_trailing_slash_target_http_rejected_before_producer_or_openpyxl api.tests_finance_upload_safety.WorkbookSafetyTests.test_sheet_scan_never_reads_whole_member --noinput
+```
+
+**Ran 2 tests in 0.021s; FAILED (failures=2).** The trailing-slash fixture includes
+both distinct entries with an oversized LCV1 header in the normalized target;
+it reached the mocked producer and returned 500 instead of 400. The streaming
+regression failed at the forbidden `ZipFile.read` of the worksheet. Its expanded
+sheet exceeds 64 KiB; metadata reads remain allowed.
+
+Changes:
+
+- Resolve relative relationship targets with `posixpath.normpath` after joining
+  the source directory, and strip exactly one leading slash for absolute targets,
+  matching the installed openpyxl 3.1.5 `get_dependents` implementation. Require
+  unchanged canonical resolution, reject trailing slashes, dot/traversal/doubled
+  slash/backslash targets, and require exact ZIP membership before scanning.
+  Canonical absolute/relative and exact mixed-case absolute names remain accepted;
+  case-mismatched entry references reject. ZIP preflight also rejects distinct
+  entry names that normalize to one path with `WORKBOOK_METADATA_INVALID`.
+  The HTTP regression now asserts 400 with that code, no run and no producer or
+  openpyxl invocation.
+- Replace whole-sheet reads with a declaration pass in 64 KiB chunks and eight
+  bytes of overlap after NUL removal. Reopen the member directly into the single
+  defusedxml event scanner. No worksheet-sized byte buffer, second XML parser or
+  regex XML slicing. Split DOCTYPE/ENTITY tests cover UTF-8, UTF-16 LE/BE and
+  UTF-32 LE/BE and assert rejection before the XML parser.
+- Add `FinanceUploadTests.test_later_fact_batch_failure_rolls_back_run_rows_and_allocations`:
+  real SQLite inserts reach 2,000, 4,000 and 4,002 objects, then an exception after
+  the third row batch or third allocation batch returns 500 and leaves no run,
+  rows or allocations. Confirm the existing
+  `test_upload_sampler_joined_on_success_replay_and_exception` passes for all
+  three outcomes, including joined sampler threads. No service changes needed.
+
+GREEN:
+
+- `python manage.py test api.tests_finance_upload_safety api.tests_finance_runs_upload --noinput`
+  — **Ran 58 tests in 6.258s; OK**, no skips. Log: `venv/review-r3-focused.log`.
+- `python manage.py test --noinput`
+  — **Ran 747 tests in 19.036s; OK (skipped=9)**, 738 passed, zero failures/errors.
+  Log: `venv/review-r3-full-green.log`.
+- `python manage.py check` — **System check identified no issues (0 silenced).**
+- `python manage.py makemigrations --check --dry-run` — **No changes detected.**
+- `git diff --check` — **passed** before this log update; final documentation-
+  inclusive check is recorded below.
+
+Seven concurrency tests skip with `Requires PostgreSQL advisory locks and separate
+connections.` The unique-current constraint test skips with `Requires PostgreSQL
+conditional unique constraint release evidence.` The ninth, existing skip is
+`real payroll ledger not on this machine`. The existing missing-staticfiles warning
+remains. No migrations, environment changes, schedules or one-off data operations
+are required. These are local SQLite and source results only.
+
+PENDING — supervisor PostgreSQL full-suite gate, system check and migration drift
+check on the round-3 result; SQLite does not establish locking or release evidence.
+
+PENDING — supervisor real `20260901` workbook scan RSS and PostgreSQL full-path
+re-benchmark without allocation tracing. Target scan peak returns to approximately
+104 MB (round-0 level), versus the supplied approximately 238 MB regression result.
+No real workbook or RSS benchmark was run here. Retain D37's 300s request budget,
+D38's streaming scan, and the release RSS/concurrency/reader-capacity gates.
+
+Final documentation-inclusive `git diff --check`: **passed**. Staging the four
+named files failed creating this clone's `.git/index.lock` with `Operation not
+permitted`; no commit or workaround was attempted. All four changes remain intact
+and uncommitted. The pre-existing untracked `.review-detached.pid` is untouched.

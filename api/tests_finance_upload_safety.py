@@ -300,6 +300,69 @@ class WorkbookSafetyTests(SimpleTestCase):
                                 self.p._scan_sheet(archive, path, 'Expenditure' if 'sheet1' in path else 'Funder Budgets', [])
                         self.assertEqual(caught.exception.code, 'SHEET_XML_DECLARATION')
 
+    def test_sheet_scan_never_reads_whole_member(self):
+        path = 'xl/worksheets/sheet1.xml'
+        padding = b'<!--' + os.urandom(self.p.CHUNK).hex().encode() + b'-->'
+        data = rewrite(self.data, {path: lambda xml: xml.replace(b'</worksheet>', padding + b'</worksheet>')})
+        original = zipfile.ZipFile.read
+        def bounded_read(archive, name, *args, **kwargs):
+            member = name.filename if isinstance(name, zipfile.ZipInfo) else name
+            self.assertFalse(member.startswith('xl/worksheets/'), 'whole worksheet read forbidden')
+            return original(archive, name, *args, **kwargs)
+        with self.preflight(data) as upload, patch.object(zipfile.ZipFile, 'read', bounded_read):
+            self.p.scan_workbook(upload)
+
+    def test_split_encoded_declarations_rejected_before_parser(self):
+        path = 'xl/worksheets/sheet1.xml'
+        for encoding in ('utf-8', 'utf-16-le', 'utf-16-be', 'utf-32-le', 'utf-32-be'):
+            for token in ('<!DOCTYPE worksheet>', '<!ENTITY secret "private">'):
+                with self.subTest(encoding=encoding, token=token):
+                    declaration = token.encode(encoding)
+                    # Split inside the declaration token, including its NUL bytes.
+                    xml = b' ' * (self.p.CHUNK - 5) + declaration
+                    with BytesIO() as buffer:
+                        with zipfile.ZipFile(buffer, 'w') as archive:
+                            archive.writestr(path, xml)
+                        with zipfile.ZipFile(buffer) as archive, patch.object(
+                                self.p, 'iterparse', side_effect=AssertionError('parser invoked')):
+                            with self.assertRaises(self.p.WorkbookError) as caught:
+                                self.p._scan_sheet(archive, path, 'Expenditure', [])
+                        self.assertEqual(caught.exception.code, 'SHEET_XML_DECLARATION')
+
+    def test_relationship_resolution_matches_openpyxl(self):
+        import openpyxl
+        for target in ('worksheets/sheet1.xml', '/xl/worksheets/sheet1.xml', '/xl/worksheets/Sheet1.xml'):
+            with self.subTest(target=target):
+                data = rewrite(self.data, {'xl/_rels/workbook.xml.rels': lambda xml: xml.replace(
+                    b'/xl/worksheets/sheet1.xml', target.encode())})
+                if 'Sheet1' in target:
+                    with BytesIO() as output, zipfile.ZipFile(BytesIO(data)) as source:
+                        with zipfile.ZipFile(output, 'w') as dest:
+                            for entry in source.infolist():
+                                dest.writestr(entry.filename.replace('sheet1.xml', 'Sheet1.xml'), source.read(entry))
+                        data = output.getvalue()
+                with self.preflight(data) as upload, patch.object(self.p, '_scan_sheet', wraps=self.p._scan_sheet) as scan:
+                    self.p.scan_workbook(upload)
+                    wb = openpyxl.load_workbook(upload.buffer, read_only=True)
+                    try:
+                        self.assertEqual(scan.call_args_list[0].args[1], wb['Expenditure']._worksheet_path)
+                    finally:
+                        wb.close()
+
+    def test_noncanonical_relationship_targets_rejected(self):
+        for target in ('worksheets/sheet1.xml/', '/xl/worksheets/sheet1.xml/',
+                       './worksheets/sheet1.xml', 'worksheets/../worksheets/sheet1.xml',
+                       'worksheets//sheet1.xml', 'worksheets\\sheet1.xml',
+                       '/xl/worksheets/Sheet1.xml'):
+            with self.subTest(target=target):
+                data = rewrite(self.data, {'xl/_rels/workbook.xml.rels': lambda xml: xml.replace(
+                    b'/xl/worksheets/sheet1.xml', target.encode())})
+                self.reject(data, 'WORKBOOK_METADATA_INVALID', sheet=True)
+
+    def test_distinct_zip_names_with_same_normalized_path_rejected(self):
+        self.reject(rewrite(self.data, extra=[('other/item', b'x'), ('other/item/', b'x')]),
+                    'WORKBOOK_METADATA_INVALID')
+
     def test_utf16_sheet_declaration_rejected_before_parser(self):
         data = rewrite(self.data, {'xl/worksheets/sheet1.xml': lambda xml:
             ('<!DOCTYPE worksheet>' + xml.decode()).encode('utf-16')})
@@ -307,6 +370,32 @@ class WorkbookSafetyTests(SimpleTestCase):
 
 
 class WorkbookSelectionHTTPTests(TestCase):
+    def test_trailing_slash_target_http_rejected_before_producer_or_openpyxl(self):
+        from rest_framework.test import APIClient
+        from urllib.parse import urlencode
+        from api.finance_run_test_utils import actor
+        from api.models import FinanceRun
+        data = workbook_bytes()
+        with zipfile.ZipFile(BytesIO(data)) as archive:
+            benign = archive.read('xl/worksheets/sheet1.xml')
+        data = rewrite(data, {
+            'xl/_rels/workbook.xml.rels': lambda xml: xml.replace(
+                b'/xl/worksheets/sheet1.xml', b'worksheets/sheet1.xml/'),
+            'xl/worksheets/sheet1.xml': lambda xml: xml.replace(
+                b'</row>', b'<c r="LCV1" t="inlineStr"><is><t>Hidden</t></is></c></row>', 1),
+        }, extra=[('xl/worksheets/sheet1.xml/', benign)])
+        client = APIClient()
+        client.force_authenticate(actor())
+        with patch('api.services.finance_runs.build_run_artifact') as producer, \
+             patch('openpyxl.load_workbook') as loader:
+            response = client.post('/api/finance/runs/?' + urlencode(
+                dict(kind='funders', year=2026, source_name=NAME)), data, content_type=MIME)
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data, {'code': 'WORKBOOK_METADATA_INVALID'})
+        self.assertFalse(FinanceRun.objects.exists())
+        producer.assert_not_called()
+        loader.assert_not_called()
+
     def test_alternate_workbook_http_never_calls_producer_or_openpyxl(self):
         from rest_framework.test import APIClient
         from urllib.parse import urlencode
