@@ -1032,3 +1032,13 @@ Separate cutover patch verification (temporarily applied locally, then restored)
   **No changes detected.** `git diff --check`: passed.
 - Patch application/reversal is checked against the exact tested file bytes;
   foundation view remains byte-for-byte `bbfd714` after restoration.
+
+#### Separate snapshot reader cutover
+
+This final change applies `feat(finance): cut the snapshot reader over to finance runs`.
+The snapshot endpoint now reads only approved FinanceRun rows, returning imported
+1.0.0 verbatim or the validated 1.1.0 projection. No runtime fallback exists.
+The foundation delivery/patch-preparation state above is historical after applying
+this change. Deploy this cutover only after foundation deployment, authorized
+legacy import and parity verification. The 682-test cutover verification above
+covers this code; PostgreSQL, dependency installation and deployment remain pending.
