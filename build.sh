@@ -6,7 +6,7 @@ echo "Starting build process..."
 
 # Install Python dependencies
 pip install -r requirements.txt
-python -c "from importlib.metadata import version; from masi_finance.publish.run_artifact import build_run_artifact; assert version('masi-finance') == '0.2.0'"
+python -c "from importlib.metadata import version; from masi_finance.publish.run_schema import verify_installed_contracts; assert version('masi-finance') == '0.2.0'; print(verify_installed_contracts())"
 
 # Install Node.js dependencies if they're not already installed
 if [ -f "package.json" ]; then

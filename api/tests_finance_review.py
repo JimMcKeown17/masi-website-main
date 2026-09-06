@@ -16,8 +16,32 @@ class DependencyReleaseTests(SimpleTestCase):
 
     def test_build_checks_publisher_immediately_after_install(self):
         lines = (Path(__file__).resolve().parents[1] / 'build.sh').read_text().splitlines()
-        check = "python -c \"from importlib.metadata import version; from masi_finance.publish.run_artifact import build_run_artifact; assert version('masi-finance') == '0.2.0'\""
-        self.assertEqual(lines[lines.index('pip install -r requirements.txt') + 1], check)
+        check = ("python -c \"from importlib.metadata import version; "
+                 "from masi_finance.publish.run_schema import verify_installed_contracts; "
+                 "assert version('masi-finance') == '0.2.0'; print(verify_installed_contracts())\"")
+        install = lines.index('pip install -r requirements.txt')
+        self.assertEqual(lines[install + 1], check)
+        self.assertLess(install + 1, lines.index('python manage.py migrate'), 'contract check must precede migrate')
+
+    def test_installed_contract_verifier_fails_closed_before_migrate(self):
+        """Plan 3.2: the release build verifies packaged schemas and fixtures, not just an import."""
+        import subprocess
+        import sys
+        from unittest import mock
+        from masi_finance.publish import run_schema
+        digests = run_schema.verify_installed_contracts()
+        self.assertEqual(set(digests), {'finance-run-2.0.0.json', 'finance-snapshot-1.0.0.json', 'finance-snapshot-1.1.0.json'})
+        altered = {name: dict(value, schema_sha256='0' * 64) for name, value in run_schema.RESOURCE_DIGESTS.items()}
+        with mock.patch.dict(run_schema.RESOURCE_DIGESTS, altered, clear=True):
+            with self.assertRaises(ValueError) as caught:
+                run_schema.verify_installed_contracts()
+        self.assertEqual(str(caught.exception), 'CONTRACT_RESOURCE_DIGEST_MISMATCH')
+        lines = (Path(__file__).resolve().parents[1] / 'build.sh').read_text().splitlines()
+        check_line = lines[lines.index('pip install -r requirements.txt') + 1]
+        command = check_line[len('python -c "'):-1]
+        result = subprocess.run([sys.executable, '-c', command], capture_output=True, text=True, timeout=120)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('finance-run-2.0.0.json', result.stdout)
 
 
 class CutoverSnapshotTests(TestCase):
