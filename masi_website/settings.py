@@ -322,7 +322,9 @@ CORS_ALLOW_METHODS = [
     'PUT',
 ]
 
-# Add this to your settings.py
+# Clerk: the Frontend API URL identifies the instance (dev: https://<slug>.clerk.accounts.dev,
+# production: https://clerk.masinyusane.org). It is the JWT issuer and hosts the JWKS.
+CLERK_FRONTEND_API = os.environ.get('CLERK_FRONTEND_API', '').rstrip('/')
 CLERK_SECRET_KEY = os.environ.get('CLERK_SECRET_KEY')
 
 # Shared secret for service-to-service calls (the Zazi backend pulls the closure

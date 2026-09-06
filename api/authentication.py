@@ -1,11 +1,31 @@
 from rest_framework import authentication, exceptions
 from django.contrib.auth import get_user_model
-import requests, jwt
+import requests, jwt, time
 import logging
 from django.conf import settings
 
 logger = logging.getLogger(__name__)
 User = get_user_model()
+
+# JWKS cache: the signing keys rarely change, so avoid a network round-trip on
+# every authenticated request. Refreshed on demand when an unknown kid appears.
+_jwks_cache = {"keys": None, "fetched_at": 0.0}
+_JWKS_TTL_SECONDS = 60 * 60
+
+
+def _get_jwks(force_refresh=False):
+    now = time.time()
+    if (
+        force_refresh
+        or _jwks_cache["keys"] is None
+        or now - _jwks_cache["fetched_at"] > _JWKS_TTL_SECONDS
+    ):
+        url = f"{settings.CLERK_FRONTEND_API}/.well-known/jwks.json"
+        response = requests.get(url, timeout=5)
+        response.raise_for_status()
+        _jwks_cache["keys"] = response.json()
+        _jwks_cache["fetched_at"] = now
+    return _jwks_cache["keys"]
 
 class ClerkAuthentication(authentication.BaseAuthentication):
     def authenticate(self, request):
@@ -22,37 +42,32 @@ class ClerkAuthentication(authentication.BaseAuthentication):
         print(f"🔍 Token extracted: {token[:20]}...")
         
         try:
-            # Get JWKS from Clerk
-            print("🔍 Fetching JWKS from Clerk...")
-            jwks_response = requests.get("https://fancy-walleye-25.clerk.accounts.dev/.well-known/jwks.json")
-            jwks = jwks_response.json()
-            print(f"🔍 JWKS fetched successfully, keys count: {len(jwks.get('keys', []))}")
-            
-            # Get the public key
-            public_key = None
-            for key in jwks["keys"]:
-                try:
-                    public_key = jwt.algorithms.RSAAlgorithm.from_jwk(key)
-                    break
-                except Exception:
-                    continue
-            
-            if not public_key:
-                print("🔍 No valid key found in JWKS")
-                raise exceptions.AuthenticationFailed("No valid key found in JWKS")
-            
-            print("🔍 Public key extracted successfully")
-            
-            # Decode the token (session tokens don't have audience)
+            # Verify the token against the JWKS of the Clerk instance configured
+            # in CLERK_FRONTEND_API (dev vs production have different keys).
+            jwks = _get_jwks()
+            kid = jwt.get_unverified_header(token).get("kid")
+            jwk = next((k for k in jwks.get("keys", []) if k.get("kid") == kid), None)
+            if not jwk:
+                # Key rotation: refresh once before giving up
+                jwks = _get_jwks(force_refresh=True)
+                jwk = next((k for k in jwks.get("keys", []) if k.get("kid") == kid), None)
+            if not jwk:
+                raise exceptions.AuthenticationFailed("Token signed by unknown key")
+
+            public_key = jwt.algorithms.RSAAlgorithm.from_jwk(jwk)
+
+            # Session tokens carry no audience, but the issuer must be our instance
             decoded = jwt.decode(
-                token, 
-                public_key, 
+                token,
+                public_key,
                 algorithms=["RS256"],
-                options={"verify_aud": False}
+                issuer=settings.CLERK_FRONTEND_API,
+                options={"verify_aud": False},
             )
-            print("🔍 Token decoded successfully")
-            print(f"🔍 Decoded payload keys: {list(decoded.keys())}")
-            
+            print(f"🔍 Token decoded successfully, payload keys: {list(decoded.keys())}")
+
+        except exceptions.AuthenticationFailed:
+            raise
         except jwt.ExpiredSignatureError:
             print("🔍 Token has expired")
             raise exceptions.AuthenticationFailed("Token has expired")
