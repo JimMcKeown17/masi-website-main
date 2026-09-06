@@ -9,9 +9,11 @@ from datetime import date
 import hashlib
 from importlib.metadata import version as distribution_version
 import re
-from threading import Lock
+import os
+import resource
+import sys
+from threading import Event, Thread
 from time import perf_counter
-import tracemalloc
 
 import jsonschema
 from django.db import connection, transaction
@@ -148,12 +150,23 @@ def materialise_facts(run, artifact):
     _require(not run.ledger_rows.exists(), 'FACTS_ALREADY_EXIST')
     try:
         _validate_artifact(run, artifact)
-        rows = LedgerRow.objects.bulk_create([LedgerRow(run=run, **row) for row in artifact['ledger']['rows']])
-        by_key = {row.row_key: row for row in rows}
-        LedgerAllocation.objects.bulk_create([
-            LedgerAllocation(ledger_row=by_key[a['row_key']], **{k: a[k] for k in ALLOCATION_FIELDS})
-            for a in artifact['ledger']['allocations']
-        ])
+        # Bound model instances as well as SQL batches. Keep only scalar PKs
+        # between batches; the artifact already owns the authoritative row data.
+        by_key = {}
+        source_rows = artifact['ledger']['rows']
+        for offset in range(0, len(source_rows), 2000):
+            batch = LedgerRow.objects.bulk_create(
+                [LedgerRow(run=run, **row) for row in source_rows[offset:offset + 2000]],
+                batch_size=2000)
+            by_key.update((row.row_key, row.pk) for row in batch)
+            del batch
+        source_allocations = artifact['ledger']['allocations']
+        for offset in range(0, len(source_allocations), 2000):
+            LedgerAllocation.objects.bulk_create([
+                LedgerAllocation(ledger_row_id=by_key[a['row_key']], **{k: a[k] for k in ALLOCATION_FIELDS})
+                for a in source_allocations[offset:offset + 2000]
+            ], batch_size=2000)
+        del by_key
         # Validate the persisted representation, including Decimal/date round trips.
         _validate_artifact(run, {**artifact, 'ledger': reconstruct_ledger(run)})
     except (ValueError, KeyError, TypeError) as exc:
@@ -374,32 +387,49 @@ LEDGER_HEADER_LIMIT LEDGER_CELL_LIMIT LEDGER_DATA_BEYOND_HEADER
 LEDGER_BINDING_BEYOND_HEADER
 '''.split())
 _DOMAIN_ERRORS = (RunArtifactError, BudgetSheetError, ContractKeyError, LedgerError, RunSchemaError)
-_trace_lock = Lock()
-_trace_users = 0
-_trace_owned = False
+
+
+def _process_rss_bytes():
+    """Current Linux process RSS; lifetime high-water RSS on non-/proc hosts."""
+    try:
+        with open('/proc/self/statm', 'rb') as statm:
+            return int(statm.read().split()[1]) * os.sysconf('SC_PAGE_SIZE')
+    except (OSError, ValueError, IndexError):
+        rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+        return int(rss if sys.platform == 'darwin' else rss * 1024)
+
+
+class _RSSMeasurement:
+    def __init__(self):
+        self.peak_bytes = _process_rss_bytes()
+        self.stopped = Event()
+        self.thread = Thread(target=self._sample, name='finance-upload-rss', daemon=True)
+
+    def _sample(self):
+        while not self.stopped.wait(0.01):
+            self.peak_bytes = max(self.peak_bytes, _process_rss_bytes())
+
+    def finish(self):
+        self.stopped.set()
+        self.thread.join()
+        self.peak_bytes = max(self.peak_bytes, _process_rss_bytes())
+        return self.peak_bytes
 
 
 @contextmanager
 def _upload_measurement():
-    """Own tracing lifetime without stopping another concurrent upload's tracer.
+    """D36: sampled absolute process RSS, with no Python allocation tracing.
 
-    Sync workers have one upload scope. Overlapping in-process calls conservatively
-    share the process allocation peak; RSS remains a separate benchmark measure.
+    Includes baseline/imported memory and concurrent process activity. Sampling
+    may miss sub-10ms spikes; the resource fallback is a lifetime high-water mark.
+    Each request owns its sampler and joins it on success, replay or exception.
     """
-    global _trace_users, _trace_owned
-    with _trace_lock:
-        if not _trace_users:
-            _trace_owned = not tracemalloc.is_tracing()
-            if _trace_owned:
-                tracemalloc.start()
-        _trace_users += 1
+    measurement = _RSSMeasurement()
+    measurement.thread.start()
     try:
-        yield
+        yield measurement
     finally:
-        with _trace_lock:
-            _trace_users -= 1
-            if not _trace_users and _trace_owned:
-                tracemalloc.stop()
+        measurement.finish()
 
 
 def _domain_code(error):
@@ -425,7 +455,7 @@ def upload_workbook(stream, actor, *, kind, year, source_name, content_type,
             raise FinanceRunError('UPLOAD_METADATA_INVALID', status=400)
     started = perf_counter()
     try:
-        with _upload_measurement(), preflight(
+        with _upload_measurement() as measurement, preflight(
                 stream, source_name=source_name, content_type=content_type,
                 content_length=content_length) as upload:
             with transaction.atomic():
@@ -454,7 +484,7 @@ def upload_workbook(stream, actor, *, kind, year, source_name, content_type,
                 try:
                     scan_workbook(upload)
                 except WorkbookError as error:
-                    if error.code in ('XML_INVALID', 'WORKBOOK_METADATA_INVALID'):
+                    if error.code in ('XML_INVALID', 'WORKBOOK_METADATA_INVALID', 'SHEET_XML_DECLARATION'):
                         raise
                     failure = {'phase': 'preflight', 'code': error.code, 'message': error.code}
                 if failure is None:
@@ -479,7 +509,7 @@ def upload_workbook(stream, actor, *, kind, year, source_name, content_type,
                         finding_count=finding_count, in_scope_error_count=error_count)
                     materialise_facts(run, artifact)
                 run.total_duration_ms = int((perf_counter() - started) * 1000)
-                run.peak_memory_bytes = tracemalloc.get_traced_memory()[1]
+                run.peak_memory_bytes = measurement.finish()
                 run.save(update_fields=['total_duration_ms', 'peak_memory_bytes'])
             return run, 201
     except WorkbookError as error:

@@ -13,7 +13,8 @@ import struct
 import zipfile
 import zlib
 from xml.etree.ElementTree import ParseError
-from defusedxml.ElementTree import iterparse
+from defusedxml.ElementTree import iterparse, fromstring
+from openpyxl.xml.constants import XLSX, XLSM, XLTX, XLTM, SHARED_STRINGS
 from defusedxml.common import DefusedXmlException
 
 MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
@@ -148,17 +149,21 @@ def _check_zip(buffer):
 def _events(archive, path):
     require(path in archive.namelist(), 'WORKBOOK_METADATA_INVALID')
     with archive.open(path) as stream:
-        stack = []
-        retained = {NS + name for name in ('t', 'v', 'f', 'is', 'r', 'rPr')}
-        for event, element in iterparse(stream, events=('start', 'end'), forbid_dtd=True,
-                                        forbid_entities=True, forbid_external=True):
-            if event == 'start':
-                stack.append(element)
-            yield event, element
-            if event == 'end':
-                stack.pop()
-                if stack and element.tag not in retained and element in stack[-1]:
-                    stack[-1].remove(element)
+        yield from _xml_events(stream)
+
+
+def _xml_events(stream):
+    stack = []
+    retained = {NS + name for name in ('t', 'v', 'f', 'is', 'r', 'rPr')}
+    for event, element in iterparse(stream, events=('start', 'end'), forbid_dtd=True,
+                                    forbid_entities=True, forbid_external=True):
+        if event == 'start':
+            stack.append(element)
+        yield event, element
+        if event == 'end':
+            stack.pop()
+            if stack and element.tag not in retained and element in stack[-1]:
+                stack[-1].remove(element)
 
 
 def _coordinate(value):
@@ -192,12 +197,23 @@ def _shared_strings(archive):
 
 
 def _scan_sheet(archive, path, name, strings):
+    require(path in archive.namelist(), 'WORKBOOK_METADATA_INVALID')
+    xml = archive.read(path)
+    # Before ANY XML parser: no DTD or entity declarations, including UTF-16/32.
+    declaration_bytes = xml.replace(b'\x00', b'') if b'\x00' in xml else xml
+    require(b'<!DOCTYPE' not in declaration_bytes and b'<!ENTITY' not in declaration_bytes,
+            'SHEET_XML_DECLARATION')
+    # One defusedxml event pass checks every cell, regardless of XML spelling.
+    _scan_sheet_xml(archive, path, name, strings, xml)
+
+
+def _scan_sheet_xml(archive, path, name, strings, xml):
     limit = 50000 if name == 'Expenditure' else 5000
     extent = header_width = header_rows = max_data_col = 0
     headers = {}
     row_values = {}
     root = sheet_data = None
-    for event, element in _events(archive, path):
+    for event, element in _xml_events(BytesIO(xml)):
         if root is None:
             root = element
         tag = element.tag
@@ -263,34 +279,73 @@ def _scan_sheet(archive, path, name, strings):
         require(header_rows == 1, 'CONTRACT_KEY_HEADER')
 
 
+def _metadata(archive, path):
+    require(path in archive.namelist(), 'WORKBOOK_METADATA_INVALID')
+    return fromstring(archive.read(path), forbid_dtd=True, forbid_entities=True, forbid_external=True)
+
+
+def _canonical_package(archive):
+    """Match ExcelReader's selection without duplicating its permissive resolver.
+
+    openpyxl.reader.excel._find_workbook_part searches four override types before
+    defaults; read_strings also uses an override, not the conventional filename.
+    One canonical override and no fallback/ambiguous selections make both exact.
+    """
+    ct = '{http://schemas.openxmlformats.org/package/2006/content-types}'
+    root = _metadata(archive, '[Content_Types].xml')
+    require(root.tag == ct + 'Types', 'WORKBOOK_METADATA_INVALID')
+    workbooks, strings, parts = [], [], set()
+    for element in root:
+        kind = element.get('ContentType')
+        require(element.tag in (ct + 'Override', ct + 'Default'), 'WORKBOOK_METADATA_INVALID')
+        if element.tag == ct + 'Default':
+            require(kind not in (XLSX, XLSM, XLTX, XLTM, SHARED_STRINGS), 'WORKBOOK_METADATA_INVALID')
+            continue
+        path = element.get('PartName')
+        require(path not in parts, 'WORKBOOK_METADATA_INVALID')
+        parts.add(path)
+        if kind in (XLSX, XLSM, XLTX, XLTM):
+            workbooks.append(path)
+        if kind == SHARED_STRINGS:
+            strings.append(path)
+    require(workbooks == ['/xl/workbook.xml'], 'WORKBOOK_METADATA_INVALID')
+    require(strings in ([], ['/xl/sharedStrings.xml']), 'WORKBOOK_METADATA_INVALID')
+    require(bool(strings) == ('xl/sharedStrings.xml' in archive.namelist()), 'WORKBOOK_METADATA_INVALID')
+
+
 def scan_workbook(upload):
     try:
         with zipfile.ZipFile(upload.buffer) as archive:
-            sheets, relationships = [], {}
-            for event, element in _events(archive, 'xl/workbook.xml'):
-                if event == 'end':
-                    if element.tag == NS + 'sheet':
-                        sheets.append((element.get('name'), element.get(RID)))
-                    element.clear()
+            _canonical_package(archive)
+            root = _metadata(archive, 'xl/workbook.xml')
+            require(root.tag == NS + 'workbook' and len(root.findall(NS + 'sheets')) == 1,
+                    'WORKBOOK_METADATA_INVALID')
+            sheets = [(sheet.get('name'), sheet.get(RID))
+                      for sheet in root.find(NS + 'sheets')]
+            require(all(isinstance(name, str) for name, _ in sheets), 'WORKBOOK_METADATA_INVALID')
             require(all(sum(name == required for name, _ in sheets) == 1
                         for required in ('Funder Budgets', 'Expenditure')), 'REQUIRED_SHEETS')
-            for event, element in _events(archive, 'xl/_rels/workbook.xml.rels'):
-                if event == 'end':
-                    if element.tag.endswith('}Relationship'):
-                        key, target = element.get('Id'), element.get('Target', '')
-                        require(key not in relationships, 'WORKBOOK_METADATA_INVALID')
-                        if element.get('TargetMode') == 'External':
-                            relationships[key] = None
-                        else:
-                            path = target.lstrip('/') if target.startswith('/xl/') else 'xl/' + target
-                            require(_safe_path(path), 'WORKBOOK_METADATA_INVALID')
-                            relationships[key] = path
-                    element.clear()
+            require(len({name.casefold() for name, _ in sheets}) == len(sheets), 'WORKBOOK_METADATA_INVALID')
+            rel_ns = '{http://schemas.openxmlformats.org/package/2006/relationships}'
+            rels = _metadata(archive, 'xl/_rels/workbook.xml.rels')
+            require(rels.tag == rel_ns + 'Relationships', 'WORKBOOK_METADATA_INVALID')
+            relationships = {}
+            for element in rels:
+                require(element.tag == rel_ns + 'Relationship', 'WORKBOOK_METADATA_INVALID')
+                key, target = element.get('Id'), element.get('Target', '')
+                require(key and key not in relationships, 'WORKBOOK_METADATA_INVALID')
+                # For accepted safe paths these are exactly get_dependents' paths.
+                path = target[1:] if target.startswith('/') else 'xl/' + target
+                require(_safe_path(path), 'WORKBOOK_METADATA_INVALID')
+                relationships[key] = (path, element.get('Type'), element.get('TargetMode'))
             strings = _shared_strings(archive)
             for name, key in sheets:
                 if name in ('Funder Budgets', 'Expenditure'):
-                    require(bool(relationships.get(key)), 'WORKBOOK_METADATA_INVALID')
-                    _scan_sheet(archive, relationships[key], name, strings)
+                    require(key in relationships, 'WORKBOOK_METADATA_INVALID')
+                    path, kind, mode = relationships[key]
+                    require(kind == 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet'
+                            and mode != 'External', 'WORKBOOK_METADATA_INVALID')
+                    _scan_sheet(archive, path, name, strings)
     except (ParseError, DefusedXmlException, zipfile.BadZipFile, KeyError, OSError, ValueError) as error:
         if isinstance(error, WorkbookError):
             raise

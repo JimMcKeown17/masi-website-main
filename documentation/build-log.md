@@ -1269,3 +1269,272 @@ Git/fallback: staging the twelve named change files failed creating `.git/index.
 with `Operation not permitted`. No commit was created. All changes remain intact
 and uncommitted in this clone; no Git-metadata workaround or alternate checkout was
 used. Final `git diff --check`: passed.
+
+### Review fixes, round 1
+
+Scope: supervisor-authorized stage 2B fixes on the standalone clone at `b84f1d4`,
+branch `feat/wp2a-finance-runs`. Read approved plan sections 3.5, 3.8 and 8.1,
+`CLAUDE.md`, this log and finance endpoint documentation. No network, production
+access, PostgreSQL execution, publisher edits, approval/demotion changes, cutover
+changes, migrations or legacy-import changes. All database commands below use
+`DATABASE_URL=sqlite:///:memory:` and the clone's `venv/bin/python`.
+
+RED, captured before each corresponding implementation:
+
+1. Package selection, `venv/review-r1-red1.log`:
+   `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py test api.tests_finance_upload_safety.WorkbookSafetyTests.test_alternate_selected_workbook_rejected_before_producer api.tests_finance_upload_safety.WorkbookSafetyTests.test_ambiguous_workbook_and_shared_string_selection_rejected api.tests_finance_upload_safety.WorkbookSafetyTests.test_scanned_sheet_paths_match_openpyxl_selected_paths --noinput`
+   — **Ran 3 tests in 0.017s; FAILED (failures=4)**. The alternate workbook and
+   three ambiguous/default/shared-string selection cases were accepted; the
+   canonical path comparison already passed.
+   Additional HTTP RED, `venv/review-r1-red1-http.log`:
+   `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py test api.tests_finance_upload_safety.WorkbookSelectionHTTPTests --noinput`
+   — **Ran 1 test in 0.021s; FAILED (failures=1)**, HTTP 500 instead of the expected
+   stable HTTP 400 rejection before producer invocation.
+2. D36 measurement semantics, `venv/review-r1-red2.log`:
+   `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py test api.tests_finance_runs_upload.FinanceUploadTests.test_upload_records_sampled_process_rss_without_tracemalloc api.tests_finance_runs_upload.FinanceUploadTests.test_process_rss_linux_pages_and_resource_fallback api.tests_finance_runs_upload.FinanceUploadTests.test_rss_sampler_observes_peak_and_stops_on_exception api.tests_finance_runs_upload.FinanceUploadTests.test_benchmark_trace_allocations_is_opt_in_and_separate --noinput`
+   — **Ran 4 tests in 1.046s; FAILED (failures=2, errors=2)**: request tracing was
+   invoked, the sampler/helper was absent, and the opt-in command flag was absent.
+3. Sheet declarations and bounded model batches, `venv/review-r1-red3.log`:
+   `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py test api.tests_finance_upload_safety.WorkbookSafetyTests.test_sheet_doctype_or_entity_rejected_before_xml_parser api.tests_finance_runs_upload.FinanceUploadTests.test_materialise_facts_bounds_model_batches_and_preserves_facts --noinput`
+   — **Ran 2 tests in 2.285s; FAILED (failures=5)**. Four sheet/declaration subcases
+   reached the patched XML parser; the upload attempted an unbounded model batch.
+
+Implementation:
+
+- Verified installed openpyxl `reader/excel.py` (`_find_workbook_part`,
+  `read_strings`, `read_workbook`, `read_worksheets`), `reader/workbook.py` and
+  `packaging/relationship.py`. The reader selects among XLTM/XLTX/XLSM/XLSX
+  content-type overrides before considering defaults, and independently selects
+  shared strings by content type. Preflight now defused-parses `[Content_Types].xml`,
+  requires exactly one canonical workbook override, rejects competing/default
+  workbook selections and duplicate part overrides, and allows only canonical,
+  unambiguous shared strings. It parses canonical workbook relationships, rejects
+  duplicate IDs and invalid required-sheet relationship types/modes, and uses the
+  exact paths openpyxl consumes for accepted packages. Stable failure:
+  `WORKBOOK_METADATA_INVALID`, HTTP 400 with no run. The regression archive keeps
+  benign canonical parts but selects an alternate workbook/rels with an LCV1 cell;
+  both producer and openpyxl mocks remain uncalled. A separate successful fixture
+  compares the scanned sheet paths with openpyxl's actual read-only sheet paths.
+- D36 removes tracemalloc entirely from the upload service. A per-request thread
+  samples `/proc/self/statm` resident pages times page size every 10ms, with
+  `resource.getrusage(RUSAGE_SELF).ru_maxrss` as the fallback (bytes on macOS, KiB
+  converted to bytes elsewhere). It samples the initial and final RSS and joins
+  on success, replay or exception. The stored sample is finalized after fact
+  reconciliation, immediately before the metrics save. This is absolute process
+  RSS, includes baseline/concurrent activity, and can miss sub-10ms spikes; the
+  fallback is the lifetime process high-water mark, not a request-local delta.
+  `peak_memory_bytes` keeps its field name; its model field description is a code
+  comment so no schema migration is introduced. As already established in stage
+  2B, the installed manifest schema has no measurement fields and forbids extra
+  properties: measurements remain in the existing FinanceRun metadata fields;
+  the exact producer manifest is preserved. The benchmark's `--trace-allocations`
+  opt-in adds a separate `python_peak_allocation_bytes`, labels RSS semantics,
+  stops its owned tracer in `finally`, and refuses an already active tracer.
+- Every required sheet is checked for literal DOCTYPE or ENTITY declarations
+  before any XML parser sees its bytes, including UTF-16/32 null-separated forms.
+  Stable failure: `SHEET_XML_DECLARATION`, handled as unsafe XML (HTTP 400, no run).
+  Ordinary UTF-8 ledger XML is checked for well-formedness by C Expat without
+  element callbacks. Compiled byte regexes remove only simple interior cells
+  whose columns are within the parsed nonblank H, whose row coordinates fit the
+  retained actual row extent, and whose shared-string indexes are valid. All row
+  tags, dimensions, headers, outside-H cells and unusual cells survive for the
+  original defused checks. Namespace rebinding, comments/CDATA, alternate attribute
+  syntax/encodings and complex rows retain the full defused path. No unsafe cell
+  is accepted merely because the fast grammar cannot recognize it. Funder Budgets
+  retains full defused semantic scanning after the declaration guard. Exact row,
+  column, H, R*H, required-header, duplicate-header and beyond-H/formula checks
+  remain in place. Differential regression cases compare the fast path with the
+  original scanner, including understated extents, escaped/prefixed coordinates,
+  invalid shared indexes, blank/nonblank outside-H cells and formula-only cells.
+- Fact construction now creates at most 2,000 model instances per batch and calls
+  `bulk_create(batch_size=2000)` for both rows and allocations. Only row-key-to-PK
+  scalars survive between batches; allocation objects no longer retain row model
+  instances. The PK map is released before persisted-ledger reconstruction. The
+  service does not retain an explicit serialized JSON payload string alongside
+  these batches. The artifact and reconstructed fact dictionaries still exist
+  during the required integrity check; digest/count/money reconciliation and the
+  enclosing atomic transaction are preserved. The new 4,002-row/4,002-allocation
+  regression executes real SQLite inserts, requires three bounded batches of each
+  model, and exercises the normal persisted-fact reconciliation.
+
+Producer investigation (installed publisher unchanged):
+
+- Source inspection of `publish/ledger.py:61-89,125-165` shows run-mode
+  `read_ledger(bounded=True)` calls `_bounded_headers`, which opens the workbook
+  again and streams the entire Expenditure sheet with formulas before the normal
+  data-only ledger pass. Legacy `build_snapshot` calls unbounded `read_ledger` and
+  performs only the latter pass. This extra full-sheet pass is a concrete likely
+  contributor to the supervisor's 11.6s versus 6.05s; the real timings cannot be
+  apportioned from source inspection alone.
+- Run mode also adds `read_contract_keys` (another workbook open/full budget read),
+  full-width bounded budget checks instead of legacy A:F retention during reading,
+  fact capture/identity/serialization, and schema-2/fact validation. Source paths
+  show five workbook opens versus three in legacy snapshot production. Each open
+  rereads shared strings where present. No publisher change or bypass was made.
+- Executed an in-memory synthetic 10,001-row/10,001-allocation probe with timing
+  wrappers (no tracemalloc): total **2.908s**, five workbook opens **0.015s** total;
+  `read_ledger` **1.233s**, including `_bounded_headers` **0.595s**;
+  budget blocks **0.008s**, contract keys **0.003s**, rollups **0.091s**,
+  ledger facts **0.060s**, serialization **0.047s**, fact validation **0.035s**.
+  Timings are inclusive and nested, not additive. This confirms the extra pass,
+  not the distribution of the supervisor's real-workbook 11.6s. The synthetic
+  workbook has inline strings and cannot quantify repeated real shared-string cost.
+  Reproducible local probe: `DATABASE_URL=sqlite:///:memory: PYTHONPATH=. venv/bin/python venv/review_producer_profile.py`.
+
+Fixture correction supplied by the supervisor (not rerun on private workbooks here):
+D15's `20260829` is no longer structurally valid under publisher 0.2.0: it predates
+contract Start Date and End Date columns and fails preflight with
+`CONTRACT_KEY_HEADER`, as does `20260513 copy`. This supersedes the earlier stage
+2B pending-fixture description. The largest valid workbook is now `20260901`;
+the supervisor benchmarks that file (reported 12,132,538 bytes, 23,914 fact rows,
+18,445 allocations). Historical workbook rejections remain separate evidence.
+
+GREEN:
+
+- After item 1: focused safety/upload modules — **39 tests in 0.754s; OK**.
+- After item 2: focused safety/upload modules — **43 tests in 0.502s; OK**.
+- After item 3 and differential safety regressions:
+  `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py test api.tests_finance_upload_safety api.tests_finance_runs_upload --noinput`
+  — **50 tests in 4.405s; OK**, `venv/review-r1-green3.log`.
+- `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py test api --noinput`
+  — **Ran 739 tests in 25.468s; OK (skipped=9)**, 730 passed, no failures/errors.
+  Log: gitignored `venv/review-r1-full-green.log`.
+- `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py check`
+  — **System check identified no issues (0 silenced).**
+- `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py makemigrations --check --dry-run`
+  — **No changes detected.** No migration, environment variable, schedule or
+  one-off data operation is required for these local fixes.
+- `git diff --check` — **passed** before the final documentation entry; final
+  documentation-inclusive check recorded below.
+
+PENDING — supervisor PostgreSQL full-suite gate. Eight PostgreSQL-only tests keep
+named reasons: seven concurrency cases say `Requires PostgreSQL advisory locks
+and separate connections.`; the conditional unique-current constraint says
+`Requires PostgreSQL conditional unique constraint release evidence.` The ninth,
+pre-existing payroll-fixture skip says `real payroll ledger not on this machine`.
+The existing missing-staticfiles warning remains. SQLite does not prove PostgreSQL
+locking, batching/round trips, release, deployment, production data or field behavior.
+
+PENDING — supervisor re-benchmark of `20260901` with PostgreSQL inserts, without
+`--trace-allocations`: target scan <=2s, total <20s, peak RSS <300MB on the supervisor
+laptop. These targets are not established by synthetic tests. Also retain the plan's
+<60s request/512MiB worker gates, >30s queue-revival review, duplicate-heavy and
+maximum-envelope fixtures, historical rejections, same/different-tuple concurrency,
+W>=3 reader capacity, aggregate memory <=75%, and release-build/Render timing.
+Optional allocation-traced benchmarks must be labeled separately and cannot stand
+in for the default request-path latency. No real workbook benchmark ran here.
+
+Additional local scanner timing: the final fast scanner processed a dense synthetic
+25,000x76 ledger (1.9 million rectangular cells) in **3.021s**. The unchanged full
+defused sheet scanner on the same synthetic fixture took **10.380s** before the
+final regex tuning (the earlier fast version took 3.572s). The fast number includes
+`scan_workbook`; the baseline times the ledger sheet alone. No RSS or PostgreSQL
+claim is attached to this probe, and its 3.021s is not the <=2s current-workbook gate.
+Command: `DATABASE_URL=sqlite:///:memory: PYTHONPATH=. venv/bin/python venv/review_scan_benchmark.py`.
+Synthetic scripts/logs are local, gitignored evidence under `venv/`; no workbook
+bytes or real finance data were added to tracked files.
+
+Git/final verification: staging exactly the seven changed tracked files failed with
+`Unable to create .../.git/index.lock: Operation not permitted`. No commit was
+created and no Git-metadata workaround was attempted. The pre-existing untracked
+`.review-detached.pid` was left untouched. Final documentation-inclusive
+`git diff --check`: **passed**. Changes remain local and uncommitted in this clone;
+PostgreSQL and real-workbook re-benchmark gates remain PENDING for the supervisor.
+
+### Review fixes, round 2
+
+D38 removes the regex-sliced thin-ledger fast path. The supervisor confirmed on
+its private 12,132,538-byte `20260901` workbook that the greedy `[^<>]*` in the
+row-1 cell regex consumes the slash in an empty styled cell such as
+`<c r="BX1" s="2"/>`. The alternative then matches through row 2's first closing
+cell, crossing `</row>`; defusedxml rejects the sliced fragment with a mismatched
+tag, mapped to `XML_INVALID`. Synthetic openpyxl fixtures lacked the trailing
+self-closing header cells. XML slicing also depends on attribute order and
+namespace syntax, so D38 requires removal rather than another regex repair.
+
+RED before implementation (gitignored log `venv/review-r2-red.log`):
+
+```sh
+source venv/bin/activate
+DATABASE_URL=sqlite:///:memory: python manage.py test api.tests_finance_upload_safety.WorkbookSafetyTests.test_trailing_empty_styled_header_cells_scan api.tests_finance_upload_safety.WorkbookSafetyTests.test_reordered_cell_attributes_scan api.tests_finance_upload_safety.WorkbookSafetyTests.test_namespace_prefixed_cells_scan --noinput
+```
+
+**Ran 3 tests in 0.036s; FAILED (errors=2).** The trailing-styled-cell and
+reordered-attribute regressions raise `XML_INVALID`; the prefixed-cell control
+already passes. All three use literal trailing `<c r="…" s="2"/>` cells (prefixed
+in the namespace case), compare acceptance with the canonical workbook and
+require populated data beyond the unchanged H to reject with
+`LEDGER_DATA_BEYOND_HEADER`.
+
+Implementation: every required sheet part now uses the unchanged streaming
+`_xml_events` / defusedxml element checks after the bounded byte-level declaration
+guard. Removed `_thin_ledger`, `_SIMPLE_CELLS`, `_ROW`, `_ROW_NUMBER`,
+`_decimal_range`, `_CELL_ATTRS`, `_SIMPLE_VALUE`, and the preliminary raw Expat
+pass/imports (`ParserCreate`, `ExpatError`) and fast-path encoding detection.
+Exact R, H, R×H, actual/declared coordinate bounds, required/duplicate headers,
+shared-string validity and beyond-H/formula checks remain unchanged. Canonical
+package selection (`WORKBOOK_METADATA_INVALID`), D36 RSS sampling without request
+tracemalloc, benchmark `--trace-allocations` opt-in, bounded fact batches and
+`SHEET_XML_DECLARATION` rejection before parsers are retained from round 1.
+
+Deleted only these fast-path-internal tests:
+
+- `WorkbookSafetyTests.test_fast_scan_preserves_defused_bounds_and_semantics`
+  (compares the two implementations that are now the same scanner).
+- `WorkbookSafetyTests.test_fast_scan_discards_only_valid_interior_cells`
+  (asserts byte removal by the deleted helper).
+
+The declaration-guard test retains its parser mocks and assertions, removing only
+its mock of the deleted `ParserCreate` symbol. No other existing tests changed.
+Round 2 modifies only the parser, safety tests and this log; the other four
+round-1 files are preserved. No approval/demotion services, cutover view,
+migration, legacy import command or publisher package changes were made.
+
+GREEN (all Django commands activate this clone's venv and set
+`DATABASE_URL=sqlite:///:memory:`):
+
+- `python manage.py test api.tests_finance_upload_safety api.tests_finance_runs_upload api.tests_finance_runs_concurrency --noinput`
+  — **Ran 58 tests in 4.652s; OK (skipped=7)**, 51 passed.
+  Log: `venv/review-r2-focused.log`. An earlier focused invocation mistakenly
+  named nonexistent `api.tests_finance_upload_http`: 52 tests, one import error;
+  corrected to the stage-2B concurrency module above before the final gate.
+- `python manage.py test --noinput`
+  — **Ran 740 tests in 25.223s; OK (skipped=9)**, 731 passed, no failures/errors.
+  Log: `venv/review-r2-full-green.log`. Net test count: 739 + 3 regressions - 2
+  deleted fast-path-internal tests = 740.
+- `python manage.py check` — **System check identified no issues (0 silenced).**
+- `python manage.py makemigrations --check --dry-run` — **No changes detected.**
+- `git diff --check` — **passed**; final documentation-inclusive working-tree and
+  staged diff checks also passed before commit.
+
+Seven PostgreSQL concurrency tests skip with `Requires PostgreSQL advisory locks
+and separate connections.` The unique-current test skips with `Requires
+PostgreSQL conditional unique constraint release evidence.` The ninth skip is
+`real payroll ledger not on this machine`. The existing missing-staticfiles
+warning remains. No migrations, environment changes, schedules or one-off data
+operations are required. Evidence is local SQLite/source only; no network or
+production access was performed.
+
+PENDING — supervisor PostgreSQL full suite, `check` and
+`makemigrations --check --dry-run` against this round-2 tree. The supplied
+round-1 PostgreSQL result (739 tests OK, skipped=1, checks clean) is historical
+and does not establish this gate.
+
+PENDING — supervisor real-workbook preflight/scan and full-path PostgreSQL
+re-benchmark of the operator's `20260901` file (12,132,538 bytes), default RSS
+measurement without allocation tracing. The workbook is unavailable here.
+D38 accepts the supervisor's prior 5.7s streaming scan; D37 sets the request
+budget to the 300s gunicorn timeout. Those decisions supersede the earlier
+round-1 scan <=2s / total <20s targets and older 60s request budget in this log;
+no synthetic test is a new real-workbook timing or capacity result. Retain
+release RSS, duplicate-heavy/maximum-envelope and concurrent-reader capacity
+gates for supervisor verification.
+
+Git: initial staging of the seven named tracked files succeeded. After the final
+log update, both re-staging the log and the conventional commit attempt failed
+creating `.git/index.lock` with `Operation not permitted`. No commit was created;
+HEAD remains `b84f1d4`. All seven files remain intact and uncommitted: the code
+and earlier log entry are staged, with the final log additions unstaged. No
+Git-metadata workaround was attempted. The pre-existing untracked
+`.review-detached.pid` remains untouched and excluded. Final working-tree and
+staged `git diff --check` both passed.

@@ -2067,6 +2067,8 @@ class FinanceRun(models.Model):
     demotion_note = models.TextField(blank=True, default='')
     parse_duration_ms = models.PositiveBigIntegerField(default=0)
     total_duration_ms = models.PositiveBigIntegerField(default=0)
+    # D36: sampled peak absolute process RSS during upload, in bytes (10ms).
+    # Without /proc, resource.getrusage supplies the process lifetime high-water RSS.
     peak_memory_bytes = models.PositiveBigIntegerField(default=0)
     fact_row_count = models.PositiveIntegerField(default=0)
     allocation_count = models.PositiveIntegerField(default=0)

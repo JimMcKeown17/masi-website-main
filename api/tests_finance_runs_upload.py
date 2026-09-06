@@ -1,4 +1,5 @@
 from io import BytesIO
+import re
 from unittest.mock import patch
 from urllib.parse import urlencode
 from django.test import TestCase
@@ -182,6 +183,7 @@ class FinanceUploadTests(TestCase):
         self.assertEqual((record['status'], record['row_count'], record['allocation_count']), ('candidate', 1, 1))
         self.assertEqual(record['measurement'], 'new_run')
         self.assertGreater(record['process_peak_rss_bytes'], 0)
+        self.assertNotIn('python_peak_allocation_bytes', record)
         from django.db import connection
         self.assertEqual(record['database_engine'], connection.settings_dict['ENGINE'])
 
@@ -205,3 +207,114 @@ class FinanceUploadTests(TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.data, {'code': 'XML_INVALID'})
         self.assertFalse(FinanceRun.objects.exists())
+
+    def test_upload_records_sampled_process_rss_without_tracemalloc(self):
+        with patch('api.services.finance_runs._process_rss_bytes', return_value=123456789, create=True), \
+             patch('tracemalloc.start', side_effect=AssertionError('request tracing forbidden')), \
+             patch('tracemalloc.get_traced_memory', side_effect=AssertionError('request tracing forbidden')):
+            response = self.upload()
+        self.assertEqual(response.status_code, 201, response.data)
+        self.assertEqual(FinanceRun.objects.get().peak_memory_bytes, 123456789)
+
+    def test_process_rss_linux_pages_and_resource_fallback(self):
+        from unittest.mock import mock_open
+        from types import SimpleNamespace
+        from api.services.finance_runs import _process_rss_bytes
+        with patch('builtins.open', mock_open(read_data='10000 321 0 0 0 0 0')), \
+             patch('os.sysconf', return_value=4096):
+            self.assertEqual(_process_rss_bytes(), 321 * 4096)
+        for platform, expected in [('darwin', 987), ('linux', 987 * 1024)]:
+            with patch('builtins.open', side_effect=FileNotFoundError), \
+                 patch('sys.platform', platform), \
+                 patch('resource.getrusage', return_value=SimpleNamespace(ru_maxrss=987)):
+                self.assertEqual(_process_rss_bytes(), expected)
+
+    def test_rss_sampler_observes_peak_and_stops_on_exception(self):
+        from threading import Event
+        from api.services.finance_runs import _upload_measurement
+        observed = Event()
+        def rss():
+            observed.set()
+            return 7654321
+        with patch('api.services.finance_runs._process_rss_bytes', side_effect=rss, create=True):
+            with self.assertRaisesRegex(RuntimeError, 'stop'):
+                with _upload_measurement() as measurement:
+                    observed.clear()
+                    self.assertTrue(observed.wait(1))
+                    self.assertEqual(measurement.peak_bytes, 7654321)
+                    raise RuntimeError('stop')
+        self.assertFalse(measurement.thread.is_alive())
+
+    def test_benchmark_trace_allocations_is_opt_in_and_separate(self):
+        import json
+        from io import StringIO
+        from django.core.management import call_command
+        from pathlib import Path
+        original_open = Path.open
+        def open_input(path, *args, **kwargs):
+            return BytesIO(self.data) if str(path) == NAME else original_open(path, *args, **kwargs)
+        with patch('pathlib.Path.open', autospec=True, side_effect=open_input), \
+             patch('api.services.finance_runs._process_rss_bytes', return_value=123456789, create=True):
+            output = StringIO()
+            call_command('benchmark_finance_upload', NAME, actor_user_id=self.user.pk,
+                         year=2026, trace_allocations=True, stdout=output)
+        record = json.loads(output.getvalue())
+        self.assertEqual(record['peak_memory_bytes'], 123456789)
+        self.assertGreater(record['python_peak_allocation_bytes'], 0)
+        import tracemalloc
+        self.assertFalse(tracemalloc.is_tracing())
+
+    def test_materialise_facts_bounds_model_batches_and_preserves_facts(self):
+        # The publisher makes valid occurrence-qualified identities for these
+        # duplicate-heavy rows. Real inserts and reconciliation still execute.
+        data = rewrite(self.data, {'xl/worksheets/sheet1.xml': lambda xml: xml.replace(
+            b'</sheetData>', b''.join(
+                re.sub(rb'([A-Z]+)2"', lambda m: m[1] + str(n).encode() + b'"',
+                    re.search(rb'<row r="2".*?</row>', xml)[0]
+                    .replace(b'<row r="2"', f'<row r="{n}"'.encode()))
+                for n in range(3, 4004)) + b'</sheetData>')})
+        row_create = LedgerRow.objects.bulk_create
+        allocation_create = LedgerAllocation.objects.bulk_create
+        def bounded(original):
+            def insert(objects, **kwargs):
+                self.assertLessEqual(len(objects), 2000)
+                self.assertEqual(kwargs.get('batch_size'), 2000)
+                return original(objects, **kwargs)
+            return insert
+        with patch.object(LedgerRow.objects, 'bulk_create', side_effect=bounded(row_create)) as rows, \
+             patch.object(LedgerAllocation.objects, 'bulk_create', side_effect=bounded(allocation_create)) as allocations:
+            response = self.upload(data)
+        self.assertEqual(response.status_code, 201, response.data)
+        run = FinanceRun.objects.get()
+        self.assertEqual((run.fact_row_count, run.allocation_count), (4002, 4002))
+        self.assertEqual((rows.call_count, allocations.call_count), (3, 3))
+        self.assertEqual((run.ledger_rows.count(), LedgerAllocation.objects.count()), (4002, 4002))
+
+    def test_upload_sampler_joined_on_success_replay_and_exception(self):
+        from api.services.finance_runs import _RSSMeasurement
+        measurements = []
+        def measurement():
+            result = _RSSMeasurement()
+            measurements.append(result)
+            return result
+        with patch('api.services.finance_runs._RSSMeasurement', side_effect=measurement):
+            self.assertEqual(self.upload().status_code, 201)
+            self.assertEqual(self.upload().status_code, 200)
+            with patch('api.services.finance_runs.preflight', side_effect=RuntimeError('stop')):
+                self.assertEqual(self.upload().status_code, 500)
+        self.assertEqual(len(measurements), 3)
+        self.assertTrue(all(not item.thread.is_alive() for item in measurements))
+
+    def test_benchmark_default_never_starts_allocation_tracing(self):
+        from io import StringIO
+        from django.core.management import call_command
+        from pathlib import Path
+        original_open = Path.open
+        def open_input(path, *args, **kwargs):
+            return BytesIO(self.data) if str(path) == NAME else original_open(path, *args, **kwargs)
+        with patch('pathlib.Path.open', autospec=True, side_effect=open_input), \
+             patch('tracemalloc.start', side_effect=AssertionError('opt-in only')):
+            output = StringIO()
+            call_command('benchmark_finance_upload', NAME, actor_user_id=self.user.pk,
+                         year=2026, stdout=output)
+        self.assertNotIn('python_peak_allocation_bytes', output.getvalue())

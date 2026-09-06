@@ -7,7 +7,7 @@ import struct
 import zipfile
 import warnings
 from unittest.mock import patch
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, TestCase
 from openpyxl import Workbook
 
 MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
@@ -80,6 +80,37 @@ class WorkbookSafetyTests(SimpleTestCase):
             self.p.scan_workbook(upload)
             buffer = upload.buffer
         self.assertTrue(buffer.closed)
+
+    def _assert_literal_header_cells_scan(self, transform=lambda xml: xml):
+        def change(xml):
+            # Literal Excel-style empty styled cells, after the last populated
+            # header and immediately before row 1 closes; row 2 follows.
+            xml = xml.replace(b'</row>', b'<c r="BX1" s="2"/>'
+                              b'<c r="BY1" s="2"/><c r="BZ1" s="2"/></row>', 1)
+            return transform(xml)
+
+        with self.preflight() as upload:
+            self.p.scan_workbook(upload)
+        data = rewrite(self.data, {'xl/worksheets/sheet1.xml': change})
+        with self.preflight(data) as upload:
+            self.p.scan_workbook(upload)
+        # Empty styled cells must not increase H: a populated L2 still rejects.
+        invalid = rewrite(data, {'xl/worksheets/sheet1.xml': lambda xml: xml.replace(
+            b'</sheetData>', transform(b'<row r="2"><c r="L2"><v>1</v></c></row>')
+            + b'</sheetData>')})
+        self.reject(invalid, 'LEDGER_DATA_BEYOND_HEADER', sheet=True)
+
+    def test_trailing_empty_styled_header_cells_scan(self):
+        self._assert_literal_header_cells_scan()
+
+    def test_reordered_cell_attributes_scan(self):
+        self._assert_literal_header_cells_scan(
+            lambda xml: xml.replace(b'<c r="A1"', b'<c s="1" r="A1"'))
+
+    def test_namespace_prefixed_cells_scan(self):
+        self._assert_literal_header_cells_scan(lambda xml: xml.replace(
+            b'<c ', b'<x:c xmlns:x="http://schemas.openxmlformats.org/spreadsheetml/2006/main" '
+        ).replace(b'</c>', b'</x:c>'))
 
     def test_compressed_cap_missing_lying_and_true_length_stops_at_plus_one(self):
         for length in (None, '1', '1024'):
@@ -218,3 +249,86 @@ class WorkbookSafetyTests(SimpleTestCase):
             x = x.replace(b'</row>', b'<c r="DX1" t="inlineStr"><is><t>Extra</t></is></c></row>', 1)
             return x.replace(b'</sheetData>', b'<row r="31251"><c r="A31251"><v>1</v></c></row></sheetData>')
         self.reject(rewrite(self.data, {'xl/worksheets/sheet1.xml': change}), 'LEDGER_CELL_LIMIT', sheet=True)
+
+    def test_alternate_selected_workbook_rejected_before_producer(self):
+        with zipfile.ZipFile(BytesIO(self.data)) as archive:
+            alternate = archive.read('xl/worksheets/sheet1.xml').replace(
+                b'</row>', b'<c r="LCV1" t="inlineStr"><is><t>Hidden</t></is></c></row>', 1)
+            data = rewrite(self.data, {'[Content_Types].xml': lambda x: x.replace(
+                b'PartName="/xl/workbook.xml"', b'PartName="/xl/alternate.xml"')}, extra=[
+                ('xl/alternate.xml', archive.read('xl/workbook.xml')),
+                ('xl/_rels/alternate.xml.rels', archive.read('xl/_rels/workbook.xml.rels').replace(
+                    b'/xl/worksheets/sheet1.xml', b'/xl/worksheets/alternate.xml')),
+                ('xl/worksheets/alternate.xml', alternate)])
+        with patch('api.services.finance_runs.build_run_artifact') as producer, \
+             patch('openpyxl.load_workbook') as loader:
+            self.reject(data, 'WORKBOOK_METADATA_INVALID', sheet=True)
+        producer.assert_not_called()
+        loader.assert_not_called()
+
+    def test_ambiguous_workbook_and_shared_string_selection_rejected(self):
+        workbook_type = b'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml'
+        for declaration in (
+            b'<Override PartName="/xl/other.xml" ContentType="' + workbook_type + b'"/>',
+            b'<Default Extension="xml" ContentType="' + workbook_type + b'"/>',
+            b'<Override PartName="/xl/otherStrings.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/>',
+        ):
+            with self.subTest(declaration=declaration):
+                self.reject(rewrite(self.data, {'[Content_Types].xml': lambda x: x.replace(
+                    b'</Types>', declaration + b'</Types>')}), 'WORKBOOK_METADATA_INVALID', sheet=True)
+
+    def test_scanned_sheet_paths_match_openpyxl_selected_paths(self):
+        import openpyxl
+        with self.preflight() as upload, patch.object(self.p, '_scan_sheet', wraps=self.p._scan_sheet) as scan:
+            self.p.scan_workbook(upload)
+            wb = openpyxl.load_workbook(upload.buffer, read_only=True)
+            try:
+                self.assertEqual({call.args[1] for call in scan.call_args_list},
+                                 {wb[name]._worksheet_path for name in ('Expenditure', 'Funder Budgets')})
+            finally:
+                wb.close()
+
+    def test_sheet_doctype_or_entity_rejected_before_xml_parser(self):
+        for path in ('xl/worksheets/sheet1.xml', 'xl/worksheets/sheet2.xml'):
+            for declaration in (b'<!DOCTYPE worksheet>', b'<!ENTITY secret "private">'):
+                with self.subTest(path=path, declaration=declaration):
+                    data = rewrite(self.data, {path: lambda xml: declaration + xml})
+                    with self.preflight(data) as upload, zipfile.ZipFile(upload.buffer) as archive:
+                        with patch.object(self.p, 'iterparse', side_effect=AssertionError('XML parser touched sheet')), \
+                             patch.object(self.p, 'fromstring', side_effect=AssertionError('XML parser touched sheet')):
+                            with self.assertRaises(self.p.WorkbookError) as caught:
+                                self.p._scan_sheet(archive, path, 'Expenditure' if 'sheet1' in path else 'Funder Budgets', [])
+                        self.assertEqual(caught.exception.code, 'SHEET_XML_DECLARATION')
+
+    def test_utf16_sheet_declaration_rejected_before_parser(self):
+        data = rewrite(self.data, {'xl/worksheets/sheet1.xml': lambda xml:
+            ('<!DOCTYPE worksheet>' + xml.decode()).encode('utf-16')})
+        self.reject(data, 'SHEET_XML_DECLARATION', sheet=True)
+
+
+class WorkbookSelectionHTTPTests(TestCase):
+    def test_alternate_workbook_http_never_calls_producer_or_openpyxl(self):
+        from rest_framework.test import APIClient
+        from urllib.parse import urlencode
+        from api.finance_run_test_utils import actor
+        from api.models import FinanceRun
+        data = workbook_bytes()
+        with zipfile.ZipFile(BytesIO(data)) as archive:
+            data = rewrite(data, {'[Content_Types].xml': lambda x: x.replace(
+                b'PartName="/xl/workbook.xml"', b'PartName="/xl/alternate.xml"')}, extra=[
+                ('xl/alternate.xml', archive.read('xl/workbook.xml')),
+                ('xl/_rels/alternate.xml.rels', archive.read('xl/_rels/workbook.xml.rels').replace(
+                    b'/xl/worksheets/sheet1.xml', b'/xl/worksheets/alternate.xml')),
+                ('xl/worksheets/alternate.xml', archive.read('xl/worksheets/sheet1.xml').replace(
+                    b'</row>', b'<c r="LCV1" t="inlineStr"><is><t>Hidden</t></is></c></row>', 1))])
+        client = APIClient()
+        client.force_authenticate(actor())
+        with patch('api.services.finance_runs.build_run_artifact') as producer, \
+             patch('openpyxl.load_workbook') as loader:
+            response = client.post('/api/finance/runs/?' + urlencode(
+                dict(kind='funders', year=2026, source_name=NAME)), data, content_type=MIME)
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data, {'code': 'WORKBOOK_METADATA_INVALID'})
+        producer.assert_not_called()
+        loader.assert_not_called()
+        self.assertFalse(FinanceRun.objects.exists())
