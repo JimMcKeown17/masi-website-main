@@ -1616,3 +1616,98 @@ Final documentation-inclusive `git diff --check`: **passed**. Staging the four
 named files failed creating this clone's `.git/index.lock` with `Operation not
 permitted`; no commit or workaround was attempted. All four changes remain intact
 and uncommitted. The pre-existing untracked `.review-detached.pid` is untouched.
+
+### Review fixes, round 4
+
+Scope: supervisor-authorized local round 4 starting at `b8d78a7`, plan 3.8
+and supplied D15/D29–D31/D38 constraints. Only the parser, upload error
+classification, safety tests and this log change. Approval/demotion logic,
+cutover, migrations, legacy import and publisher are untouched. No network,
+production access or external writes; fixtures are generated in memory.
+
+RED first: `source venv/bin/activate`, then
+`DATABASE_URL=sqlite:///:memory: python manage.py test api.tests_finance_upload_safety --noinput`
+— **Ran 41 tests in 6.458s; FAILED (failures=11), no errors**.
+Log: `venv/review-r4-red.log`. An initial fixture iteration had one incorrect
+central-directory filename slice; corrected before this recorded RED run.
+Named new tests in `WorkbookSafetyTests`:
+
+- `test_metadata_part_caps_before_parsing`
+- `test_shared_strings_actual_expansion_cap_with_understated_directory`
+- `test_metadata_actual_expansion_cap_with_understated_directory`
+- `test_shared_string_four_million_count_cap`
+- `test_shared_string_length_cap_including_rich_text`
+- `test_shared_strings_declaration_before_parser`
+- `test_normal_shared_strings_stream_and_resolve_headers` (passing control)
+
+Also `WorkbookSelectionHTTPTests.test_part_and_string_limits_http_before_producer`.
+The initial HTTP-only RED ran 1 test with 2 subtest failures in 0.026s.
+The final RED includes it. Tests assert stable errors; HTTP tests require 400,
+no FinanceRun, and no producer or openpyxl invocation.
+
+Implementation: central-directory checks and independently counted zlib output
+both enforce 1 MiB per `[Content_Types].xml`, `xl/workbook.xml` and every `.rels`
+part, and 64 MiB for `xl/sharedStrings.xml`, with `PART_SIZE_LIMIT`. Metadata
+reads use `archive.open` with cap-plus-one before `fromstring`. Metadata trees
+remain, but their input is bounded to 1 MiB. Independent inflation drains buffered
+zlib output even when the last compressed input was consumed, stopping at EOF;
+the 64 MiB-plus-one lying-directory regression exposed this boundary. Each output
+chunk remains at most 64 KiB. Existing CRC, total, ratio and general entry limits
+remain enforced. The repetitive expansion fixtures lift only the ratio limit to
+isolate actual expansion; valid-comment metadata fixtures use random hex padding
+to stay within the normal ratio limit. Shared-string whole-part reads are forbidden
+by a `ZipFile.read` mock; this is structural bounded-read evidence, not RSS proof.
+
+Shared strings retain their existing `archive.open` / defusedxml iterparse path,
+now preceded by the same chunked, encoding-aware declaration guard as worksheets.
+Count at most 4,000,000 `si` entries and at most 32,767 characters across each
+string's text/rich-text runs; both reject with `SHARED_STRING_LIMIT`. Only an
+index-aligned list of recognized header labels or boolean nonblank markers is
+retained, never a list of full string contents. Each completed string is cleared.
+The normal shared-string fixture resolves ledger headers and verifies identical
+labels/markers. The upload error branch now treats the two new codes as 400
+rejections instead of creating failed runs; no approval/demotion changes.
+
+Cap rationale: 1 MiB generously bounds package declarations, sheet metadata and
+relationship maps under the existing 256-entry envelope, independent of cell
+volume. The supplied real-workbook reference has approximately 47,000 shared
+strings: 64 MiB allows roughly 1.4 KiB of XML per reference string on average,
+while bounding the part that openpyxl subsequently materializes. This is headroom
+rationale, not a measured part size or RSS guarantee. The 4,000,000-string cap
+matches the cell envelope (roughly 85 times the reference count); the independent
+64 MiB cap also applies, so these maxima need not be jointly attainable.
+32,767 characters is Excel's cell text limit. No real workbook was available or
+measured here, and no acceptance bound was relaxed.
+
+GREEN commands all activate this clone's venv and set
+`DATABASE_URL=sqlite:///:memory:`. Final results recorded below.
+
+PENDING — supervisor PostgreSQL full suite, `check`, and
+`makemigrations --check --dry-run` on this round-4 tree. Seven concurrency tests
+skip with `Requires PostgreSQL advisory locks and separate connections.` The
+unique-current test skips with `Requires PostgreSQL conditional unique constraint
+release evidence.` The ninth skip is `real payroll ledger not on this machine`.
+
+PENDING — supervisor real-workbook scan/RSS and successful PostgreSQL full-path
+re-benchmark, including maximum-envelope/string-heavy, duplicate-heavy and
+concurrent-reader capacity gates. Retain D38 streaming and the previously recorded
+D37 300s request budget. SQLite is not PostgreSQL, release, or production proof.
+No migrations, environment changes, schedules or one-off operations are required.
+
+Final GREEN:
+
+- `python manage.py test api.tests_finance_upload_safety --noinput` — **41 tests
+  in 6.450s; OK**, no skips (`venv/review-r4-focused.log`).
+- `python manage.py test --noinput` — **755 tests in 27.221s; OK (skipped=9)**,
+  746 passed, no failures/errors (`venv/review-r4-full-green.log`).
+- `python manage.py check` — **System check identified no issues (0 silenced).**
+- `python manage.py makemigrations --check --dry-run` — **No changes detected.**
+- `git diff --check` — **passed**, including this documentation update.
+
+The existing missing-staticfiles warning remains. All evidence is local.
+
+Git: staging the four named files failed creating `.git/index.lock` with
+`Operation not permitted`. No commit was created or workaround attempted; all
+four changes remain intact and uncommitted. The pre-existing untracked
+`.review-detached.pid` is untouched. Final documentation-inclusive
+`git diff --check` passed.

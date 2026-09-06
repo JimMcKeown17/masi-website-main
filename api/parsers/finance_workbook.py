@@ -23,6 +23,10 @@ CHUNK = 64 * 1024
 MAX_COMPRESSED = 32 * 1024 * 1024
 MAX_ENTRY_EXPANDED = 256 * 1024 * 1024
 MAX_TOTAL_EXPANDED = 512 * 1024 * 1024
+MAX_METADATA_EXPANDED = 1024 * 1024
+MAX_SHARED_STRINGS_EXPANDED = 64 * 1024 * 1024
+MAX_SHARED_STRINGS = 4000000
+MAX_STRING_LENGTH = 32767
 MAX_ENTRIES = 256
 MAX_RATIO = 100
 LEDGER_HEADERS = ('Date', 'Year', 'Name', 'Amount', 'Paid By', 'Category 1', 'Category 2', 'Category 3', 'BC')
@@ -93,6 +97,14 @@ def preflight(stream, *, source_name, content_type, content_length=None):
         yield Upload(buffer, source_name, source_date, size, digest.hexdigest())
 
 
+def _part_limit(path):
+    if path in ('[Content_Types].xml', 'xl/workbook.xml') or path.endswith('.rels'):
+        return MAX_METADATA_EXPANDED
+    if path == 'xl/sharedStrings.xml':
+        return MAX_SHARED_STRINGS_EXPANDED
+    return MAX_ENTRY_EXPANDED
+
+
 def _check_zip(buffer):
     """Inflate independently: ZipExtFile trusts file_size to truncate output.
 
@@ -113,6 +125,8 @@ def _check_zip(buffer):
                 normalized = posixpath.normpath(entry.filename)
                 require(normalized not in normalized_names, 'WORKBOOK_METADATA_INVALID')
                 normalized_names.add(normalized)
+                require(entry.file_size <= _part_limit(entry.filename), 'PART_SIZE_LIMIT'
+                        if _part_limit(entry.filename) < MAX_ENTRY_EXPANDED else 'ZIP_ENTRY_EXPANDED_LIMIT')
             total = 0
             for entry in entries:
                 require(entry.compress_type in (zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED), 'ZIP_COMPRESSION_INVALID')
@@ -133,15 +147,22 @@ def _check_zip(buffer):
                     remaining -= len(raw)
                     compressed += len(raw)
                     pending = raw
-                    while pending:
+                    while True:
                         output = inflater.decompress(pending, CHUNK) if inflater else pending
                         pending = inflater.unconsumed_tail if inflater else b''
                         expanded += len(output)
                         total += len(output)
                         crc = zlib.crc32(output, crc)
+                        require(expanded <= _part_limit(entry.filename), 'PART_SIZE_LIMIT'
+                                if _part_limit(entry.filename) < MAX_ENTRY_EXPANDED else 'ZIP_ENTRY_EXPANDED_LIMIT')
                         require(expanded <= MAX_ENTRY_EXPANDED, 'ZIP_ENTRY_EXPANDED_LIMIT')
                         require(total <= MAX_TOTAL_EXPANDED, 'ZIP_TOTAL_EXPANDED_LIMIT')
                         require(expanded <= MAX_RATIO * max(entry.compress_size, 1), 'ZIP_RATIO_LIMIT')
+                        # zlib can retain output after consuming all input. Drain
+                        # a full output chunk before asking for more compressed bytes.
+                        if (inflater and inflater.eof) or (
+                                not pending and (inflater is None or len(output) < CHUNK)):
+                            break
                     if inflater and inflater.eof:
                         require(not remaining and not inflater.unused_data, 'ZIP_INVALID')
                 require(inflater is None or inflater.eof, 'ZIP_INVALID')
@@ -190,30 +211,41 @@ def _shared_strings(archive):
     values = []
     if 'xl/sharedStrings.xml' not in archive.namelist():
         return values
+    _check_declarations(archive, 'xl/sharedStrings.xml', 'XML_INVALID')
     root = None
     for event, element in _events(archive, 'xl/sharedStrings.xml'):
         if root is None:
             root = element
         if event == 'end' and element.tag == NS + 'si':
-            values.append(_label(''.join(t.text or '' for t in element.iter(NS + 't'))))
+            require(len(values) < MAX_SHARED_STRINGS, 'SHARED_STRING_LIMIT')
+            texts = [t.text or '' for t in element.iter(NS + 't')]
+            require(sum(map(len, texts)) <= MAX_STRING_LENGTH, 'SHARED_STRING_LIMIT')
+            values.append(_label(''.join(texts)))
             element.clear()
             root.clear()
     return values
 
 
-def _scan_sheet(archive, path, name, strings):
+def _check_declarations(archive, path, code):
     require(path in archive.namelist(), 'WORKBOOK_METADATA_INVALID')
     # Bounded declaration pass before ANY parser, including NUL-separated
     # UTF-16/32 tokens. Keep the longest token's prefix across chunk boundaries.
     tokens = (b'<!DOCTYPE', b'<!ENTITY')
     overlap = max(map(len, tokens)) - 1
     tail = b''
+    expanded = 0
     with archive.open(path) as stream:
         while chunk := stream.read(CHUNK):
+            expanded += len(chunk)
+            require(expanded <= _part_limit(path), 'PART_SIZE_LIMIT')
             declaration_bytes = tail + chunk.replace(b'\x00', b'')
             require(not any(token in declaration_bytes for token in tokens),
-                    'SHEET_XML_DECLARATION')
+                    code)
             tail = declaration_bytes[-overlap:]
+
+
+def _scan_sheet(archive, path, name, strings):
+    _check_declarations(archive, path, 'SHEET_XML_DECLARATION')
     # Reopen directly into the single defusedxml scanner; never buffer a part.
     _scan_sheet_xml(archive, path, name, strings)
 
@@ -292,7 +324,10 @@ def _scan_sheet_xml(archive, path, name, strings):
 
 def _metadata(archive, path):
     require(path in archive.namelist(), 'WORKBOOK_METADATA_INVALID')
-    return fromstring(archive.read(path), forbid_dtd=True, forbid_entities=True, forbid_external=True)
+    with archive.open(path) as stream:
+        data = stream.read(_part_limit(path) + 1)
+    require(len(data) <= _part_limit(path), 'PART_SIZE_LIMIT')
+    return fromstring(data, forbid_dtd=True, forbid_entities=True, forbid_external=True)
 
 
 def _canonical_package(archive):

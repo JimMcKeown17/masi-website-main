@@ -484,7 +484,8 @@ def upload_workbook(stream, actor, *, kind, year, source_name, content_type,
                 try:
                     scan_workbook(upload)
                 except WorkbookError as error:
-                    if error.code in ('XML_INVALID', 'WORKBOOK_METADATA_INVALID', 'SHEET_XML_DECLARATION'):
+                    if error.code in ('XML_INVALID', 'WORKBOOK_METADATA_INVALID', 'SHEET_XML_DECLARATION',
+                                      'PART_SIZE_LIMIT', 'SHARED_STRING_LIMIT'):
                         raise
                     failure = {'phase': 'preflight', 'code': error.code, 'message': error.code}
                 if failure is None:

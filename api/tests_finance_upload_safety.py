@@ -329,6 +329,105 @@ class WorkbookSafetyTests(SimpleTestCase):
                                 self.p._scan_sheet(archive, path, 'Expenditure', [])
                         self.assertEqual(caught.exception.code, 'SHEET_XML_DECLARATION')
 
+    def test_metadata_part_caps_before_parsing(self):
+        for path in ('[Content_Types].xml', 'xl/workbook.xml',
+                     'xl/_rels/workbook.xml.rels', '_rels/.rels'):
+            with self.subTest(path=path):
+                data = rewrite(self.data, {path: lambda xml:
+                    xml + b'<!--' + os.urandom(524289).hex().encode() + b'-->'})
+                with patch.object(self.p, 'fromstring') as parser:
+                    self.reject(data, 'PART_SIZE_LIMIT', sheet=True)
+                parser.assert_not_called()
+
+    def test_shared_strings_actual_expansion_cap_with_understated_directory(self):
+        path = 'xl/sharedStrings.xml'
+        # Generate compressed fixture incrementally; never allocate a 64 MiB part.
+        with BytesIO() as buffer:
+            with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as archive:
+                with archive.open(path, 'w') as part:
+                    for _ in range(1024):
+                        part.write(b' ' * 65536)
+                    part.write(b' ')
+            data = bytearray(buffer.getvalue())
+        with patch.object(zipfile.ZipFile, 'read', side_effect=AssertionError('whole part read')):
+            self.reject(bytes(data), 'PART_SIZE_LIMIT')
+        directory = data.index(b'PK\x01\x02')
+        struct.pack_into('<I', data, directory + 24, 1)
+        with patch.object(self.p, 'MAX_RATIO', 100000), patch.object(
+                zipfile.ZipFile, 'read', side_effect=AssertionError('whole part read')):
+            self.reject(bytes(data), 'PART_SIZE_LIMIT')
+
+    def test_metadata_actual_expansion_cap_with_understated_directory(self):
+        data = bytearray(rewrite(self.data, {'[Content_Types].xml': lambda xml:
+            xml + b'<!--' + b'x' * (1024 * 1024) + b'-->'}))
+        offset = 0
+        while True:
+            offset = data.index(b'PK\x01\x02', offset)
+            if data[offset + 46:offset + 46 + len(b'[Content_Types].xml')] == b'[Content_Types].xml':
+                break
+            offset += 4
+        struct.pack_into('<I', data, offset + 24, 1)
+        with patch.object(self.p, 'MAX_RATIO', 100000):
+            self.reject(bytes(data), 'PART_SIZE_LIMIT')
+
+    def _strings_archive(self, entries):
+        buffer = BytesIO()
+        with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as archive:
+            with archive.open('xl/sharedStrings.xml', 'w') as part:
+                part.write(('<sst xmlns="' + self.p.NS[1:-1] + '">').encode())
+                for entry in entries:
+                    part.write(entry)
+                part.write(b'</sst>')
+        return buffer
+
+    def test_shared_string_four_million_count_cap(self):
+        from itertools import chain, repeat
+        with self._strings_archive(chain(repeat(b'<si/>' * 1000, 4000), [b'<si/>'])) as buffer:
+            with zipfile.ZipFile(buffer) as archive, self.assertRaises(self.p.WorkbookError) as caught:
+                self.p._shared_strings(archive)
+            self.assertEqual(caught.exception.code, 'SHARED_STRING_LIMIT')
+
+    def test_shared_string_length_cap_including_rich_text(self):
+        for entry in (b'<si><t>' + b'x' * 32768 + b'</t></si>',
+                      b'<si><r><t>' + b'x' * 16384 + b'</t></r><r><t>'
+                      + b'x' * 16384 + b'</t></r></si>'):
+            with self._strings_archive([entry]) as buffer:
+                with zipfile.ZipFile(buffer) as archive, self.assertRaises(self.p.WorkbookError) as caught:
+                    self.p._shared_strings(archive)
+                self.assertEqual(caught.exception.code, 'SHARED_STRING_LIMIT')
+
+    def test_shared_strings_declaration_before_parser(self):
+        with self._strings_archive([b'<!DOCTYPE sst>']) as buffer:
+            with zipfile.ZipFile(buffer) as archive, patch.object(self.p, 'iterparse') as parser:
+                with self.assertRaises(self.p.WorkbookError) as caught:
+                    self.p._shared_strings(archive)
+                self.assertEqual(caught.exception.code, 'XML_INVALID')
+                parser.assert_not_called()
+
+    def test_normal_shared_strings_stream_and_resolve_headers(self):
+        labels = list(self.p.LEDGER_HEADERS)
+        strings = ('<sst xmlns="' + self.p.NS[1:-1] + '">' + ''.join(
+            '<si><t>' + label + '</t></si>' for label in labels)
+            + '<si><t> </t></si><si><r><t>Other</t></r></si></sst>').encode()
+        def shared_headers(xml):
+            for index, label in enumerate(labels):
+                xml = xml.replace(b't="inlineStr"><is><t>' + label.encode() + b'</t></is>',
+                                  f't="s"><v>{index}</v>'.encode())
+            return xml
+        data = rewrite(self.data, {
+            '[Content_Types].xml': lambda xml: xml.replace(b'</Types>',
+                b'<Override PartName="/xl/sharedStrings.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/></Types>'),
+            'xl/worksheets/sheet1.xml': shared_headers,
+        }, extra=[('xl/sharedStrings.xml', strings)])
+        original = zipfile.ZipFile.read
+        def bounded_read(archive, name, *args, **kwargs):
+            self.assertNotEqual(getattr(name, 'filename', name), 'xl/sharedStrings.xml')
+            return original(archive, name, *args, **kwargs)
+        with self.preflight(data) as upload, patch.object(zipfile.ZipFile, 'read', bounded_read):
+            self.p.scan_workbook(upload)
+            with zipfile.ZipFile(upload.buffer) as archive:
+                self.assertEqual(self.p._shared_strings(archive), labels + [False, True])
+
     def test_relationship_resolution_matches_openpyxl(self):
         import openpyxl
         for target in ('worksheets/sheet1.xml', '/xl/worksheets/sheet1.xml', '/xl/worksheets/Sheet1.xml'):
@@ -370,6 +469,34 @@ class WorkbookSafetyTests(SimpleTestCase):
 
 
 class WorkbookSelectionHTTPTests(TestCase):
+    def test_part_and_string_limits_http_before_producer(self):
+        from rest_framework.test import APIClient
+        from urllib.parse import urlencode
+        from api.finance_run_test_utils import actor
+        from api.models import FinanceRun
+        client = APIClient()
+        client.force_authenticate(actor())
+        data = workbook_bytes()
+        oversized_metadata = rewrite(data, {'[Content_Types].xml': lambda xml:
+            xml + b'<!--' + b'x' * (1024 * 1024) + b'-->'})
+        strings = (b'<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+                   b'<si><t>' + b'x' * 32768 + b'</t></si></sst>')
+        oversized_string = rewrite(data, {'[Content_Types].xml': lambda xml: xml.replace(
+            b'</Types>', b'<Override PartName="/xl/sharedStrings.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/></Types>')},
+            extra=[('xl/sharedStrings.xml', strings)])
+        for payload, code in ((oversized_metadata, 'PART_SIZE_LIMIT'),
+                              (oversized_string, 'SHARED_STRING_LIMIT')):
+            with self.subTest(code=code), patch('api.parsers.finance_workbook.MAX_RATIO', 100000), patch(
+                    'api.services.finance_runs.build_run_artifact') as producer, patch(
+                    'openpyxl.load_workbook') as loader:
+                response = client.post('/api/finance/runs/?' + urlencode(
+                    dict(kind='funders', year=2026, source_name=NAME)), payload, content_type=MIME)
+                self.assertEqual(response.status_code, 400)
+                self.assertEqual(response.data, {'code': code})
+                self.assertFalse(FinanceRun.objects.exists())
+                producer.assert_not_called()
+                loader.assert_not_called()
+
     def test_trailing_slash_target_http_rejected_before_producer_or_openpyxl(self):
         from rest_framework.test import APIClient
         from urllib.parse import urlencode
