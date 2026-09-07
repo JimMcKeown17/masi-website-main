@@ -28,6 +28,8 @@ MAX_SHARED_STRINGS_EXPANDED = 64 * 1024 * 1024
 MAX_SHARED_STRINGS = 4000000
 MAX_SHARED_STRING_CHILDREN = 1024
 MAX_SHARED_STRING_NODES = 2 * MAX_SHARED_STRINGS
+MAX_SHEET_NODES = 8000000
+MAX_SHEET_RETAINED_NODES = 65536
 MAX_STRING_LENGTH = 32767
 MAX_ENTRIES = 256
 MAX_RATIO = 100
@@ -214,10 +216,17 @@ def _shared_strings(archive):
     if 'xl/sharedStrings.xml' not in archive.namelist():
         return values
     _check_declarations(archive, 'xl/sharedStrings.xml', 'XML_INVALID')
-    nodes = children = length = 0
+    nodes = children = length = depth = 0
     texts = None
     for event, element in _events(archive, 'xl/sharedStrings.xml'):
         if event == 'start':
+            depth += 1
+            # openpyxl clears si only: no extensions or wrappers may survive
+            # outside entries until the complete string table has been read.
+            if depth == 1:
+                require(element.tag == NS + 'sst', 'SHARED_STRING_LIMIT')
+            elif texts is None:
+                require(depth == 2 and element.tag == NS + 'si', 'SHARED_STRING_LIMIT')
             nodes += 1
             require(nodes <= MAX_SHARED_STRING_NODES, 'SHARED_STRING_LIMIT')
             if texts is not None:
@@ -228,13 +237,14 @@ def _shared_strings(archive):
                 require(len(values) < MAX_SHARED_STRINGS, 'SHARED_STRING_LIMIT')
                 texts = []
                 children = length = 0
-        elif texts is not None:
-            if element.tag == NS + 't':
+        else:
+            depth -= 1
+            if texts is not None and element.tag == NS + 't':
                 text = element.text or ''
                 length += len(text)
                 require(length <= MAX_STRING_LENGTH, 'SHARED_STRING_LIMIT')
                 texts.append(text)
-            elif element.tag == NS + 'si':
+            elif texts is not None and element.tag == NS + 'si':
                 values.append(_label(''.join(texts)))
                 texts = None
     return values
@@ -272,8 +282,28 @@ def _scan_sheet_xml(archive, path, name, strings):
     value = None
     formula = False
     inline = []
+    nodes = metadata_nodes = row_nodes = depth = row_depth = 0
     for event, element in _events(archive, path):
         tag = element.tag
+        if event == 'start':
+            depth += 1
+            if depth == 1:
+                require(tag == NS + 'worksheet', 'XML_INVALID')
+            nodes += 1
+            require(nodes <= MAX_SHEET_NODES, 'XML_INVALID')
+            # WorkSheetParser clears rows and dispatched metadata at end, but
+            # retains unknown nodes and converted metadata for the whole part.
+            # Count cleared row shells too: openpyxl does not detach them.
+            # Bound cumulative non-row structure and each retained row tree.
+            if not row_depth:
+                metadata_nodes += 1
+                require(metadata_nodes <= MAX_SHEET_RETAINED_NODES, 'XML_INVALID')
+            if tag == NS + 'row' and not row_depth:
+                row_depth = depth
+                row_nodes = 0
+            if row_depth:
+                row_nodes += 1
+                require(row_nodes <= MAX_SHEET_RETAINED_NODES, 'XML_INVALID')
         if event == 'start' and tag == NS + 'c':
             value = None
             formula = False
@@ -329,6 +359,10 @@ def _scan_sheet_xml(archive, path, name, strings):
             if name == 'Funder Budgets' and all(h in row_values.values() for h in CONTRACT_HEADERS):
                 require(all(list(row_values.values()).count(h) == 1 for h in CONTRACT_HEADERS), 'CONTRACT_KEY_HEADER')
                 header_rows += 1
+        if event == 'end':
+            if depth == row_depth:
+                row_depth = 0
+            depth -= 1
     if name == 'Expenditure':
         require(all(list(headers.values()).count(h) == 1 for h in LEDGER_HEADERS), 'LEDGER_REQUIRED_HEADER')
         require(extent * header_width <= 4000000, 'LEDGER_CELL_LIMIT')

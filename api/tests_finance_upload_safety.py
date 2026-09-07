@@ -728,3 +728,188 @@ class SharedStringComplexityHTTPTests(TestCase):
         self.assertFalse(FinanceRun.objects.exists())
         producer.assert_not_called()
         loader.assert_not_called()
+
+
+def rejected_out_of_entry_rss_probe():
+    import resource
+    import sys
+    from itertools import repeat
+    from api.parsers import finance_workbook as p
+    data = string_complexity_workbook(repeat(b'<r><t/></r>' * 1000, 2200))
+    assert len(data) == 24202796, len(data)
+    original = p.iterparse
+    consumed = 0
+
+    def counted(*args, **kwargs):
+        nonlocal consumed
+        for item in original(*args, **kwargs):
+            consumed += 1
+            assert consumed <= 2, 'out-of-entry rejection descended into stray subtree'
+            yield item
+
+    with patch.object(p, 'iterparse', counted), patch('openpyxl.load_workbook') as loader:
+        try:
+            with p.preflight(BytesIO(data), source_name=NAME, content_type=MIME) as upload:
+                p.scan_workbook(upload)
+        except p.WorkbookError as error:
+            assert str(error) == error.code == 'SHARED_STRING_LIMIT'
+        else:
+            raise AssertionError('out-of-entry strings accepted')
+        loader.assert_not_called()
+    peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    peak = peak if sys.platform == 'darwin' else peak * 1024
+    print(f'OUT_OF_ENTRY_PEAK_RSS_BYTES={peak}; EVENTS={consumed}; UPLOAD_BYTES={len(data)}', flush=True)
+    assert peak < 200 * 1024 * 1024, peak
+
+
+class Round6StructureTests(SimpleTestCase):
+    def scan(self, data):
+        from api.parsers import finance_workbook as p
+        with p.preflight(BytesIO(data), source_name=NAME, content_type=MIME) as upload:
+            p.scan_workbook(upload)
+
+    def assert_early_rejection(self, data, code, events):
+        from api.parsers import finance_workbook as p
+        original = p.iterparse
+        consumed = 0
+
+        def counted(*args, **kwargs):
+            nonlocal consumed
+            for item in original(*args, **kwargs):
+                consumed += 1
+                self.assertLessEqual(consumed, events)
+                yield item
+
+        with patch.object(p, 'iterparse', counted), self.assertRaises(p.WorkbookError) as caught:
+            self.scan(data)
+        self.assertEqual(str(caught.exception), code)
+        self.assertEqual(consumed, events)
+
+    def test_exact_out_of_entry_fixture_rejected_at_second_event_under_200_mib(self):
+        import subprocess
+        import sys
+        result = subprocess.run([sys.executable, '-c',
+            'from api.tests_finance_upload_safety import rejected_out_of_entry_rss_probe; rejected_out_of_entry_rss_probe()'],
+            capture_output=True, text=True, timeout=60)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        print(result.stdout.strip())
+
+    def test_shared_string_root_must_be_canonical_sst(self):
+        data = string_complexity_workbook([b'<si><t>Date</t></si>'])
+        for transform in (
+                lambda x: x.replace(b'sst', b'wrapper'),
+                lambda x: x.replace(b'spreadsheetml/2006/main', b'other'),
+                lambda x: x.replace(b'<sst xmlns=', b'<si xmlns=').replace(b'</sst>', b'</si>')):
+            with self.subTest(transform=transform):
+                self.assert_early_rejection(rewrite(data, {'xl/sharedStrings.xml': transform}),
+                                            'SHARED_STRING_LIMIT', 1)
+
+    def test_nested_wrapper_outside_entries_rejected_before_descending(self):
+        self.assert_early_rejection(string_complexity_workbook([
+            b'<wrapper><si><t>private-value</t></si></wrapper>']), 'SHARED_STRING_LIMIT', 2)
+
+    def test_stray_element_between_valid_entries_rejected_on_start(self):
+        self.assert_early_rejection(string_complexity_workbook([
+            b'<si><t>Date</t></si><stray secret="private-value"/><si><t>Year</t></si>']),
+            'SHARED_STRING_LIMIT', 6)
+
+    def test_plain_shared_string_part_and_real_openpyxl_path_unchanged(self):
+        import openpyxl
+        from api.parsers import finance_workbook as p
+        data = string_complexity_workbook([b'<si><t>Date</t></si><si><t>private-value</t></si>'])
+        self.scan(data)
+        with zipfile.ZipFile(BytesIO(data)) as archive:
+            self.assertEqual(p._shared_strings(archive), ['Date', True])
+        wb = openpyxl.load_workbook(BytesIO(data), read_only=True)
+        try:
+            self.assertEqual(wb['Expenditure']._shared_strings, ['Date', 'private-value'])
+            self.assertEqual(next(wb['Expenditure'].values), p.LEDGER_HEADERS)
+        finally:
+            wb.close()
+        self.scan(workbook_bytes())
+
+    def test_worksheet_root_must_be_canonical_before_descending(self):
+        data = workbook_bytes()
+        for transform in (lambda x: x.replace(b'worksheet', b'wrapper'),
+                          lambda x: x.replace(b'spreadsheetml/2006/main', b'other')):
+            with self.subTest(transform=transform):
+                self.assert_early_rejection(rewrite(data, {'xl/worksheets/sheet1.xml': transform}),
+                                            'XML_INVALID', 1)
+
+    def test_worksheet_part_budget_counts_unmodeled_elements_on_start(self):
+        from api.parsers import finance_workbook as p
+        self.assertEqual(getattr(p, 'MAX_SHEET_NODES', None), 8000000)
+        data = workbook_bytes()
+        with zipfile.ZipFile(BytesIO(data)) as archive:
+            xml = archive.read('xl/worksheets/sheet1.xml')
+        nodes = sum(event == 'start' for event, _ in p._xml_events(BytesIO(xml)))
+        with patch.object(p, 'MAX_SHEET_NODES', nodes):
+            with zipfile.ZipFile(BytesIO(data)) as archive:
+                p._scan_sheet(archive, 'xl/worksheets/sheet1.xml', 'Expenditure', [])
+            changed = rewrite(data, {'xl/worksheets/sheet1.xml': lambda x:
+                x.replace(b'</worksheet>', b'<unmodeled/></worksheet>')})
+            with zipfile.ZipFile(BytesIO(changed)) as archive, self.assertRaises(p.WorkbookError) as caught:
+                p._scan_sheet(archive, 'xl/worksheets/sheet1.xml', 'Expenditure', [])
+            self.assertEqual(str(caught.exception), 'XML_INVALID')
+
+    def test_worksheet_retained_metadata_and_row_subtrees_bounded_on_start(self):
+        from api.parsers import finance_workbook as p
+        self.assertEqual(getattr(p, 'MAX_SHEET_RETAINED_NODES', None), 65536)
+        # Unknown nested wrappers and siblings survive openpyxl's row clearing;
+        # recognized metadata is also built before its end-event dispatch.
+        for prefix in (b'<wrapper><a><b><c/></b></a></wrapper>',
+                       b'<a/><b/><d/><e/>', b'<mergeCells><a><b><d/></b></a></mergeCells>',
+                       b'<sheetData><row r="1"><a><b><d/></b></a></row></sheetData>'):
+            data = rewrite(workbook_bytes(), {'xl/worksheets/sheet1.xml': lambda x:
+                x.replace(b'<sheetPr>', prefix + b'<sheetPr>', 1)})
+            with self.subTest(prefix=prefix), patch.object(p, 'MAX_SHEET_RETAINED_NODES', 3):
+                # Root counts toward cumulative metadata; rows get their own cap.
+                self.assert_early_rejection(data, 'XML_INVALID',
+                    6 if prefix.startswith(b'<sheetData>') else 6 if prefix.startswith(b'<a/>') else 4)
+
+    def test_worksheet_retained_budget_includes_cleared_row_shells(self):
+        from api.parsers import finance_workbook as p
+        data = string_complexity_workbook([])
+        # First sheet: worksheet + sheetData + one row = three retained nodes.
+        with patch.object(p, 'MAX_SHEET_RETAINED_NODES', 40):
+            self.scan(data)  # Includes the separate per-row descendant budget.
+            data = rewrite(data, {'xl/worksheets/sheet1.xml': lambda x:
+                x.replace(b'</sheetData>', b'<row r="2"/>' * 38 + b'</sheetData>')})
+            with self.assertRaises(p.WorkbookError) as caught:
+                self.scan(data)
+            self.assertEqual(str(caught.exception), 'XML_INVALID')
+
+
+class Round6StructureHTTPTests(TestCase):
+    def test_exact_out_of_entry_fixture_never_calls_producer_or_openpyxl(self):
+        from itertools import repeat
+        from rest_framework.test import APIClient
+        from urllib.parse import urlencode
+        from api.finance_run_test_utils import actor
+        from api.models import FinanceRun
+        from api.parsers import finance_workbook as p
+        data = string_complexity_workbook(repeat(b'<r><t/></r>' * 1000, 2200))
+        self.assertEqual(len(data), 24202796)
+        client = APIClient()
+        client.force_authenticate(actor())
+        original = p.iterparse
+        consumed = 0
+
+        def counted(*args, **kwargs):
+            nonlocal consumed
+            for item in original(*args, **kwargs):
+                consumed += 1
+                self.assertLessEqual(consumed, 2)
+                yield item
+
+        with patch.object(p, 'iterparse', counted), \
+             patch('api.services.finance_runs.build_run_artifact') as producer, \
+             patch('openpyxl.load_workbook') as loader:
+            response = client.post('/api/finance/runs/?' + urlencode(
+                dict(kind='funders', year=2026, source_name=NAME)), data, content_type=MIME)
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data, {'code': 'SHARED_STRING_LIMIT'})
+        self.assertEqual(consumed, 2)
+        self.assertFalse(FinanceRun.objects.exists())
+        producer.assert_not_called()
+        loader.assert_not_called()

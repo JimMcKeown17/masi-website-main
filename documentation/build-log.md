@@ -1816,3 +1816,110 @@ Git: staging the three named files was denied creating `.git/index.lock` with
 `Operation not permitted`. No commit or workaround was attempted; the three
 changed files remain intact and uncommitted. Final documentation-inclusive
 `git diff --check` passed.
+
+### Review fixes, round 6
+
+Scope: standalone clone at `73cea44`, plan section 3.8 and supplied
+D15/D29–D31/D38 constraints; structural upload validation only.
+
+RED first, before parser changes (venv activated):
+`DATABASE_URL=sqlite:///:memory: python manage.py test api.tests_finance_upload_safety.Round6StructureTests api.tests_finance_upload_safety.Round6StructureHTTPTests --noinput`
+— **Ran 9 tests in 0.492s; FAILED (failures=11)**, no errors. Subtests account
+for the failure total. Log: `venv/review-r6-red.log`. Named regressions:
+
+- `test_exact_out_of_entry_fixture_rejected_at_second_event_under_200_mib`
+- `test_shared_string_root_must_be_canonical_sst`
+- `test_nested_wrapper_outside_entries_rejected_before_descending`
+- `test_stray_element_between_valid_entries_rejected_on_start`
+- `test_plain_shared_string_part_and_real_openpyxl_path_unchanged` (passing control)
+- `test_worksheet_root_must_be_canonical_before_descending`
+- `test_worksheet_part_budget_counts_unmodeled_elements_on_start`
+- `test_worksheet_retained_metadata_and_row_subtrees_bounded_on_start`
+- `test_exact_out_of_entry_fixture_never_calls_producer_or_openpyxl`
+
+The exact ZIP_STORED fixture is 24,202,796 bytes, with 2,200,000 `<r><t/></r>`
+runs directly under `sst` and valid required-sheet headers. Both scanner and HTTP
+regressions abort RED safely if a third event is requested; they never send this
+unsafe fixture to real openpyxl. Fixtures and isolated RSS probes use memory only.
+
+Implementation and local source evidence:
+
+- Shared-string start events require the canonical SpreadsheetML `sst` root and
+  direct-child `si` entries. An unexpected element outside an entry rejects on
+  its own start event, before requesting any descendant event. Reuse the stable,
+  value-free `SHARED_STRING_LIMIT` code and existing HTTP 400/no-run mapping.
+  No non-entry extension elements are supported: openpyxl 3.1.5
+  `reader/strings.py:10` (`read_string_table`) clears only `si`, retaining other
+  subtrees until the complete part is parsed. Existing entry/descendant/text/part
+  caps and completed-element removal remain in force.
+- Worksheet start events require the canonical SpreadsheetML `worksheet` root.
+  Correction to the request's premise: this revision had an 8,000,000-element
+  shared-string part budget, but no worksheet element counter. Add the same
+  numeric ceiling per scanned worksheet, counting every element regardless of
+  whether the scanner models it. Worksheet structural/budget failures reuse
+  `XML_INVALID`, preserving value-free HTTP 400 behavior without service edits.
+- Installed openpyxl 3.1.5 `worksheet/_reader.py:125` (`WorkSheetParser.parse`)
+  clears rows and dispatched metadata at their end events, but does not detach
+  their empty shells. Unrecognized nodes remain attached; recognized metadata
+  is built from complete subtrees and stored on the parser. Thus the large part
+  budget alone is insufficient. Add a cumulative 65,536-node retained-structure
+  cap for all non-row elements plus row shells, and independently the same cap
+  for each row's complete subtree. All counts check start events, include unknown
+  descendants, and cannot reset through an unknown wrapper. This leaves room for
+  the 50,000-row envelope plus metadata while bounding retained node structure
+  separately from eight million streamed nodes. These are conservative node
+  bounds, not proof that every accepted workbook fits the worker RSS budget;
+  existing expanded-byte bounds still apply and release benchmarking stays open.
+  `WorkSheetParser.parse_dimensions` at line 172 clears elements until dimension
+  or sheetData; the full row iterator above has the relevant retention behavior.
+- Added `test_worksheet_retained_budget_includes_cleared_row_shells` after the
+  source inspection to cover repeated cleared rows. The first implementation run
+  exposed a test-fixture issue: the reduced sheet1 node ceiling also applied to
+  larger sheet2. Narrowed that exact-boundary check to its intended sheet; no
+  production cap was relaxed. Plain shared strings and actual openpyxl loading
+  retain their expected values; the generated real-producer tests remain in the
+  full suite. No real financial workbook was inspected or re-benchmarked here.
+
+Focused GREEN (venv activated, `DATABASE_URL=sqlite:///:memory:`):
+`python manage.py test api.tests_finance_upload_safety --noinput`
+— **59 tests in 16.365s; OK**, no skips (`venv/review-r6-focused.log`).
+Exact rejected out-of-entry scan: **118,063,104 bytes (112.59375 MiB)** absolute
+process peak RSS, **2 events**, **24,202,796 upload bytes**. The fresh subprocess
+includes imports, in-memory fixture construction, preflight and scan; no disk
+fixture or temporary file is created. HTTP independently proves no producer or
+openpyxl call and no FinanceRun creation. The prior inside-entry rejection and
+accepted string-heavy openpyxl regressions also remain GREEN.
+
+Final GREEN (venv activated, `DATABASE_URL=sqlite:///:memory:`):
+
+- `python manage.py test --noinput` — **773 tests in 45.234s; OK (skipped=9)**,
+  **764 passed**, zero failures/errors (`venv/review-r6-full-green.log`).
+  Exact out-of-entry rejected scan: **117,915,648 bytes (112.453125 MiB)**,
+  **2 events**, **24,202,796 bytes**; below the 200 MiB rejection gate.
+  Prior inside-entry rejected peak: **118,046,720 bytes**, 2,051 events;
+  accepted string-heavy openpyxl peak: **147,210,240 bytes**.
+- `python manage.py check` — **System check identified no issues (0 silenced).**
+- `python manage.py makemigrations --check --dry-run` — **No changes detected.**
+- `git diff --check` — **passed**, including this documentation update.
+
+PENDING — supervisor PostgreSQL full-suite/check/migration-drift gate. Seven
+concurrency tests skip with `Requires PostgreSQL advisory locks and separate
+connections.` One unique-current test skips with `Requires PostgreSQL conditional
+unique constraint release evidence.` The ninth skip is `real payroll ledger
+not on this machine`. The existing missing-staticfiles warning remains.
+
+PENDING — supervisor real-workbook scan/RSS re-benchmark and successful
+PostgreSQL producer/facts full-path release measurements, including maximum
+cell/string envelopes, duplicate-heavy paths and concurrent-reader capacity.
+Verify the new worksheet retained-structure bounds on the largest valid real
+workbook; do not relax them without repeated memory evidence. Local synthetic
+SQLite/openpyxl results are not PostgreSQL, release, deployment or production
+proof. No migrations, environment changes, schedules or one-off operations are
+required. No network, production access, or writes outside this clone occurred.
+Only parser, safety tests and this log change; approval/demotion, cutover,
+migration, legacy import and publisher remain unchanged. The pre-existing
+untracked `.review-detached.pid` is untouched.
+
+Git: staging the three named files was denied creating `.git/index.lock` with
+`Operation not permitted`. No commit or workaround was attempted; the tree is
+intact and uncommitted. Final documentation-inclusive `git diff --check` passed.
