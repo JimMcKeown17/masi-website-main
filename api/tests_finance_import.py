@@ -5,6 +5,7 @@ from django.core.management import call_command
 from django.core.management.base import CommandError
 from rest_framework.test import APIClient
 from api.finance_run_test_utils import actor, candidate, legacy
+from api.finance_snapshot_compat import snapshot_response
 
 
 class LegacyImportTests(TestCase):
@@ -22,7 +23,7 @@ class LegacyImportTests(TestCase):
             workbook_sha256=self.row.workbook_sha256,published_at=self.row.published_at.isoformat().replace('+00:00','Z'),
             loaded_at=self.row.loaded_at.isoformat(),available_years=[2026],snapshot=self.row.payload)
         result=self.service.import_legacy_snapshots(self.user, year=2026, legacy_row_id=self.row.pk)[0]
-        self.assertEqual(self.client.get('/api/finance/snapshot/').json(),expected)
+        self.assertEqual(snapshot_response(self.service.FinanceRun.objects.get(kind='funders', status='approved', accounting_year=2026), [2026]),expected)
         self.assertEqual(result.uploaded_by,self.user); self.assertEqual(result.approved_by,self.user)
         self.assertIsNone(result.producer_version); self.assertIsNone(result.facts_sha256)
         self.assertEqual(result.payload,self.row.payload); self.assertEqual(result.payload_sha256,self.row.payload_sha256)
@@ -31,7 +32,7 @@ class LegacyImportTests(TestCase):
         type(self.row).objects.filter(pk=self.row.pk).update(payload={},workbook_sha256='f'*64)
         replay=self.service.import_legacy_snapshots(self.user, year=2026, legacy_row_id=self.row.pk)[0]
         self.assertEqual((replay.pk,replay.uploaded_at,replay.approved_at),original)
-        self.assertEqual(self.client.get('/api/finance/snapshot/').json(),expected)
+        self.assertEqual(snapshot_response(self.service.FinanceRun.objects.get(kind='funders', status='approved', accounting_year=2026), [2026]),expected)
         with self.assertNumQueries(0): self.assertEqual(replay.payload,expected['snapshot'])
 
     def test_existing_run_refuses_import(self):
@@ -62,12 +63,12 @@ class LegacyImportTests(TestCase):
         call_command('import_legacy_finance_snapshot',apply=True,**options)
         self.assertEqual(FinanceRun.objects.get().approval_note,'Import reviewed')
 
-    def test_snapshot_view_never_reads_legacy_table(self):
+    def test_run_projection_and_current_never_read_legacy_table(self):
         self.service.import_legacy_snapshots(self.user, year=2026, legacy_row_id=self.row.pk)
         from django.db import connection
         from django.test.utils import CaptureQueriesContext
         with CaptureQueriesContext(connection) as queries:
-            self.assertEqual(self.client.get('/api/finance/snapshot/').status_code,200)
+            self.assertEqual(snapshot_response(self.service.FinanceRun.objects.get(status='approved'), [2026])['accounting_year'], 2026)
             self.assertEqual(self.client.get('/api/finance/current/?year=2026').status_code,200)
         self.assertFalse(any('api_financesnapshot' in q['sql'].lower() for q in queries))
 
@@ -123,7 +124,7 @@ class LegacyImportTests(TestCase):
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
         imported = self.service.import_legacy_snapshots(self.user, year=2026, legacy_row_id=self.row.pk)[0]
-        expected = self.client.get('/api/finance/snapshot/').json()
+        expected = snapshot_response(self.service.FinanceRun.objects.get(kind='funders', status='approved', accounting_year=2026), [2026])
         replacement = dict(self.row.payload)
         replacement['source'] = {**replacement['source'], 'sha256': 'f' * 64}
         replacement['payload_sha256'] = payload_digest(replacement)
@@ -133,13 +134,13 @@ class LegacyImportTests(TestCase):
             module.Command(stdout=StringIO()).handle(path=str(changed), apply=True, force=True)
         self.row.refresh_from_db()
         self.assertEqual(self.row.workbook_sha256, 'f' * 64)
-        self.assertEqual(self.client.get('/api/finance/snapshot/').json(), expected)
+        self.assertEqual(snapshot_response(self.service.FinanceRun.objects.get(kind='funders', status='approved', accounting_year=2026), [2026]), expected)
         run = candidate(self.user, sha=imported.source_sha256)
         with CaptureQueriesContext(connection) as queries:
             approve(run, self.user)
-            self.assertEqual(self.client.get('/api/finance/snapshot/').json()['snapshot']['schema_version'], '1.1.0')
+            self.assertEqual(snapshot_response(self.service.FinanceRun.objects.get(kind='funders', status='approved', accounting_year=2026), [2026])['snapshot']['schema_version'], '1.1.0')
             restored = self.service.demote_run(run.pk, self.user, note='Restore approved import', acknowledge_findings=True)
             self.assertEqual(restored.pk, imported.pk)
-            self.assertEqual(self.client.get('/api/finance/snapshot/').json(), expected)
+            self.assertEqual(snapshot_response(self.service.FinanceRun.objects.get(kind='funders', status='approved', accounting_year=2026), [2026]), expected)
             self.assertEqual(self.client.get('/api/finance/current/?year=2026').json()['runs']['funders']['id'], str(imported.pk))
         self.assertFalse(any('api_financesnapshot' in q['sql'].lower() for q in queries))

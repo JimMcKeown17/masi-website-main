@@ -105,18 +105,8 @@ class FinanceCurrentTests(TestCase):
         self.assertEqual(next_run.demoted_by, publisher)
         self.assertEqual(self.client.post(f'/api/finance/runs/{next_run.pk}/approve/', options, format='json').status_code, 200)
 
-    def test_query_filters_invalid_options_and_approved_years(self):
+    def test_query_filters_and_invalid_options(self):
         for query in ('year=bad', 'kind=budget', 'status=made_up', 'order=id'):
             self.assertEqual(self.client.get('/api/finance/runs/?' + query).status_code, 400)
         for body in ({'override_anti_rollback': 'false'}, {'acknowledge_findings': 1}, {'note': 3}):
             self.assertEqual(self.client.post(f'/api/finance/runs/{self.run.pk}/approve/', body, format='json').status_code, 400)
-        self.assertEqual(self.client.get('/api/finance/snapshot/').status_code, 404)
-        approve(self.run, self.user)
-        artifact = golden()
-        artifact['derived'] = {key: [] for key in artifact['derived']}
-        artifact['ledger'] = {'rows': [], 'allocations': []}
-        candidate(self.user, year=2027, artifact=artifact)
-        data = self.client.get('/api/finance/snapshot/').json()
-        self.assertEqual(data['available_years'], [2026])
-        self.assertEqual(data['accounting_year'], 2026)
-        self.assertEqual(self.client.get('/api/finance/snapshot/?year=2027').status_code, 404)

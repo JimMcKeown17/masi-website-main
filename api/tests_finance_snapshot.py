@@ -152,10 +152,8 @@ def _make_user(username, role):
 
 
 def _publish(year=2026, workbook_date=date(2026, 8, 31), run_id="2026-09-01T12:00:00Z-0a1b2c"):
-    from api.finance_run_test_utils import actor, legacy
-    from api.services.finance_runs import import_legacy_snapshots
-    row = legacy(year)
-    return import_legacy_snapshots(actor(f'importer_{year}'), year=year, legacy_row_id=row.pk)[0]
+    from api.finance_run_test_utils import legacy
+    return legacy(year)
 
 
 class FinanceSnapshotEndpointTests(TestCase):
@@ -238,8 +236,7 @@ class FinanceSnapshotEndpointTests(TestCase):
         self.assertEqual(self.client.get(self.URL + "?year=abc").status_code, 400)
 
     def test_nothing_published_at_all_is_404(self):
-        from api.models import FinanceRun
-        FinanceRun.objects.all().delete()
+        FinanceSnapshot.objects.all().delete()
         self._auth("ADMIN")
         response = self.client.get(self.URL)
         self.assertEqual(response.status_code, 404)
