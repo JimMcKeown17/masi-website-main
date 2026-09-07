@@ -1923,3 +1923,207 @@ untracked `.review-detached.pid` is untouched.
 Git: staging the three named files was denied creating `.git/index.lock` with
 `Operation not permitted`. No commit or workaround was attempted; the tree is
 intact and uncommitted. Final documentation-inclusive `git diff --check` passed.
+
+## 2026-09-07 WP4 slice A backend stage
+
+Authority: approved revision 2 `/tmp/wp4-plan-for-backend.md`, extending released
+WP2a at `b6dcfc1` in this standalone `feat/wp4a-budgets-backend` clone.
+Supervisor D15, D17.1, D21, D29–D31, D33, D36–D38 remain binding. No network or
+production access. This stage uses the supervisor-installed publisher from
+masi-finance main `480dc00`; its distribution metadata remains `0.2.0` while its
+installed contract verifier includes budgets. `requirements.txt` and `build.sh`
+remain unchanged: the deployment pin moves at the next unique publisher release,
+when the budgets upload pin and cumulative supported-pair registry must be updated.
+This installed-development-build evidence is not a tagged publisher release.
+
+### RED before implementation
+
+`DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py test api.tests_finance_budgets api.tests_finance_budget_safety api.tests_finance_budget_current --noinput --verbosity=2`
+— **Ran 21 tests in 0.677s; FAILED (failures=8, errors=9, skipped=2)**.
+Log: gitignored `venv/wp4-evidence/red.log`. Failures are unsupported upload
+metadata (400); errors are unsupported `ledger_run_id`/scanner kind arguments.
+Two existing-behavior controls passed. The PostgreSQL tests skip by engine with
+`Requires PostgreSQL advisory locks, row locks and separate connections; SQLite is functional evidence only.`
+
+Exact named RED suite (all names from approved 7-A items 6–8):
+
+- `api.tests_finance_budgets.BudgetTests.test_budget_raw_upload_reuses_candidate_transaction`
+- `api.tests_finance_budgets.BudgetTests.test_same_bytes_new_dependency_is_new_candidate`
+- `api.tests_finance_budgets.BudgetTests.test_replay_preserves_uploader_and_status`
+- `api.tests_finance_budgets.BudgetTests.test_dependency_factless_missing_corrupt_candidate_refuses`
+- `api.tests_finance_budgets.BudgetTests.test_dependency_fk_and_manifest_must_agree`
+- `api.tests_finance_budgets.BudgetTests.test_budget_approval_revalidates_derived_and_dependency`
+- `api.tests_finance_budgets.BudgetTests.test_funders_retained_candidate_still_approves_after_pin_update`
+- `api.tests_finance_budgets.BudgetTests.test_demote_replay_reapprove_preserves_acyclic_recovery`
+- `api.tests_finance_budgets.BudgetTests.test_all_mutations_require_publish_and_actors_are_server_derived`
+- `api.tests_finance_budget_safety.BudgetSafetyTests.test_31_sheet_unsized_export_reaches_producer`
+- `api.tests_finance_budget_safety.BudgetSafetyTests.test_stream_cap_and_unsafe_zip_create_no_history`
+- `api.tests_finance_budget_safety.BudgetSafetyTests.test_dimension_spoof_duplicate_nodes_and_shared_strings_reject_early`
+- `api.tests_finance_budget_safety.BudgetSafetyTests.test_external_link_and_missing_referenced_sheet_refuse`
+- `api.tests_finance_budget_safety.BudgetSafetyTests.test_empty_ancillary_is_not_empty_required_sheet`
+- `api.tests_finance_budget_safety.BudgetSafetyTests.test_parser_diagnostics_never_leak_auxiliary_values`
+- `api.tests_finance_budget_current.BudgetCurrentTests.test_same_management_sha_is_compatible_across_kinds`
+- `api.tests_finance_budget_current.BudgetCurrentTests.test_missing_kind_tolerated_but_unresolved_dependency_is_not`
+- `api.tests_finance_budget_current.BudgetCurrentTests.test_new_funder_current_marks_old_budget_incompatible_without_recompute`
+- `api.tests_finance_budget_current.BudgetCurrentTests.test_budget_approval_does_not_change_funder_snapshot_or_years`
+- `api.tests_finance_budget_current.BudgetPostgresTests.test_postgres_racing_approval_upload_and_injected_failure_preserve_current`
+- `api.tests_finance_budget_current.BudgetPostgresTests.test_postgres_dependency_admission_uses_consistent_lock_order`
+
+### Implementation and interpretation
+
+- Migration `0052_finance_budget_runs` adds the protected dependency FK and budgets
+  shape, preserving every funder row and immutable JSON. The existing unconditional
+  `finance_upload_identity` necessarily becomes conditional on `kind=funders`:
+  same name, same four columns and exactly the same funder uniqueness behavior.
+  Leaving it unconditional would prohibit the expressly required budget replay
+  against a new dependency. Budgets have a separate five-column partial unique key.
+- Same-year/kind dependency validation is a model/service invariant; cross-row
+  equality cannot be expressed in a portable SQL CHECK. The FK protects retention;
+  SQL checks require dependency on candidate/approved/superseded/failed budgets,
+  prohibit it for funders and prohibit budget fact counts/digests.
+- Shared service owns upload transaction, replay, measured RSS, history insertion
+  and all approval/demotion behavior. Sorted `(budgets, year)` then `(funders, year)`
+  advisory locks precede row locks in both upload and transitions. Dependencies may
+  be retained superseded, but must have validated 2.0.0 committed ledger facts.
+- Budgets approval invokes packaged calculation replay and its own serving schema;
+  it never invokes the funder 1.1.0 projection. Retained precise inputs, all digest
+  bindings and signed residual membership are checked before current changes.
+- The shared streaming scanner adds a budget profile; all released ZIP, expansion,
+  shared-string/declaration and retained-node limits stay in force. No XML slicing.
+- WP2b rows endpoints are absent at this base. Bring forward only bounded BC/Year
+  reads and CSV/XLSX export at the planned run-scoped paths, with the pinned ledger,
+  finite stored-BC variant resolution through `excel_equal`, and per-request access
+  checks. No generic metrics/diff/filter-token API is added.
+
+### Additional acceptance checks and diagnostic RED
+
+- Extended the named functional tests with safe failed-run retention/replay,
+  protected FK and SQL checks, error acknowledgement/note, all three anti-rollback
+  cases, actual contributor exports/access revocation, budget-only current and two
+  different ledger UUIDs sharing the same Management Accounts SHA.
+- `BudgetMigrationTests.test_upgrade_preserves_every_funder_field_and_constraint`
+  executes 0051 → 0052 on SQLite with both a successful 2.0.0 funder and imported
+  1.0.0 run. Every old field compares equal; dependency is null; funder illegal
+  state/payload/audit and duplicate-upload writes still refuse. No data migration.
+- `BudgetTests.test_odd_cent_half_shares_replay_without_assigning_residuals_to_inputs`
+  builds an actual synthetic funder workbook with 0.01 ledger Amount, two explicit
+  budget halves and fractional-cent budget assertions. Each displayed actual is
+  0.01 with group residual -0.01; month-3 projection is 0.02 each. Approval replays
+  with openpyxl forbidden. Residuals never become calculation inputs.
+- Additional diagnostic RED:
+  `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py test api.tests_finance_budget_safety.BudgetSafetyTests.test_scanner_unknown_decode_and_warning_channels_are_value_free --noinput`
+  — **Ran 1 test in 0.010s; FAILED (failures=1)**, exposing synthetic stdout,
+  stderr and warning text (`venv/wp4-evidence/diagnostic-red.log`). The budgets-only
+  scanner boundary now discards/restores stdout/stderr, captures category/count
+  diagnostics, converts unknown scanner exceptions to WORKBOOK_DECODE_FAILURE and
+  appends only PARSER_WARNING info to successful derived findings.
+- Producer diagnostic regression separately exposed jsonschema's multi-argument
+  exception representation: safe RUN_SCHEMA_INVALID is matched against its fixed
+  `message`, not a one-element `args` tuple. Unknown decoder errors remain
+  WORKBOOK_DECODE_FAILURE; unexpected service/database failures remain HTTP 500
+  and cannot create a plausible failed run. The released funder boundary is intact.
+- 31-sheet unsized fixture now actually reaches the installed producer and returns
+  a candidate. Unsafe stream/ZIP/shared-string tests prove no producer/openpyxl
+  invocation or budget history. Additional sparse-sheet aggregate/65-sheet/header
+  tests enforce the bounded profile before producer work. Synthetic workbooks are
+  built entirely in memory with fixed metadata/ZIP timestamps for stable replay.
+- CSV/XLSX use the same authorized BC/Year queryset and WP2's stable
+  `(date, sheet_row, row_key)` order. Pages are 100 rows; exports cap at 50,000.
+  `format` is the download format, not DRF renderer selection (the first export
+  test exposed a 404, corrected locally). XLSX is an in-memory new workbook;
+  source uploads are never retained or reconstructed.
+
+### Section 8 evidence rows
+
+| Evidence | Backend-stage result / supervisor gate |
+|---|---|
+| Local source / workbook acceptance | Synthetic full raw upload → detail → approval → current → contributors/export → demote/reapprove executed locally; real input PENDING. |
+| Adversarial plan review | Revision 2 APPROVED per supplied approval; no new independent implementation review claimed. |
+| Slice A RED / focused GREEN | Initial 21-test RED above; final focused suite recorded below. Slice B PENDING. |
+| Full suites / PostgreSQL / skips / warnings | SQLite results below; PostgreSQL and other repositories PENDING. Existing missing-staticfiles warning and private payroll skip remain. |
+| Publisher commit / unique tag | Supervisor-supplied main 480dc00 installed, metadata 0.2.0; unique tag/release pin PENDING. |
+| Budget schema SHA-256 | `4e35186a43eaf30cacb9ffc305db8c7f1be954905b9d87ee12afbfae417889b8`; backend copy exactly equals installed resource. |
+| Synthetic golden SHA-256 / equality | `86c6ada0f86a592d3228544cfe5917d3183a61910e5c97769735d6a49f7c0497`; backend copy exactly equals installed golden; frontend equality PENDING. |
+| Wheel/sdist / isolated installed checks | Four installed resources verified, digest mismatch still fails closed. Separate wheel/sdist build hashes and isolated installs PENDING with publisher release. |
+| Backend commit / migration / Render | Migration 0052 executes on SQLite; commit result below; PostgreSQL migration and Render deployment PENDING. |
+| Frontend / Vercel targets | PENDING supervisor/frontend stage. |
+| Real original-export rejection | PENDING coordinate-only diagnosis, timing and sampled RSS; no real workbook was supplied or accessed. |
+| Corrected-export upload / approval | PENDING operator-corrected export and exact named ledger, UUIDs/digests/counts and private actor audit. |
+| Parser / full-path benchmark | Command supports `--kind budgets --ledger-run-id UUID`, shared RSS measurement and actual file path; real successful/rejection runs, PostgreSQL, worker/aggregate memory, timeout margin and reader latency PENDING. |
+| Cross-kind current / retained run | SQLite same/mismatch/absent-kind, unchanged snapshot/years and retained funder approval verified; production PENDING. |
+| Transaction / recovery | SQLite rollback and acyclic recovery verified; named PostgreSQL races and lock order PENDING. |
+| Arithmetic reconciliation | Packaged retained-input replay, odd-cent shares, tamper/rehash rejection and synthetic contributor parity verified; real BC/share/orphan/Year reconciliation PENDING. |
+| Minimal UI / exports | Backend CSV/XLSX parity verified; browser/screenshots/keyboard and frontend rendering PENDING. |
+| Sheets acquisition / secrets | PENDING slice B; no credentials, Google integration or schedule added. |
+| Production reader probes | PENDING ADMIN, read-only Finance Manager, PROJECT MANAGER and plain STAFF live probes. No production access. |
+
+Required supervisor command shape (writes a candidate/failed run to its explicitly
+configured test/release database):
+`venv/bin/python manage.py benchmark_finance_upload '<dated-export-path>' --actor-user-id <authorized-id> --year 2026 --kind budgets --ledger-run-id <exact-ledger-uuid>`.
+No real-export byte count, SHA, latency, RSS, actor or run identity is invented here.
+No new environment variables, schedules, credentials or automatic operations.
+
+Full-suite integration exposed two test-isolation issues before final GREEN:
+`venv/wp4-evidence/full-final.log` — 806 tests in 48.886s, one failure and one
+error, 11 skips. Replay rebuilt a ZIP across a wall-clock second and got new bytes;
+the synthetic builder now canonicalizes core/ZIP timestamps. The new migration
+TransactionTestCase flushed migration-seeded Finance Managers grants before the
+released fresh-install test inspected them. The migration probe now runs in a
+separate explicitly in-memory SQLite subprocess, leaving the shared test database
+and released tests unchanged. It remains SQLite migration evidence only.
+
+### Final GREEN and gate inventory
+
+- Focused: `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py test api.tests_finance_budgets api.tests_finance_budget_safety api.tests_finance_budget_current --noinput`
+  — **Ran 33 tests in 4.398s; OK (skipped=2)**, 31 passed. Log:
+  `venv/wp4-evidence/focused-final.log`, SHA-256
+  `9405c1e5f50ef0f292f80e6d371965fb1aea546fa3f580acfd5eeb32121e69be`.
+  The subsequent fixture-isolation corrections were verified in the final full run.
+- Isolation regression: named budget migration + recovery + released capability
+  migration tests — **4 tests in 5.021s; OK**, no skips
+  (`venv/wp4-evidence/isolation-green.log`).
+- Full exact code/test tree:
+  `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py test api --noinput --verbosity=2`
+  — **Ran 806 tests in 51.727s; OK (skipped=11)**: **795 passed**, zero failures/errors.
+  Log: `venv/wp4-evidence/full-green.log`, SHA-256
+  `d9e3f1235cc6c18db3527216b6fc9a04f797d28eca4fd90b05f301efacfeb3b7`.
+- `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py check`:
+  **System check identified no issues (0 silenced).**
+- `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py makemigrations --check --dry-run`:
+  **No changes detected.** Exactly one new migration: `0052_finance_budget_runs`.
+- `git diff --check`: **passed**. Protected `requirements.txt`, `build.sh`,
+  `api/finance_snapshot_compat.py` and `api/views/finance.py` have no diff.
+- The installed verifier regression now asserts all four named resources and
+  still proves `CONTRACT_RESOURCE_DIGEST_MISMATCH` before migrations.
+- Initial named RED log SHA-256:
+  `6ca94df6670edf1d7cd1b5f2ceb7bf3e9b9d87f6c824a46f17cfaade2dbaf4ad`.
+- Existing WhiteNoise missing-staticfiles warning remains; no new unexplained
+  warning or xfail. Existing hostile funder safety probes also remain GREEN:
+  out-of-entry rejected RSS 119,586,816 bytes / 2 events; inside-entry rejected
+  RSS 117,637,120 bytes / 2,051 events; accepted string-heavy RSS 145,555,456 bytes.
+  These are synthetic process measurements, not real budget capacity evidence.
+
+PENDING PostgreSQL tests — must execute without SQLite skips at supervisor gate:
+
+1. `api.tests_finance_budget_current.BudgetPostgresTests.test_postgres_racing_approval_upload_and_injected_failure_preserve_current`
+2. `api.tests_finance_budget_current.BudgetPostgresTests.test_postgres_dependency_admission_uses_consistent_lock_order`
+3. `api.tests_finance_runs_model.FinanceRunModelTests.test_partial_unique_current`
+4. `api.tests_finance_runs_concurrency.FinanceConcurrencyTests.test_two_concurrent_approvals_one_wins_one_refuses`
+5. `api.tests_finance_runs_concurrency.FinanceConcurrencyTests.test_different_tuples_do_not_share_lock`
+6. `api.tests_finance_runs_concurrency.FinanceConcurrencyTests.test_import_uses_same_lock_and_replays_after_release`
+7. `api.tests_finance_runs_concurrency.FinanceConcurrencyTests.test_transition_select_for_update_locks_existing_rows`
+8. `api.tests_finance_runs_concurrency.FinanceConcurrencyTests.test_concurrent_imports_serialize_before_first_insert`
+9. `api.tests_finance_runs_concurrency.FinanceConcurrencyTests.test_first_ever_same_tuple_uploads_one_completes_one_conflicts`
+10. `api.tests_finance_runs_concurrency.FinanceConcurrencyTests.test_different_tuple_uploads_complete_while_first_is_locked`
+
+The other skip is unchanged:
+`api.tests_youth_budget.RealLedgerSeedTests.test_real_csv_parses_june_total_and_trimmed_april`
+— `real payroll ledger not on this machine`.
+PostgreSQL 0052 migration/constraint preservation, real original-export rejection,
+corrected-export acceptance/RSS/capacity, new publisher release/pin, deployment and
+production role probes remain **PENDING**. This stage is local backend evidence only.
+
+Git result: **uncommitted**. Staging the 17 explicitly named deliverable files was
+refused at this clone's `.git/index.lock` with `Operation not permitted`.
+No metadata workaround, alternate checkout, network, push or commit was attempted.
+All files remain intact; documentation-inclusive `git diff --check` passed.

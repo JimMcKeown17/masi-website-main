@@ -113,3 +113,6 @@ teampact_users_june10.csv
 !api/tests_data/finance-run-2.0.0.json
 /Users/jimmckeown/Development/Masi_Website_2026/backend/Masi Web Main/staticfiles/data/youth-payments-jan-june-2026.csv
 youth-payments-jan-june-2026.csv
+
+!api/contracts/budget-run-1.0.0.json
+!api/tests_data/budget-run-1.0.0.json

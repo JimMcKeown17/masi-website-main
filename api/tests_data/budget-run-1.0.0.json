@@ -1,0 +1,2939 @@
+{
+  "kind": "budgets",
+  "schema_version": "1.0.0",
+  "manifest": {
+    "schema_version": "1.0.0",
+    "producer": {
+      "name": "masi-finance",
+      "version": "0.2.0"
+    },
+    "source": {
+      "name": "20260903 - Synthetic Budget.xlsx",
+      "date": "2026-09-03",
+      "sha256": "e0f1adfbdf73a6d5f2ee14a5d26adc3a9d7879774dc24d5c0be025762ec3e7ca",
+      "size_bytes": 20851,
+      "client_modified_at": null
+    },
+    "accounting_year": 2026,
+    "rule_config_sha256": "1e2993576f1219a96dd6eadb200c998e058993c187d445e4e23bb205d59cacee",
+    "dependencies": [
+      {
+        "kind": "management_accounts",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "source_name": "20260901 - Synthetic Accounts.xlsx",
+        "source_date": "2026-09-01",
+        "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "payload_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "facts_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "producer_version": "0.2.0",
+        "schema_version": "2.0.0"
+      }
+    ],
+    "acquisition": {
+      "method": "file_upload",
+      "fetched_at": null,
+      "source_modified_at": null
+    }
+  },
+  "derived": {
+    "hierarchy": [
+      {
+        "id": "2026-4",
+        "level": 1,
+        "sheet_row": 4,
+        "label": "Department A",
+        "parent_id": null,
+        "child_ids": [
+          "2026-5",
+          "2026-14"
+        ],
+        "line_ids": [
+          "2026-6",
+          "2026-7",
+          "2026-8",
+          "2026-9",
+          "2026-10",
+          "2026-11",
+          "2026-12",
+          "2026-13",
+          "2026-15",
+          "2026-16",
+          "2026-17",
+          "2026-18"
+        ],
+        "rollup_shapes": {
+          "M": "sum",
+          "N": "sum"
+        },
+        "calculation_inputs": {
+          "M": null,
+          "N": null
+        },
+        "budget": null,
+        "actual": null,
+        "projected": null,
+        "variance_all": null,
+        "variance_masi": null,
+        "known_subtotals": {
+          "budget": "2.14",
+          "actual": "0.11",
+          "projected": "0.16",
+          "variance_all": "-1.98",
+          "variance_masi": "-1.03"
+        },
+        "monetary_projections": {
+          "budget": {
+            "total": null,
+            "residual": null,
+            "part_refs": [
+              {
+                "ref": "/derived/hierarchy/1/budget",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/hierarchy/2/budget",
+                "sign": 1
+              }
+            ]
+          },
+          "known_subtotals.budget": {
+            "total": "2.14",
+            "residual": "0.00",
+            "part_refs": [
+              {
+                "ref": "/derived/lines/0/budget",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/1/budget",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/2/budget",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/4/budget",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/5/budget",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/6/budget",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/7/budget",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/8/budget",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/9/budget",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/10/budget",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/11/budget",
+                "sign": 1
+              }
+            ]
+          },
+          "actual": {
+            "total": null,
+            "residual": null,
+            "part_refs": [
+              {
+                "ref": "/derived/hierarchy/1/actual",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/hierarchy/2/actual",
+                "sign": 1
+              }
+            ]
+          },
+          "known_subtotals.actual": {
+            "total": "0.11",
+            "residual": "-0.01",
+            "part_refs": [
+              {
+                "ref": "/derived/lines/0/actual",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/1/actual",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/2/actual",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/3/actual",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/4/actual",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/5/actual",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/6/actual",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/7/actual",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/8/actual",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/9/actual",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/11/actual",
+                "sign": 1
+              }
+            ]
+          },
+          "projected": {
+            "total": null,
+            "residual": null,
+            "part_refs": [
+              {
+                "ref": "/derived/hierarchy/1/projected",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/hierarchy/2/projected",
+                "sign": 1
+              }
+            ]
+          },
+          "known_subtotals.projected": {
+            "total": "0.16",
+            "residual": "-0.01",
+            "part_refs": [
+              {
+                "ref": "/derived/lines/0/projected",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/1/projected",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/2/projected",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/4/projected",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/5/projected",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/6/projected",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/7/projected",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/8/projected",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/9/projected",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/11/projected",
+                "sign": 1
+              }
+            ]
+          },
+          "variance_all": {
+            "total": null,
+            "residual": null,
+            "part_refs": [
+              {
+                "ref": "/derived/hierarchy/1/variance_all",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/hierarchy/2/variance_all",
+                "sign": 1
+              }
+            ]
+          },
+          "known_subtotals.variance_all": {
+            "total": "-1.98",
+            "residual": "0.00",
+            "part_refs": [
+              {
+                "ref": "/derived/lines/0/variance_all",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/1/variance_all",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/2/variance_all",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/4/variance_all",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/5/variance_all",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/6/variance_all",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/7/variance_all",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/8/variance_all",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/9/variance_all",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/11/variance_all",
+                "sign": 1
+              }
+            ]
+          },
+          "variance_masi": {
+            "total": null,
+            "residual": null,
+            "part_refs": [
+              {
+                "ref": "/derived/hierarchy/1/variance_masi",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/hierarchy/2/variance_masi",
+                "sign": 1
+              }
+            ]
+          },
+          "known_subtotals.variance_masi": {
+            "total": "-1.03",
+            "residual": "-0.01",
+            "part_refs": [
+              {
+                "ref": "/derived/lines/0/variance_masi",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/4/variance_masi",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/5/variance_masi",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/6/variance_masi",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/7/variance_masi",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/8/variance_masi",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/9/variance_masi",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/11/variance_masi",
+                "sign": 1
+              }
+            ]
+          }
+        },
+        "complete": false,
+        "completeness_reasons": [
+          "budget_incomplete",
+          "actual_incomplete",
+          "projected_incomplete",
+          "variance_all_incomplete",
+          "variance_masi_incomplete"
+        ],
+        "cross_checks": {
+          "variance": {
+            "cached": null,
+            "recomputed": null,
+            "delta": null,
+            "reason": "cache_missing",
+            "monetary_projections": {}
+          }
+        }
+      },
+      {
+        "id": "2026-5",
+        "level": 2,
+        "sheet_row": 5,
+        "label": "Section A",
+        "parent_id": "2026-4",
+        "child_ids": [
+          "2026-6",
+          "2026-7",
+          "2026-8",
+          "2026-9",
+          "2026-10",
+          "2026-11",
+          "2026-12",
+          "2026-13"
+        ],
+        "line_ids": [
+          "2026-6",
+          "2026-7",
+          "2026-8",
+          "2026-9",
+          "2026-10",
+          "2026-11",
+          "2026-12",
+          "2026-13"
+        ],
+        "rollup_shapes": {
+          "M": "sum",
+          "N": "sum"
+        },
+        "calculation_inputs": {
+          "M": null,
+          "N": null
+        },
+        "budget": null,
+        "actual": "0.11",
+        "projected": null,
+        "variance_all": null,
+        "variance_masi": null,
+        "known_subtotals": {
+          "budget": "2.09",
+          "actual": "0.11",
+          "projected": "0.15",
+          "variance_all": "-1.94",
+          "variance_masi": "-0.99"
+        },
+        "monetary_projections": {
+          "budget": {
+            "total": null,
+            "residual": null,
+            "part_refs": [
+              {
+                "ref": "/derived/lines/0/budget",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/1/budget",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/2/budget",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/3/budget",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/4/budget",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/5/budget",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/6/budget",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/7/budget",
+                "sign": 1
+              }
+            ]
+          },
+          "known_subtotals.budget": {
+            "total": "2.09",
+            "residual": "0.00",
+            "part_refs": [
+              {
+                "ref": "/derived/lines/0/budget",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/1/budget",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/2/budget",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/4/budget",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/5/budget",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/6/budget",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/7/budget",
+                "sign": 1
+              }
+            ]
+          },
+          "actual": {
+            "total": "0.11",
+            "residual": "0.00",
+            "part_refs": [
+              {
+                "ref": "/derived/lines/0/actual",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/1/actual",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/2/actual",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/3/actual",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/4/actual",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/5/actual",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/6/actual",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/7/actual",
+                "sign": 1
+              }
+            ]
+          },
+          "known_subtotals.actual": {
+            "total": "0.11",
+            "residual": "0.00",
+            "part_refs": [
+              {
+                "ref": "/derived/lines/0/actual",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/1/actual",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/2/actual",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/3/actual",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/4/actual",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/5/actual",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/6/actual",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/7/actual",
+                "sign": 1
+              }
+            ]
+          },
+          "projected": {
+            "total": null,
+            "residual": null,
+            "part_refs": [
+              {
+                "ref": "/derived/lines/0/projected",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/1/projected",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/2/projected",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/3/projected",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/4/projected",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/5/projected",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/6/projected",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/7/projected",
+                "sign": 1
+              }
+            ]
+          },
+          "known_subtotals.projected": {
+            "total": "0.15",
+            "residual": "-0.01",
+            "part_refs": [
+              {
+                "ref": "/derived/lines/0/projected",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/1/projected",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/2/projected",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/4/projected",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/5/projected",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/6/projected",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/7/projected",
+                "sign": 1
+              }
+            ]
+          },
+          "variance_all": {
+            "total": null,
+            "residual": null,
+            "part_refs": [
+              {
+                "ref": "/derived/lines/0/variance_all",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/1/variance_all",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/2/variance_all",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/3/variance_all",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/4/variance_all",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/5/variance_all",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/6/variance_all",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/7/variance_all",
+                "sign": 1
+              }
+            ]
+          },
+          "known_subtotals.variance_all": {
+            "total": "-1.94",
+            "residual": "0.01",
+            "part_refs": [
+              {
+                "ref": "/derived/lines/0/variance_all",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/1/variance_all",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/2/variance_all",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/4/variance_all",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/5/variance_all",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/6/variance_all",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/7/variance_all",
+                "sign": 1
+              }
+            ]
+          },
+          "variance_masi": {
+            "total": null,
+            "residual": null,
+            "part_refs": [
+              {
+                "ref": "/derived/lines/0/variance_masi",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/3/variance_masi",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/4/variance_masi",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/5/variance_masi",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/6/variance_masi",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/7/variance_masi",
+                "sign": 1
+              }
+            ]
+          },
+          "known_subtotals.variance_masi": {
+            "total": "-0.99",
+            "residual": "0.00",
+            "part_refs": [
+              {
+                "ref": "/derived/lines/0/variance_masi",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/4/variance_masi",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/5/variance_masi",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/6/variance_masi",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/7/variance_masi",
+                "sign": 1
+              }
+            ]
+          }
+        },
+        "complete": false,
+        "completeness_reasons": [
+          "budget_incomplete",
+          "projected_incomplete",
+          "variance_all_incomplete",
+          "variance_masi_incomplete"
+        ],
+        "cross_checks": {
+          "variance": {
+            "cached": null,
+            "recomputed": null,
+            "delta": null,
+            "reason": "cache_missing",
+            "monetary_projections": {}
+          }
+        }
+      },
+      {
+        "id": "2026-14",
+        "level": 2,
+        "sheet_row": 14,
+        "label": "Section B",
+        "parent_id": "2026-4",
+        "child_ids": [
+          "2026-15",
+          "2026-16",
+          "2026-17",
+          "2026-18"
+        ],
+        "line_ids": [
+          "2026-15",
+          "2026-16",
+          "2026-17",
+          "2026-18"
+        ],
+        "rollup_shapes": {
+          "M": "sum",
+          "N": "sum"
+        },
+        "calculation_inputs": {
+          "M": null,
+          "N": null
+        },
+        "budget": "0.05",
+        "actual": null,
+        "projected": null,
+        "variance_all": null,
+        "variance_masi": null,
+        "known_subtotals": {
+          "budget": "0.05",
+          "actual": "0.01",
+          "projected": "0.01",
+          "variance_all": "-0.04",
+          "variance_masi": "-0.04"
+        },
+        "monetary_projections": {
+          "budget": {
+            "total": "0.05",
+            "residual": "0.00",
+            "part_refs": [
+              {
+                "ref": "/derived/lines/8/budget",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/9/budget",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/10/budget",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/11/budget",
+                "sign": 1
+              }
+            ]
+          },
+          "known_subtotals.budget": {
+            "total": "0.05",
+            "residual": "0.00",
+            "part_refs": [
+              {
+                "ref": "/derived/lines/8/budget",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/9/budget",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/10/budget",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/11/budget",
+                "sign": 1
+              }
+            ]
+          },
+          "actual": {
+            "total": null,
+            "residual": null,
+            "part_refs": [
+              {
+                "ref": "/derived/lines/8/actual",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/9/actual",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/10/actual",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/11/actual",
+                "sign": 1
+              }
+            ]
+          },
+          "known_subtotals.actual": {
+            "total": "0.01",
+            "residual": "0.00",
+            "part_refs": [
+              {
+                "ref": "/derived/lines/8/actual",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/9/actual",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/11/actual",
+                "sign": 1
+              }
+            ]
+          },
+          "projected": {
+            "total": null,
+            "residual": null,
+            "part_refs": [
+              {
+                "ref": "/derived/lines/8/projected",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/9/projected",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/10/projected",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/11/projected",
+                "sign": 1
+              }
+            ]
+          },
+          "known_subtotals.projected": {
+            "total": "0.01",
+            "residual": "0.00",
+            "part_refs": [
+              {
+                "ref": "/derived/lines/8/projected",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/9/projected",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/11/projected",
+                "sign": 1
+              }
+            ]
+          },
+          "variance_all": {
+            "total": null,
+            "residual": null,
+            "part_refs": [
+              {
+                "ref": "/derived/lines/8/variance_all",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/9/variance_all",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/10/variance_all",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/11/variance_all",
+                "sign": 1
+              }
+            ]
+          },
+          "known_subtotals.variance_all": {
+            "total": "-0.04",
+            "residual": "-0.01",
+            "part_refs": [
+              {
+                "ref": "/derived/lines/8/variance_all",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/9/variance_all",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/11/variance_all",
+                "sign": 1
+              }
+            ]
+          },
+          "variance_masi": {
+            "total": null,
+            "residual": null,
+            "part_refs": [
+              {
+                "ref": "/derived/lines/8/variance_masi",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/9/variance_masi",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/10/variance_masi",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/11/variance_masi",
+                "sign": 1
+              }
+            ]
+          },
+          "known_subtotals.variance_masi": {
+            "total": "-0.04",
+            "residual": "-0.01",
+            "part_refs": [
+              {
+                "ref": "/derived/lines/8/variance_masi",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/9/variance_masi",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/11/variance_masi",
+                "sign": 1
+              }
+            ]
+          }
+        },
+        "complete": false,
+        "completeness_reasons": [
+          "actual_incomplete",
+          "projected_incomplete",
+          "variance_all_incomplete",
+          "variance_masi_incomplete"
+        ],
+        "cross_checks": {
+          "variance": {
+            "cached": null,
+            "recomputed": null,
+            "delta": null,
+            "reason": "cache_missing",
+            "monetary_projections": {}
+          }
+        }
+      }
+    ],
+    "lines": [
+      {
+        "id": "2026-6",
+        "sheet_row": 6,
+        "label": "Line 6",
+        "parent_id": "2026-5",
+        "bc": "101",
+        "calc": null,
+        "wf": null,
+        "actual_share": "1",
+        "budget_source": "literal",
+        "calculation_inputs": {
+          "budget_assertion": {
+            "coefficient": "1004",
+            "scale": 3
+          },
+          "g_cached": {
+            "coefficient": "1",
+            "scale": 2
+          },
+          "m_cached": {
+            "coefficient": "-9868571428571429",
+            "scale": 16
+          }
+        },
+        "formula_shapes": {
+          "g": "lookup",
+          "l": "calc_b_y_else",
+          "m": "projected_minus_budget",
+          "n": "wf"
+        },
+        "source_cells": {
+          "B": "2026 Budget!B6",
+          "C": "2026 Budget!C6",
+          "D": "2026 Budget!D6",
+          "E": "2026 Budget!E6",
+          "F": "2026 Budget!F6",
+          "G": "2026 Budget!G6",
+          "L": "2026 Budget!L6",
+          "M": "2026 Budget!M6",
+          "N": "2026 Budget!N6"
+        },
+        "budget": "1.00",
+        "actual": "0.01",
+        "projected": "0.02",
+        "variance_all": "-0.99",
+        "variance_masi": "-0.99",
+        "ledger_row_count": 1,
+        "complete": true,
+        "completeness_reasons": [],
+        "monetary_projections": {
+          "variance_all": {
+            "total": "-0.99",
+            "residual": "-0.01",
+            "part_refs": [
+              {
+                "ref": "/derived/lines/0/projected",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/0/budget",
+                "sign": -1
+              }
+            ]
+          }
+        },
+        "variance_masi_ref": "/derived/lines/0/variance_all",
+        "cross_checks": {
+          "actual": {
+            "cached": "0.01",
+            "recomputed": "0.01",
+            "delta": "0.00",
+            "reason": null,
+            "monetary_projections": {
+              "delta": {
+                "total": "0.00",
+                "residual": "0.00",
+                "part_refs": [
+                  {
+                    "ref": "/derived/lines/0/cross_checks/actual/recomputed",
+                    "sign": 1
+                  },
+                  {
+                    "ref": "/derived/lines/0/cross_checks/actual/cached",
+                    "sign": -1
+                  }
+                ]
+              }
+            }
+          },
+          "variance": {
+            "cached": "-0.99",
+            "recomputed": "-0.99",
+            "delta": "0.00",
+            "reason": null,
+            "monetary_projections": {
+              "delta": {
+                "total": "0.00",
+                "residual": "0.00",
+                "part_refs": [
+                  {
+                    "ref": "/derived/lines/0/cross_checks/variance/recomputed",
+                    "sign": 1
+                  },
+                  {
+                    "ref": "/derived/lines/0/cross_checks/variance/cached",
+                    "sign": -1
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
+        "id": "2026-7",
+        "sheet_row": 7,
+        "label": "Line 7",
+        "parent_id": "2026-5",
+        "bc": "102",
+        "calc": "Y",
+        "wf": "X",
+        "actual_share": "1",
+        "budget_source": "formula_cache",
+        "calculation_inputs": {
+          "budget_assertion": {
+            "coefficient": "1004",
+            "scale": 3
+          },
+          "g_cached": {
+            "coefficient": "3",
+            "scale": 2
+          },
+          "m_cached": {
+            "coefficient": "-9568571428571429",
+            "scale": 16
+          }
+        },
+        "formula_shapes": {
+          "g": "lookup",
+          "l": "calc_b_y_else",
+          "m": "projected_minus_budget",
+          "n": "wf"
+        },
+        "source_cells": {
+          "B": "2026 Budget!B7",
+          "C": "2026 Budget!C7",
+          "D": "2026 Budget!D7",
+          "E": "2026 Budget!E7",
+          "F": "2026 Budget!F7",
+          "G": "2026 Budget!G7",
+          "L": "2026 Budget!L7",
+          "M": "2026 Budget!M7",
+          "N": "2026 Budget!N7"
+        },
+        "budget": "1.00",
+        "actual": "0.03",
+        "projected": "0.05",
+        "variance_all": "-0.96",
+        "variance_masi": null,
+        "ledger_row_count": 1,
+        "complete": true,
+        "completeness_reasons": [
+          "wf_excluded"
+        ],
+        "monetary_projections": {
+          "variance_all": {
+            "total": "-0.96",
+            "residual": "-0.01",
+            "part_refs": [
+              {
+                "ref": "/derived/lines/1/projected",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/1/budget",
+                "sign": -1
+              }
+            ]
+          }
+        },
+        "variance_masi_ref": null,
+        "cross_checks": {
+          "actual": {
+            "cached": "0.03",
+            "recomputed": "0.03",
+            "delta": "0.00",
+            "reason": null,
+            "monetary_projections": {
+              "delta": {
+                "total": "0.00",
+                "residual": "0.00",
+                "part_refs": [
+                  {
+                    "ref": "/derived/lines/1/cross_checks/actual/recomputed",
+                    "sign": 1
+                  },
+                  {
+                    "ref": "/derived/lines/1/cross_checks/actual/cached",
+                    "sign": -1
+                  }
+                ]
+              }
+            }
+          },
+          "variance": {
+            "cached": "-0.96",
+            "recomputed": "-0.96",
+            "delta": "0.00",
+            "reason": null,
+            "monetary_projections": {
+              "delta": {
+                "total": "0.00",
+                "residual": "0.00",
+                "part_refs": [
+                  {
+                    "ref": "/derived/lines/1/cross_checks/variance/recomputed",
+                    "sign": 1
+                  },
+                  {
+                    "ref": "/derived/lines/1/cross_checks/variance/cached",
+                    "sign": -1
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
+        "id": "2026-8",
+        "sheet_row": 8,
+        "label": "Line 8",
+        "parent_id": "2026-5",
+        "bc": "103",
+        "calc": "B",
+        "wf": "x",
+        "actual_share": "1",
+        "budget_source": "literal",
+        "calculation_inputs": {
+          "budget_assertion": {
+            "coefficient": "0",
+            "scale": 0
+          },
+          "g_cached": {
+            "coefficient": "0",
+            "scale": 0
+          },
+          "m_cached": {
+            "coefficient": "0",
+            "scale": 0
+          }
+        },
+        "formula_shapes": {
+          "g": "lookup",
+          "l": "calc_b_y_else",
+          "m": "projected_minus_budget",
+          "n": "wf"
+        },
+        "source_cells": {
+          "B": "2026 Budget!B8",
+          "C": "2026 Budget!C8",
+          "D": "2026 Budget!D8",
+          "E": "2026 Budget!E8",
+          "F": "2026 Budget!F8",
+          "G": "2026 Budget!G8",
+          "L": "2026 Budget!L8",
+          "M": "2026 Budget!M8",
+          "N": "2026 Budget!N8"
+        },
+        "budget": "0.00",
+        "actual": "0.00",
+        "projected": "0.00",
+        "variance_all": "0.00",
+        "variance_masi": null,
+        "ledger_row_count": 1,
+        "complete": true,
+        "completeness_reasons": [
+          "wf_excluded"
+        ],
+        "monetary_projections": {
+          "variance_all": {
+            "total": "0.00",
+            "residual": "0.00",
+            "part_refs": [
+              {
+                "ref": "/derived/lines/2/projected",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/2/budget",
+                "sign": -1
+              }
+            ]
+          }
+        },
+        "variance_masi_ref": null,
+        "cross_checks": {
+          "actual": {
+            "cached": "0.00",
+            "recomputed": "0.00",
+            "delta": "0.00",
+            "reason": null,
+            "monetary_projections": {
+              "delta": {
+                "total": "0.00",
+                "residual": "0.00",
+                "part_refs": [
+                  {
+                    "ref": "/derived/lines/2/cross_checks/actual/recomputed",
+                    "sign": 1
+                  },
+                  {
+                    "ref": "/derived/lines/2/cross_checks/actual/cached",
+                    "sign": -1
+                  }
+                ]
+              }
+            }
+          },
+          "variance": {
+            "cached": "0.00",
+            "recomputed": "0.00",
+            "delta": "0.00",
+            "reason": null,
+            "monetary_projections": {
+              "delta": {
+                "total": "0.00",
+                "residual": "0.00",
+                "part_refs": [
+                  {
+                    "ref": "/derived/lines/2/cross_checks/variance/recomputed",
+                    "sign": 1
+                  },
+                  {
+                    "ref": "/derived/lines/2/cross_checks/variance/cached",
+                    "sign": -1
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
+        "id": "2026-9",
+        "sheet_row": 9,
+        "label": "Line 9",
+        "parent_id": "2026-5",
+        "bc": "104",
+        "calc": "B",
+        "wf": null,
+        "actual_share": "1",
+        "budget_source": "blank",
+        "calculation_inputs": {
+          "budget_assertion": null,
+          "g_cached": {
+            "coefficient": "2",
+            "scale": 2
+          },
+          "m_cached": null
+        },
+        "formula_shapes": {
+          "g": "lookup",
+          "l": "calc_b_y_else",
+          "m": "projected_minus_budget",
+          "n": "wf"
+        },
+        "source_cells": {
+          "B": "2026 Budget!B9",
+          "C": "2026 Budget!C9",
+          "D": "2026 Budget!D9",
+          "E": "2026 Budget!E9",
+          "F": "2026 Budget!F9",
+          "G": "2026 Budget!G9",
+          "L": "2026 Budget!L9",
+          "M": "2026 Budget!M9",
+          "N": "2026 Budget!N9"
+        },
+        "budget": null,
+        "actual": "0.02",
+        "projected": null,
+        "variance_all": null,
+        "variance_masi": null,
+        "ledger_row_count": 1,
+        "complete": false,
+        "completeness_reasons": [
+          "budget_unavailable"
+        ],
+        "monetary_projections": {
+          "variance_all": {
+            "total": null,
+            "residual": null,
+            "part_refs": [
+              {
+                "ref": "/derived/lines/3/projected",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/3/budget",
+                "sign": -1
+              }
+            ]
+          }
+        },
+        "variance_masi_ref": "/derived/lines/3/variance_all",
+        "cross_checks": {
+          "actual": {
+            "cached": "0.02",
+            "recomputed": "0.02",
+            "delta": "0.00",
+            "reason": null,
+            "monetary_projections": {
+              "delta": {
+                "total": "0.00",
+                "residual": "0.00",
+                "part_refs": [
+                  {
+                    "ref": "/derived/lines/3/cross_checks/actual/recomputed",
+                    "sign": 1
+                  },
+                  {
+                    "ref": "/derived/lines/3/cross_checks/actual/cached",
+                    "sign": -1
+                  }
+                ]
+              }
+            }
+          },
+          "variance": {
+            "cached": null,
+            "recomputed": null,
+            "delta": null,
+            "reason": "cache_missing",
+            "monetary_projections": {}
+          }
+        }
+      },
+      {
+        "id": "2026-10",
+        "sheet_row": 10,
+        "label": "Line 10",
+        "parent_id": "2026-5",
+        "bc": "105",
+        "calc": "b",
+        "wf": " X ",
+        "actual_share": "1",
+        "budget_source": "formula_cache",
+        "calculation_inputs": {
+          "budget_assertion": {
+            "coefficient": "25",
+            "scale": 3
+          },
+          "g_cached": {
+            "coefficient": "1",
+            "scale": 2
+          },
+          "m_cached": {
+            "coefficient": "0",
+            "scale": 0
+          }
+        },
+        "formula_shapes": {
+          "g": "lookup",
+          "l": "calc_b_y_else",
+          "m": "projected_minus_budget",
+          "n": "wf"
+        },
+        "source_cells": {
+          "B": "2026 Budget!B10",
+          "C": "2026 Budget!C10",
+          "D": "2026 Budget!D10",
+          "E": "2026 Budget!E10",
+          "F": "2026 Budget!F10",
+          "G": "2026 Budget!G10",
+          "L": "2026 Budget!L10",
+          "M": "2026 Budget!M10",
+          "N": "2026 Budget!N10"
+        },
+        "budget": "0.03",
+        "actual": "0.01",
+        "projected": "0.03",
+        "variance_all": "0.00",
+        "variance_masi": "0.00",
+        "ledger_row_count": 1,
+        "complete": true,
+        "completeness_reasons": [],
+        "monetary_projections": {
+          "variance_all": {
+            "total": "0.00",
+            "residual": "0.00",
+            "part_refs": [
+              {
+                "ref": "/derived/lines/4/projected",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/4/budget",
+                "sign": -1
+              }
+            ]
+          }
+        },
+        "variance_masi_ref": "/derived/lines/4/variance_all",
+        "cross_checks": {
+          "actual": {
+            "cached": "0.01",
+            "recomputed": "0.01",
+            "delta": "0.00",
+            "reason": null,
+            "monetary_projections": {
+              "delta": {
+                "total": "0.00",
+                "residual": "0.00",
+                "part_refs": [
+                  {
+                    "ref": "/derived/lines/4/cross_checks/actual/recomputed",
+                    "sign": 1
+                  },
+                  {
+                    "ref": "/derived/lines/4/cross_checks/actual/cached",
+                    "sign": -1
+                  }
+                ]
+              }
+            }
+          },
+          "variance": {
+            "cached": "0.00",
+            "recomputed": "0.00",
+            "delta": "0.00",
+            "reason": null,
+            "monetary_projections": {
+              "delta": {
+                "total": "0.00",
+                "residual": "0.00",
+                "part_refs": [
+                  {
+                    "ref": "/derived/lines/4/cross_checks/variance/recomputed",
+                    "sign": 1
+                  },
+                  {
+                    "ref": "/derived/lines/4/cross_checks/variance/cached",
+                    "sign": -1
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
+        "id": "2026-11",
+        "sheet_row": 11,
+        "label": "Line 11",
+        "parent_id": "2026-5",
+        "bc": "106",
+        "calc": "y",
+        "wf": "other",
+        "actual_share": "1/2",
+        "budget_source": "literal",
+        "calculation_inputs": {
+          "budget_assertion": {
+            "coefficient": "3",
+            "scale": 2
+          },
+          "g_cached": {
+            "coefficient": "5",
+            "scale": 3
+          },
+          "m_cached": {
+            "coefficient": "-2214285714285714",
+            "scale": 17
+          }
+        },
+        "formula_shapes": {
+          "g": "lookup_half",
+          "l": "calc_b_y_else",
+          "m": "projected_minus_budget",
+          "n": "wf"
+        },
+        "source_cells": {
+          "B": "2026 Budget!B11",
+          "C": "2026 Budget!C11",
+          "D": "2026 Budget!D11",
+          "E": "2026 Budget!E11",
+          "F": "2026 Budget!F11",
+          "G": "2026 Budget!G11",
+          "L": "2026 Budget!L11",
+          "M": "2026 Budget!M11",
+          "N": "2026 Budget!N11"
+        },
+        "budget": "0.03",
+        "actual": "0.01",
+        "projected": "0.01",
+        "variance_all": "-0.02",
+        "variance_masi": "-0.02",
+        "ledger_row_count": 1,
+        "complete": true,
+        "completeness_reasons": [],
+        "monetary_projections": {
+          "variance_all": {
+            "total": "-0.02",
+            "residual": "0.00",
+            "part_refs": [
+              {
+                "ref": "/derived/lines/5/projected",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/5/budget",
+                "sign": -1
+              }
+            ]
+          }
+        },
+        "variance_masi_ref": "/derived/lines/5/variance_all",
+        "cross_checks": {
+          "actual": {
+            "cached": "0.01",
+            "recomputed": "0.01",
+            "delta": "0.00",
+            "reason": null,
+            "monetary_projections": {
+              "delta": {
+                "total": "0.00",
+                "residual": "0.00",
+                "part_refs": [
+                  {
+                    "ref": "/derived/lines/5/cross_checks/actual/recomputed",
+                    "sign": 1
+                  },
+                  {
+                    "ref": "/derived/lines/5/cross_checks/actual/cached",
+                    "sign": -1
+                  }
+                ]
+              }
+            }
+          },
+          "variance": {
+            "cached": "-0.02",
+            "recomputed": "-0.02",
+            "delta": "0.00",
+            "reason": null,
+            "monetary_projections": {
+              "delta": {
+                "total": "0.00",
+                "residual": "0.00",
+                "part_refs": [
+                  {
+                    "ref": "/derived/lines/5/cross_checks/variance/recomputed",
+                    "sign": 1
+                  },
+                  {
+                    "ref": "/derived/lines/5/cross_checks/variance/cached",
+                    "sign": -1
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
+        "id": "2026-12",
+        "sheet_row": 12,
+        "label": "Line 12",
+        "parent_id": "2026-5",
+        "bc": "107",
+        "calc": "other",
+        "wf": null,
+        "actual_share": "1",
+        "budget_source": "literal",
+        "calculation_inputs": {
+          "budget_assertion": {
+            "coefficient": "2",
+            "scale": 2
+          },
+          "g_cached": {
+            "coefficient": "2",
+            "scale": 2
+          },
+          "m_cached": {
+            "coefficient": "14285714285714285",
+            "scale": 18
+          }
+        },
+        "formula_shapes": {
+          "g": "lookup",
+          "l": "calc_b_y_else",
+          "m": "projected_minus_budget",
+          "n": "wf"
+        },
+        "source_cells": {
+          "B": "2026 Budget!B12",
+          "C": "2026 Budget!C12",
+          "D": "2026 Budget!D12",
+          "E": "2026 Budget!E12",
+          "F": "2026 Budget!F12",
+          "G": "2026 Budget!G12",
+          "L": "2026 Budget!L12",
+          "M": "2026 Budget!M12",
+          "N": "2026 Budget!N12"
+        },
+        "budget": "0.02",
+        "actual": "0.02",
+        "projected": "0.03",
+        "variance_all": "0.01",
+        "variance_masi": "0.01",
+        "ledger_row_count": 1,
+        "complete": true,
+        "completeness_reasons": [],
+        "monetary_projections": {
+          "variance_all": {
+            "total": "0.01",
+            "residual": "0.00",
+            "part_refs": [
+              {
+                "ref": "/derived/lines/6/projected",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/6/budget",
+                "sign": -1
+              }
+            ]
+          }
+        },
+        "variance_masi_ref": "/derived/lines/6/variance_all",
+        "cross_checks": {
+          "actual": {
+            "cached": "0.02",
+            "recomputed": "0.02",
+            "delta": "0.00",
+            "reason": null,
+            "monetary_projections": {
+              "delta": {
+                "total": "0.00",
+                "residual": "0.00",
+                "part_refs": [
+                  {
+                    "ref": "/derived/lines/6/cross_checks/actual/recomputed",
+                    "sign": 1
+                  },
+                  {
+                    "ref": "/derived/lines/6/cross_checks/actual/cached",
+                    "sign": -1
+                  }
+                ]
+              }
+            }
+          },
+          "variance": {
+            "cached": "0.01",
+            "recomputed": "0.01",
+            "delta": "0.00",
+            "reason": null,
+            "monetary_projections": {
+              "delta": {
+                "total": "0.00",
+                "residual": "0.00",
+                "part_refs": [
+                  {
+                    "ref": "/derived/lines/6/cross_checks/variance/recomputed",
+                    "sign": 1
+                  },
+                  {
+                    "ref": "/derived/lines/6/cross_checks/variance/cached",
+                    "sign": -1
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
+        "id": "2026-13",
+        "sheet_row": 13,
+        "label": "Line 13",
+        "parent_id": "2026-5",
+        "bc": "108",
+        "calc": " B ",
+        "wf": null,
+        "actual_share": "1",
+        "budget_source": "literal",
+        "calculation_inputs": {
+          "budget_assertion": {
+            "coefficient": "1",
+            "scale": 2
+          },
+          "g_cached": {
+            "coefficient": "1",
+            "scale": 2
+          },
+          "m_cached": {
+            "coefficient": "7142857142857143",
+            "scale": 18
+          }
+        },
+        "formula_shapes": {
+          "g": "lookup",
+          "l": "calc_b_y_else",
+          "m": "projected_minus_budget",
+          "n": "wf"
+        },
+        "source_cells": {
+          "B": "2026 Budget!B13",
+          "C": "2026 Budget!C13",
+          "D": "2026 Budget!D13",
+          "E": "2026 Budget!E13",
+          "F": "2026 Budget!F13",
+          "G": "2026 Budget!G13",
+          "L": "2026 Budget!L13",
+          "M": "2026 Budget!M13",
+          "N": "2026 Budget!N13"
+        },
+        "budget": "0.01",
+        "actual": "0.01",
+        "projected": "0.02",
+        "variance_all": "0.01",
+        "variance_masi": "0.01",
+        "ledger_row_count": 1,
+        "complete": true,
+        "completeness_reasons": [],
+        "monetary_projections": {
+          "variance_all": {
+            "total": "0.01",
+            "residual": "0.00",
+            "part_refs": [
+              {
+                "ref": "/derived/lines/7/projected",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/7/budget",
+                "sign": -1
+              }
+            ]
+          }
+        },
+        "variance_masi_ref": "/derived/lines/7/variance_all",
+        "cross_checks": {
+          "actual": {
+            "cached": "0.01",
+            "recomputed": "0.01",
+            "delta": "0.00",
+            "reason": null,
+            "monetary_projections": {
+              "delta": {
+                "total": "0.00",
+                "residual": "0.00",
+                "part_refs": [
+                  {
+                    "ref": "/derived/lines/7/cross_checks/actual/recomputed",
+                    "sign": 1
+                  },
+                  {
+                    "ref": "/derived/lines/7/cross_checks/actual/cached",
+                    "sign": -1
+                  }
+                ]
+              }
+            }
+          },
+          "variance": {
+            "cached": "0.01",
+            "recomputed": "0.01",
+            "delta": "0.00",
+            "reason": null,
+            "monetary_projections": {
+              "delta": {
+                "total": "0.00",
+                "residual": "0.00",
+                "part_refs": [
+                  {
+                    "ref": "/derived/lines/7/cross_checks/variance/recomputed",
+                    "sign": 1
+                  },
+                  {
+                    "ref": "/derived/lines/7/cross_checks/variance/cached",
+                    "sign": -1
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
+        "id": "2026-15",
+        "sheet_row": 15,
+        "label": "Line 15",
+        "parent_id": "2026-14",
+        "bc": "106",
+        "calc": null,
+        "wf": null,
+        "actual_share": "1/2",
+        "budget_source": "literal",
+        "calculation_inputs": {
+          "budget_assertion": {
+            "coefficient": "1",
+            "scale": 2
+          },
+          "g_cached": {
+            "coefficient": "5",
+            "scale": 3
+          },
+          "m_cached": {
+            "coefficient": "-14285714285714286",
+            "scale": 19
+          }
+        },
+        "formula_shapes": {
+          "g": "lookup_half",
+          "l": "calc_b_y_else",
+          "m": "projected_minus_budget",
+          "n": "wf"
+        },
+        "source_cells": {
+          "B": "2026 Budget!B15",
+          "C": "2026 Budget!C15",
+          "D": "2026 Budget!D15",
+          "E": "2026 Budget!E15",
+          "F": "2026 Budget!F15",
+          "G": "2026 Budget!G15",
+          "L": "2026 Budget!L15",
+          "M": "2026 Budget!M15",
+          "N": "2026 Budget!N15"
+        },
+        "budget": "0.01",
+        "actual": "0.01",
+        "projected": "0.01",
+        "variance_all": "0.00",
+        "variance_masi": "0.00",
+        "ledger_row_count": 1,
+        "complete": true,
+        "completeness_reasons": [],
+        "monetary_projections": {
+          "variance_all": {
+            "total": "0.00",
+            "residual": "0.00",
+            "part_refs": [
+              {
+                "ref": "/derived/lines/8/projected",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/8/budget",
+                "sign": -1
+              }
+            ]
+          }
+        },
+        "variance_masi_ref": "/derived/lines/8/variance_all",
+        "cross_checks": {
+          "actual": {
+            "cached": "0.01",
+            "recomputed": "0.01",
+            "delta": "0.00",
+            "reason": null,
+            "monetary_projections": {
+              "delta": {
+                "total": "0.00",
+                "residual": "0.00",
+                "part_refs": [
+                  {
+                    "ref": "/derived/lines/8/cross_checks/actual/recomputed",
+                    "sign": 1
+                  },
+                  {
+                    "ref": "/derived/lines/8/cross_checks/actual/cached",
+                    "sign": -1
+                  }
+                ]
+              }
+            }
+          },
+          "variance": {
+            "cached": "0.00",
+            "recomputed": "0.00",
+            "delta": "0.00",
+            "reason": null,
+            "monetary_projections": {
+              "delta": {
+                "total": "0.00",
+                "residual": "0.00",
+                "part_refs": [
+                  {
+                    "ref": "/derived/lines/8/cross_checks/variance/recomputed",
+                    "sign": 1
+                  },
+                  {
+                    "ref": "/derived/lines/8/cross_checks/variance/cached",
+                    "sign": -1
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
+        "id": "2026-16",
+        "sheet_row": 16,
+        "label": "Line 16",
+        "parent_id": "2026-14",
+        "bc": "109",
+        "calc": null,
+        "wf": null,
+        "actual_share": "1",
+        "budget_source": "literal",
+        "calculation_inputs": {
+          "budget_assertion": {
+            "coefficient": "4",
+            "scale": 2
+          },
+          "g_cached": {
+            "coefficient": "1",
+            "scale": 2
+          },
+          "m_cached": {
+            "coefficient": "-22857142857142857",
+            "scale": 18
+          }
+        },
+        "formula_shapes": {
+          "g": "lookup",
+          "l": "calc_b_y_else",
+          "m": "projected_minus_budget",
+          "n": "wf"
+        },
+        "source_cells": {
+          "B": "2026 Budget!B16",
+          "C": "2026 Budget!C16",
+          "D": "2026 Budget!D16",
+          "E": "2026 Budget!E16",
+          "F": "2026 Budget!F16",
+          "G": "2026 Budget!G16",
+          "L": "2026 Budget!L16",
+          "M": "2026 Budget!M16",
+          "N": "2026 Budget!N16"
+        },
+        "budget": "0.04",
+        "actual": "0.01",
+        "projected": "0.02",
+        "variance_all": "-0.02",
+        "variance_masi": "-0.02",
+        "ledger_row_count": 1,
+        "complete": true,
+        "completeness_reasons": [],
+        "monetary_projections": {
+          "variance_all": {
+            "total": "-0.02",
+            "residual": "0.00",
+            "part_refs": [
+              {
+                "ref": "/derived/lines/9/projected",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/9/budget",
+                "sign": -1
+              }
+            ]
+          }
+        },
+        "variance_masi_ref": "/derived/lines/9/variance_all",
+        "cross_checks": {
+          "actual": {
+            "cached": "0.01",
+            "recomputed": "0.01",
+            "delta": "0.00",
+            "reason": null,
+            "monetary_projections": {
+              "delta": {
+                "total": "0.00",
+                "residual": "0.00",
+                "part_refs": [
+                  {
+                    "ref": "/derived/lines/9/cross_checks/actual/recomputed",
+                    "sign": 1
+                  },
+                  {
+                    "ref": "/derived/lines/9/cross_checks/actual/cached",
+                    "sign": -1
+                  }
+                ]
+              }
+            }
+          },
+          "variance": {
+            "cached": "-0.02",
+            "recomputed": "-0.02",
+            "delta": "0.00",
+            "reason": null,
+            "monetary_projections": {
+              "delta": {
+                "total": "0.00",
+                "residual": "0.00",
+                "part_refs": [
+                  {
+                    "ref": "/derived/lines/9/cross_checks/variance/recomputed",
+                    "sign": 1
+                  },
+                  {
+                    "ref": "/derived/lines/9/cross_checks/variance/cached",
+                    "sign": -1
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
+        "id": "2026-17",
+        "sheet_row": 17,
+        "label": "Line 17",
+        "parent_id": "2026-14",
+        "bc": null,
+        "calc": null,
+        "wf": null,
+        "actual_share": "1",
+        "budget_source": "literal",
+        "calculation_inputs": {
+          "budget_assertion": {
+            "coefficient": "0",
+            "scale": 0
+          },
+          "g_cached": {
+            "coefficient": "0",
+            "scale": 0
+          },
+          "m_cached": {
+            "coefficient": "0",
+            "scale": 0
+          }
+        },
+        "formula_shapes": {
+          "g": "lookup",
+          "l": "calc_b_y_else",
+          "m": "projected_minus_budget",
+          "n": "wf"
+        },
+        "source_cells": {
+          "B": "2026 Budget!B17",
+          "C": "2026 Budget!C17",
+          "D": "2026 Budget!D17",
+          "E": "2026 Budget!E17",
+          "F": "2026 Budget!F17",
+          "G": "2026 Budget!G17",
+          "L": "2026 Budget!L17",
+          "M": "2026 Budget!M17",
+          "N": "2026 Budget!N17"
+        },
+        "budget": "0.00",
+        "actual": null,
+        "projected": null,
+        "variance_all": null,
+        "variance_masi": null,
+        "ledger_row_count": 0,
+        "complete": false,
+        "completeness_reasons": [
+          "actual_unavailable"
+        ],
+        "monetary_projections": {
+          "variance_all": {
+            "total": null,
+            "residual": null,
+            "part_refs": [
+              {
+                "ref": "/derived/lines/10/projected",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/10/budget",
+                "sign": -1
+              }
+            ]
+          }
+        },
+        "variance_masi_ref": "/derived/lines/10/variance_all",
+        "cross_checks": {
+          "actual": {
+            "cached": "0.00",
+            "recomputed": null,
+            "delta": null,
+            "reason": "input_unavailable",
+            "monetary_projections": {}
+          },
+          "variance": {
+            "cached": "0.00",
+            "recomputed": null,
+            "delta": null,
+            "reason": "input_unavailable",
+            "monetary_projections": {}
+          }
+        }
+      },
+      {
+        "id": "2026-18",
+        "sheet_row": 18,
+        "label": "Line 18",
+        "parent_id": "2026-14",
+        "bc": "111",
+        "calc": null,
+        "wf": null,
+        "actual_share": "1",
+        "budget_source": "literal",
+        "calculation_inputs": {
+          "budget_assertion": {
+            "coefficient": "-4",
+            "scale": 3
+          },
+          "g_cached": {
+            "coefficient": "-1",
+            "scale": 2
+          },
+          "m_cached": {
+            "coefficient": "-13142857142857144",
+            "scale": 18
+          }
+        },
+        "formula_shapes": {
+          "g": "lookup",
+          "l": "calc_b_y_else",
+          "m": "projected_minus_budget",
+          "n": "wf"
+        },
+        "source_cells": {
+          "B": "2026 Budget!B18",
+          "C": "2026 Budget!C18",
+          "D": "2026 Budget!D18",
+          "E": "2026 Budget!E18",
+          "F": "2026 Budget!F18",
+          "G": "2026 Budget!G18",
+          "L": "2026 Budget!L18",
+          "M": "2026 Budget!M18",
+          "N": "2026 Budget!N18"
+        },
+        "budget": "0.00",
+        "actual": "-0.01",
+        "projected": "-0.02",
+        "variance_all": "-0.01",
+        "variance_masi": "-0.01",
+        "ledger_row_count": 1,
+        "complete": true,
+        "completeness_reasons": [],
+        "monetary_projections": {
+          "variance_all": {
+            "total": "-0.01",
+            "residual": "0.01",
+            "part_refs": [
+              {
+                "ref": "/derived/lines/11/projected",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/11/budget",
+                "sign": -1
+              }
+            ]
+          }
+        },
+        "variance_masi_ref": "/derived/lines/11/variance_all",
+        "cross_checks": {
+          "actual": {
+            "cached": "-0.01",
+            "recomputed": "-0.01",
+            "delta": "0.00",
+            "reason": null,
+            "monetary_projections": {
+              "delta": {
+                "total": "0.00",
+                "residual": "0.00",
+                "part_refs": [
+                  {
+                    "ref": "/derived/lines/11/cross_checks/actual/recomputed",
+                    "sign": 1
+                  },
+                  {
+                    "ref": "/derived/lines/11/cross_checks/actual/cached",
+                    "sign": -1
+                  }
+                ]
+              }
+            }
+          },
+          "variance": {
+            "cached": "-0.01",
+            "recomputed": "-0.01",
+            "delta": "0.00",
+            "reason": null,
+            "monetary_projections": {
+              "delta": {
+                "total": "0.00",
+                "residual": "0.00",
+                "part_refs": [
+                  {
+                    "ref": "/derived/lines/11/cross_checks/variance/recomputed",
+                    "sign": 1
+                  },
+                  {
+                    "ref": "/derived/lines/11/cross_checks/variance/cached",
+                    "sign": -1
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    ],
+    "findings": [
+      {
+        "code": "MISSING_BUDGET",
+        "severity": "info",
+        "domain": "budgets",
+        "accounting_year": 2026,
+        "in_scope_year": true,
+        "line_id": "2026-9",
+        "node_id": null,
+        "source_cells": [
+          "2026 Budget!F9"
+        ],
+        "bc": null,
+        "message": "MISSING_BUDGET",
+        "cached": null,
+        "recomputed": null,
+        "delta": null,
+        "monetary_projections": {}
+      },
+      {
+        "code": "BUDGET_WF_OTHER",
+        "severity": "warn",
+        "domain": "budgets",
+        "accounting_year": 2026,
+        "in_scope_year": true,
+        "line_id": "2026-10",
+        "node_id": null,
+        "source_cells": [
+          "2026 Budget!D10"
+        ],
+        "bc": null,
+        "message": "BUDGET_WF_OTHER",
+        "cached": null,
+        "recomputed": null,
+        "delta": null,
+        "monetary_projections": {}
+      },
+      {
+        "code": "BUDGET_WF_OTHER",
+        "severity": "warn",
+        "domain": "budgets",
+        "accounting_year": 2026,
+        "in_scope_year": true,
+        "line_id": "2026-11",
+        "node_id": null,
+        "source_cells": [
+          "2026 Budget!D11"
+        ],
+        "bc": null,
+        "message": "BUDGET_WF_OTHER",
+        "cached": null,
+        "recomputed": null,
+        "delta": null,
+        "monetary_projections": {}
+      },
+      {
+        "code": "BUDGET_CALC_OTHER",
+        "severity": "warn",
+        "domain": "budgets",
+        "accounting_year": 2026,
+        "in_scope_year": true,
+        "line_id": "2026-12",
+        "node_id": null,
+        "source_cells": [
+          "2026 Budget!C12"
+        ],
+        "bc": null,
+        "message": "BUDGET_CALC_OTHER",
+        "cached": null,
+        "recomputed": null,
+        "delta": null,
+        "monetary_projections": {}
+      },
+      {
+        "code": "BUDGET_CALC_OTHER",
+        "severity": "warn",
+        "domain": "budgets",
+        "accounting_year": 2026,
+        "in_scope_year": true,
+        "line_id": "2026-13",
+        "node_id": null,
+        "source_cells": [
+          "2026 Budget!C13"
+        ],
+        "bc": null,
+        "message": "BUDGET_CALC_OTHER",
+        "cached": null,
+        "recomputed": null,
+        "delta": null,
+        "monetary_projections": {}
+      },
+      {
+        "code": "BUDGET_BC_MISSING",
+        "severity": "error",
+        "domain": "budgets",
+        "accounting_year": 2026,
+        "in_scope_year": true,
+        "line_id": "2026-17",
+        "node_id": null,
+        "source_cells": [
+          "2026 Budget!E17"
+        ],
+        "bc": null,
+        "message": "BUDGET_BC_MISSING",
+        "cached": null,
+        "recomputed": null,
+        "delta": null,
+        "monetary_projections": {}
+      },
+      {
+        "code": "LEDGER_BC_WITHOUT_BUDGET",
+        "severity": "warn",
+        "domain": "budgets",
+        "accounting_year": 2026,
+        "in_scope_year": true,
+        "line_id": null,
+        "node_id": null,
+        "source_cells": [],
+        "bc": "110",
+        "message": "LEDGER_BC_WITHOUT_BUDGET",
+        "cached": null,
+        "recomputed": null,
+        "delta": null,
+        "monetary_projections": {}
+      },
+      {
+        "code": "BUDGET_VARIANCE_CACHE_MISSING",
+        "severity": "info",
+        "domain": "budgets",
+        "accounting_year": 2026,
+        "in_scope_year": true,
+        "line_id": "2026-9",
+        "node_id": null,
+        "source_cells": [],
+        "bc": "104",
+        "message": "BUDGET_VARIANCE_CACHE_MISSING",
+        "cached": null,
+        "recomputed": null,
+        "delta": null,
+        "monetary_projections": {}
+      }
+    ],
+    "projection": {
+      "sheet_as_of": "2026-07-15",
+      "month_count": 7,
+      "month_cell": "2026 Budget!L1",
+      "month_cached": 7,
+      "actual_basis": "ledger_amount",
+      "calculation_precision": 60,
+      "rounding": "ROUND_HALF_UP",
+      "policy": "R37_B_Y_11_else_12"
+    },
+    "lines_by_bc": [
+      {
+        "bc": "101",
+        "line_ids": [
+          "2026-6"
+        ],
+        "ledger_actual": "0.01",
+        "ledger_row_count": 1,
+        "monetary_projections": {
+          "ledger_sum": {
+            "total": "0.01",
+            "residual": "0.00",
+            "part_refs": [
+              {
+                "ref": "/dependency/rows/synthetic-1/amount",
+                "sign": 1
+              }
+            ]
+          },
+          "actual": {
+            "total": "0.01",
+            "residual": "0.00",
+            "part_refs": [
+              {
+                "ref": "/derived/lines/0/actual",
+                "sign": 1
+              }
+            ]
+          }
+        }
+      },
+      {
+        "bc": "102",
+        "line_ids": [
+          "2026-7"
+        ],
+        "ledger_actual": "0.03",
+        "ledger_row_count": 1,
+        "monetary_projections": {
+          "ledger_sum": {
+            "total": "0.03",
+            "residual": "0.00",
+            "part_refs": [
+              {
+                "ref": "/dependency/rows/synthetic-2/amount",
+                "sign": 1
+              }
+            ]
+          },
+          "actual": {
+            "total": "0.03",
+            "residual": "0.00",
+            "part_refs": [
+              {
+                "ref": "/derived/lines/1/actual",
+                "sign": 1
+              }
+            ]
+          }
+        }
+      },
+      {
+        "bc": "103",
+        "line_ids": [
+          "2026-8"
+        ],
+        "ledger_actual": "0.00",
+        "ledger_row_count": 1,
+        "monetary_projections": {
+          "ledger_sum": {
+            "total": "0.00",
+            "residual": "0.00",
+            "part_refs": [
+              {
+                "ref": "/dependency/rows/synthetic-3/amount",
+                "sign": 1
+              }
+            ]
+          },
+          "actual": {
+            "total": "0.00",
+            "residual": "0.00",
+            "part_refs": [
+              {
+                "ref": "/derived/lines/2/actual",
+                "sign": 1
+              }
+            ]
+          }
+        }
+      },
+      {
+        "bc": "104",
+        "line_ids": [
+          "2026-9"
+        ],
+        "ledger_actual": "0.02",
+        "ledger_row_count": 1,
+        "monetary_projections": {
+          "ledger_sum": {
+            "total": "0.02",
+            "residual": "0.00",
+            "part_refs": [
+              {
+                "ref": "/dependency/rows/synthetic-4/amount",
+                "sign": 1
+              }
+            ]
+          },
+          "actual": {
+            "total": "0.02",
+            "residual": "0.00",
+            "part_refs": [
+              {
+                "ref": "/derived/lines/3/actual",
+                "sign": 1
+              }
+            ]
+          }
+        }
+      },
+      {
+        "bc": "105",
+        "line_ids": [
+          "2026-10"
+        ],
+        "ledger_actual": "0.01",
+        "ledger_row_count": 1,
+        "monetary_projections": {
+          "ledger_sum": {
+            "total": "0.01",
+            "residual": "0.00",
+            "part_refs": [
+              {
+                "ref": "/dependency/rows/synthetic-5/amount",
+                "sign": 1
+              }
+            ]
+          },
+          "actual": {
+            "total": "0.01",
+            "residual": "0.00",
+            "part_refs": [
+              {
+                "ref": "/derived/lines/4/actual",
+                "sign": 1
+              }
+            ]
+          }
+        }
+      },
+      {
+        "bc": "106",
+        "line_ids": [
+          "2026-11",
+          "2026-15"
+        ],
+        "ledger_actual": "0.01",
+        "ledger_row_count": 1,
+        "monetary_projections": {
+          "ledger_sum": {
+            "total": "0.01",
+            "residual": "0.00",
+            "part_refs": [
+              {
+                "ref": "/dependency/rows/synthetic-6/amount",
+                "sign": 1
+              }
+            ]
+          },
+          "actual": {
+            "total": "0.01",
+            "residual": "-0.01",
+            "part_refs": [
+              {
+                "ref": "/derived/lines/5/actual",
+                "sign": 1
+              },
+              {
+                "ref": "/derived/lines/8/actual",
+                "sign": 1
+              }
+            ]
+          }
+        }
+      },
+      {
+        "bc": "107",
+        "line_ids": [
+          "2026-12"
+        ],
+        "ledger_actual": "0.02",
+        "ledger_row_count": 1,
+        "monetary_projections": {
+          "ledger_sum": {
+            "total": "0.02",
+            "residual": "0.00",
+            "part_refs": [
+              {
+                "ref": "/dependency/rows/synthetic-7/amount",
+                "sign": 1
+              }
+            ]
+          },
+          "actual": {
+            "total": "0.02",
+            "residual": "0.00",
+            "part_refs": [
+              {
+                "ref": "/derived/lines/6/actual",
+                "sign": 1
+              }
+            ]
+          }
+        }
+      },
+      {
+        "bc": "108",
+        "line_ids": [
+          "2026-13"
+        ],
+        "ledger_actual": "0.01",
+        "ledger_row_count": 1,
+        "monetary_projections": {
+          "ledger_sum": {
+            "total": "0.01",
+            "residual": "0.00",
+            "part_refs": [
+              {
+                "ref": "/dependency/rows/synthetic-8/amount",
+                "sign": 1
+              }
+            ]
+          },
+          "actual": {
+            "total": "0.01",
+            "residual": "0.00",
+            "part_refs": [
+              {
+                "ref": "/derived/lines/7/actual",
+                "sign": 1
+              }
+            ]
+          }
+        }
+      },
+      {
+        "bc": "109",
+        "line_ids": [
+          "2026-16"
+        ],
+        "ledger_actual": "0.01",
+        "ledger_row_count": 1,
+        "monetary_projections": {
+          "ledger_sum": {
+            "total": "0.01",
+            "residual": "0.00",
+            "part_refs": [
+              {
+                "ref": "/dependency/rows/synthetic-9/amount",
+                "sign": 1
+              }
+            ]
+          },
+          "actual": {
+            "total": "0.01",
+            "residual": "0.00",
+            "part_refs": [
+              {
+                "ref": "/derived/lines/9/actual",
+                "sign": 1
+              }
+            ]
+          }
+        }
+      },
+      {
+        "bc": "111",
+        "line_ids": [
+          "2026-18"
+        ],
+        "ledger_actual": "-0.01",
+        "ledger_row_count": 1,
+        "monetary_projections": {
+          "ledger_sum": {
+            "total": "-0.01",
+            "residual": "0.00",
+            "part_refs": [
+              {
+                "ref": "/dependency/rows/synthetic-11/amount",
+                "sign": 1
+              }
+            ]
+          },
+          "actual": {
+            "total": "-0.01",
+            "residual": "0.00",
+            "part_refs": [
+              {
+                "ref": "/derived/lines/11/actual",
+                "sign": 1
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "unbound_line_ids": [
+      "2026-17"
+    ],
+    "orphan_actuals": [
+      {
+        "bc": "110",
+        "actual": "0.00",
+        "ledger_row_count": 1,
+        "monetary_projections": {
+          "actual": {
+            "total": "0.00",
+            "residual": "0.00",
+            "part_refs": [
+              {
+                "ref": "/dependency/rows/synthetic-10/amount",
+                "sign": 1
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "summary": {
+      "hierarchy_count": 3,
+      "line_count": 12,
+      "bc_count": 10,
+      "unbound_count": 1,
+      "orphan_count": 1,
+      "finding_count": 8,
+      "ledger_contributor_count": 11,
+      "complete": false,
+      "year_actual": "0.11",
+      "monetary_projections": {
+        "year_actual": {
+          "total": "0.11",
+          "residual": "0.00",
+          "part_refs": [
+            {
+              "ref": "/derived/lines_by_bc/0/ledger_actual",
+              "sign": 1
+            },
+            {
+              "ref": "/derived/lines_by_bc/1/ledger_actual",
+              "sign": 1
+            },
+            {
+              "ref": "/derived/lines_by_bc/2/ledger_actual",
+              "sign": 1
+            },
+            {
+              "ref": "/derived/lines_by_bc/3/ledger_actual",
+              "sign": 1
+            },
+            {
+              "ref": "/derived/lines_by_bc/4/ledger_actual",
+              "sign": 1
+            },
+            {
+              "ref": "/derived/lines_by_bc/5/ledger_actual",
+              "sign": 1
+            },
+            {
+              "ref": "/derived/lines_by_bc/6/ledger_actual",
+              "sign": 1
+            },
+            {
+              "ref": "/derived/lines_by_bc/7/ledger_actual",
+              "sign": 1
+            },
+            {
+              "ref": "/derived/lines_by_bc/8/ledger_actual",
+              "sign": 1
+            },
+            {
+              "ref": "/derived/lines_by_bc/9/ledger_actual",
+              "sign": 1
+            },
+            {
+              "ref": "/derived/orphan_actuals/0/actual",
+              "sign": 1
+            }
+          ]
+        }
+      }
+    }
+  }
+}

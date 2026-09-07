@@ -27,6 +27,13 @@ from masi_finance.publish.run_artifact import (
 )
 from masi_finance.publish.run_schema import load_schema, FORMAT_CHECKER, RunSchemaError
 
+from masi_finance.publish.budget_run import (
+    build_budget_run_artifact, budget_payload_digest, validate_budget_calculations,
+    BudgetRunError, SAFE_CODES as BUDGET_SAFE_CODES,
+)
+from masi_finance.publish.org_budget_projection import POLICY as BUDGET_POLICY
+from masi_finance.publish.run_artifact import canonical_digest
+
 from api.finance_snapshot import parse_timestamp
 from api.finance_snapshot_compat import project_snapshot
 from api.models import FinanceRun, FinanceSnapshot, LedgerRow, LedgerAllocation
@@ -189,6 +196,8 @@ def _validate_legacy_payload(payload):
 
 
 def validate_stored_run(run):
+    if run.kind == 'budgets':
+        return validate_budget_run(run)
     try:
         _require((run.schema_version, run.producer_version) in SUPPORTED_PAIRS, 'UNSUPPORTED_VERSION')
         _require(run.failure is None and _source_matches(run))
@@ -236,7 +245,7 @@ def _lock_transition(run_id):
         reference = FinanceRun.objects.only('kind', 'accounting_year').get(pk=run_id)
     except (FinanceRun.DoesNotExist, ValueError):
         raise FinanceRunError('RUN_NOT_FOUND', status=404) from None
-    acquire_tuple_lock(reference.kind, reference.accounting_year)
+    acquire_run_locks(reference.kind, reference.accounting_year)
     rows = {run.pk: run for run in FinanceRun.objects.select_for_update()
             .filter(kind=reference.kind, accounting_year=reference.accounting_year).order_by('pk')}
     _transition_checkpoint('after_lock')
@@ -277,7 +286,10 @@ def _approve_locked(target, current, rows, actor, *, override_anti_rollback, ack
     # current or target is written, including on re-approval and demotion.
     target.approved_at = timezone.now()
     try:
-        project_snapshot(target)
+        if target.kind == 'budgets':
+            budget_detail_payload(target)
+        else:
+            project_snapshot(target)
     except (ValueError, KeyError, TypeError, OverflowError):
         raise FinanceRunError('SNAPSHOT_PROJECTION_INVALID') from None
     if current:
@@ -445,70 +457,105 @@ def _domain_code(error):
 
 
 def upload_workbook(stream, actor, *, kind, year, source_name, content_type,
-                    content_length=None, client_modified_at=None):
+                    content_length=None, client_modified_at=None, ledger_run_id=None):
     """Raw bytes to one immutable run, shared by HTTP and benchmark commands."""
     require_publisher(actor)
-    if kind != 'funders' or type(year) is not int or not 2000 <= year <= 2100:
+    if kind not in ('funders', 'budgets') or type(year) is not int or not 2000 <= year <= 2100:
         raise FinanceRunError('UPLOAD_METADATA_INVALID', status=400)
     if client_modified_at is not None:
         if not isinstance(client_modified_at, str) or not FORMAT_CHECKER.conforms(client_modified_at, 'date-time'):
             raise FinanceRunError('UPLOAD_METADATA_INVALID', status=400)
+    if (kind == 'funders' and ledger_run_id is not None) or (kind == 'budgets' and ledger_run_id is None):
+        raise FinanceRunError('UPLOAD_METADATA_INVALID', status=400)
+    schema = BUDGET_UPLOAD_SCHEMA if kind == 'budgets' else UPLOAD_SCHEMA
+    producer = BUDGET_UPLOAD_PRODUCER if kind == 'budgets' else UPLOAD_PRODUCER
     started = perf_counter()
     try:
         with _upload_measurement() as measurement, preflight(
                 stream, source_name=source_name, content_type=content_type,
                 content_length=content_length) as upload:
             with transaction.atomic():
-                acquire_tuple_lock(kind, year)
+                acquire_run_locks(kind, year)
+                dependency = admit_budget_dependency(ledger_run_id, year, lock=True) if kind == 'budgets' else None
+                identity = {'dependency_run': dependency} if kind == 'budgets' else {}
                 existing = FinanceRun.objects.filter(
                     kind=kind, accounting_year=year, source_sha256=upload.sha256,
-                    producer_version=UPLOAD_PRODUCER).first()
+                    producer_version=producer, **identity).first()
                 if existing:
                     return existing, 200
-                if distribution_version('masi-finance') != UPLOAD_PRODUCER:
+                if distribution_version('masi-finance') != producer:
                     raise FinanceRunError('UPLOAD_INTERNAL_ERROR', status=500)
                 manifest = {
-                    'producer': {'name': 'masi-finance', 'version': UPLOAD_PRODUCER},
+                    'producer': {'name': 'masi-finance', 'version': producer},
                     'source': {'name': upload.source_name, 'date': upload.source_date.isoformat(),
                                'sha256': upload.sha256, 'size_bytes': upload.size_bytes,
                                'client_modified_at': client_modified_at},
                     'accounting_year': year, 'rule_config_sha256': None, 'dependencies': [],
                 }
+                if kind == 'budgets':
+                    manifest.update(schema_version=schema, rule_config_sha256=canonical_digest(BUDGET_POLICY),
+                                    dependencies=[budget_dependency_metadata(dependency)],
+                                    acquisition=dict(method='file_upload', fetched_at=None, source_modified_at=None))
                 fields = dict(kind=kind, accounting_year=year, source_name=upload.source_name,
                               source_date=upload.source_date, source_sha256=upload.sha256,
-                              source_size_bytes=upload.size_bytes, schema_version=UPLOAD_SCHEMA,
-                              producer_version=UPLOAD_PRODUCER, uploaded_by=actor, manifest=manifest)
+                              source_size_bytes=upload.size_bytes, schema_version=schema,
+                              producer_version=producer, uploaded_by=actor, manifest=manifest, dependency_run=dependency)
                 parse_started = perf_counter()
                 artifact = None
                 failure = None
+                scan_diagnostics = []
                 try:
-                    scan_workbook(upload)
+                    if kind == 'budgets':
+                        scan_diagnostics = scan_workbook(upload, kind=kind, year=year)
+                    else:
+                        scan_workbook(upload)
                 except WorkbookError as error:
-                    if error.code in ('XML_INVALID', 'WORKBOOK_METADATA_INVALID', 'SHEET_XML_DECLARATION',
+                    if (kind == 'budgets' and error.code in BUDGET_UNSAFE_CODES) or error.code in ('XML_INVALID', 'WORKBOOK_METADATA_INVALID', 'SHEET_XML_DECLARATION',
                                       'PART_SIZE_LIMIT', 'SHARED_STRING_LIMIT'):
                         raise
                     failure = {'phase': 'preflight', 'code': error.code, 'message': error.code}
                 if failure is None:
                     try:
-                        artifact = build_run_artifact(upload.buffer, source_name=source_name,
-                                                      accounting_year=year, client_modified_at=client_modified_at)
-                    except _DOMAIN_ERRORS as error:
-                        code = _domain_code(error)
+                        if kind == 'budgets':
+                            artifact = build_budget_run_artifact(upload.buffer, source_name=source_name,
+                                accounting_year=year, client_modified_at=client_modified_at,
+                                ledger_dependency=dict(budget_dependency_metadata(dependency), accounting_year=year),
+                                ledger_rows=reconstruct_ledger(dependency)['rows'])
+                        else:
+                            artifact = build_run_artifact(upload.buffer, source_name=source_name,
+                                                          accounting_year=year, client_modified_at=client_modified_at)
+                    except (*_DOMAIN_ERRORS, BudgetRunError) as error:
+                        code = budget_domain_code(error) if kind == 'budgets' else _domain_code(error)
                         failure = {'phase': 'producer', 'code': code, 'message': code}
+                if kind == 'budgets' and artifact is not None and scan_diagnostics:
+                    from masi_finance.publish.org_budget_reader import finding
+                    for diagnostic in scan_diagnostics:
+                        warning = finding('PARSER_WARNING', 'info', year=year)
+                        warning.update(in_scope_year=False,
+                                       message=f"{diagnostic['category']}: {diagnostic['count']}")
+                        artifact['derived']['findings'].append(warning)
+                    artifact['derived']['summary']['finding_count'] = len(artifact['derived']['findings'])
                 fields['parse_duration_ms'] = int((perf_counter() - parse_started) * 1000)
                 if failure:
                     run = FinanceRun.objects.create(**fields, status='failed', failure=failure)
                 else:
-                    _require(artifact['schema_version'] == UPLOAD_SCHEMA and artifact['manifest'] == manifest,
+                    _require(artifact['schema_version'] == schema and artifact['manifest'] == manifest,
                              'UPLOAD_ARTIFACT_INVALID')
                     finding_count, error_count = _finding_counts(artifact['derived'])
-                    run = FinanceRun.objects.create(
-                        **fields, status='candidate', payload=artifact['derived'],
-                        payload_sha256=payload_digest(artifact), facts_sha256=facts_digest(artifact['ledger']),
-                        fact_row_count=len(artifact['ledger']['rows']),
-                        allocation_count=len(artifact['ledger']['allocations']),
-                        finding_count=finding_count, in_scope_error_count=error_count)
-                    materialise_facts(run, artifact)
+                    if kind == 'budgets':
+                        run = FinanceRun.objects.create(
+                            **fields, status='candidate', payload=artifact['derived'],
+                            payload_sha256=budget_payload_digest(artifact),
+                            finding_count=finding_count, in_scope_error_count=error_count)
+                        validate_stored_run(run)
+                    else:
+                        run = FinanceRun.objects.create(
+                            **fields, status='candidate', payload=artifact['derived'],
+                            payload_sha256=payload_digest(artifact), facts_sha256=facts_digest(artifact['ledger']),
+                            fact_row_count=len(artifact['ledger']['rows']),
+                            allocation_count=len(artifact['ledger']['allocations']),
+                            finding_count=finding_count, in_scope_error_count=error_count)
+                        materialise_facts(run, artifact)
                 run.total_duration_ms = int((perf_counter() - started) * 1000)
                 run.peak_memory_bytes = measurement.finish()
                 run.save(update_fields=['total_duration_ms', 'peak_memory_bytes'])
@@ -521,3 +568,81 @@ def upload_workbook(stream, actor, *, kind, year, source_name, content_type,
         raise FinanceRunError('UPLOAD_INTERNAL_ERROR', status=500) from None
     except Exception:
         raise FinanceRunError('UPLOAD_INTERNAL_ERROR', status=500) from None
+
+
+# The supervisor-installed build retains 0.2.0 metadata; the unique release pin
+# and registry extension must be coordinated at the next publisher release.
+BUDGET_UPLOAD_SCHEMA = '1.0.0'
+BUDGET_UPLOAD_PRODUCER = '0.2.0'
+BUDGET_SUPPORTED_PAIRS = {('1.0.0', '0.2.0')}
+BUDGET_UNSAFE_CODES = frozenset({
+    'BUDGET_SHEET_LIMIT', 'SHEET_BOUNDS', 'BUDGET_EXTERNAL_REFERENCE',
+    'WORKBOOK_DECODE_FAILURE',
+})
+
+
+def acquire_run_locks(kind, year):
+    keys = {(kind, year)}
+    if kind == 'budgets':
+        keys.add(('funders', year))
+    for lock_kind, lock_year in sorted(keys):
+        acquire_tuple_lock(lock_kind, lock_year)
+
+
+def budget_dependency_metadata(dependency):
+    return dict(kind='management_accounts', run_id=str(dependency.pk),
+                source_name=dependency.source_name, source_date=dependency.source_date.isoformat(),
+                source_sha256=dependency.source_sha256, payload_sha256=dependency.payload_sha256,
+                facts_sha256=dependency.facts_sha256, producer_version=dependency.producer_version,
+                schema_version=dependency.schema_version)
+
+
+def admit_budget_dependency(run_id, year, *, lock=False):
+    from django.core.exceptions import ValidationError
+    try:
+        query = FinanceRun.objects.select_for_update() if lock else FinanceRun.objects
+        dependency = query.get(pk=run_id)
+        _require(dependency.kind == 'funders' and dependency.accounting_year == year
+                 and dependency.status in ('approved', 'superseded')
+                 and dependency.schema_version == '2.0.0' and dependency.facts_sha256 is not None,
+                 'BUDGET_DEPENDENCY_INVALID')
+        validate_stored_run(dependency)
+        return dependency
+    except (FinanceRun.DoesNotExist, FinanceRunError, ValidationError, ValueError, TypeError):
+        raise FinanceRunError('BUDGET_DEPENDENCY_INVALID', status=400) from None
+
+
+def budget_domain_code(error):
+    if len(error.args) == 1 and error.args[0] in BUDGET_SAFE_CODES:
+        return error.args[0]
+    # D29 decoding is not a certified domain refusal and creates no history.
+    if isinstance(error, RunSchemaError) and error.message == 'RUN_SCHEMA_INVALID':
+        raise FinanceRunError('RUN_SCHEMA_INVALID', status=500) from None
+    raise FinanceRunError('WORKBOOK_DECODE_FAILURE', status=500) from None
+
+
+def budget_detail_payload(run):
+    """The same kind-qualified artifact is checked for detail and promotion."""
+    artifact = dict(kind=run.kind, schema_version=run.schema_version,
+                    manifest=run.manifest, derived=run.payload)
+    from masi_finance.publish.budget_run_schema import validate_budget_run_schema
+    validate_budget_run_schema(artifact)
+    return artifact['derived']
+
+
+def validate_budget_run(run):
+    try:
+        _require((run.schema_version, run.producer_version) in BUDGET_SUPPORTED_PAIRS, 'UNSUPPORTED_VERSION')
+        _require(run.failure is None and run.dependency_run_id is not None and _source_matches(run))
+        dependency = admit_budget_dependency(run.dependency_run_id, run.accounting_year,
+                                             lock=connection.in_atomic_block)
+        _require(run.manifest['dependencies'] == [budget_dependency_metadata(dependency)], 'BUDGET_DEPENDENCY_INVALID')
+        _require(run.facts_sha256 is None and run.fact_row_count == run.allocation_count == 0
+                 and not run.ledger_rows.exists())
+        artifact = dict(kind='budgets', schema_version=run.schema_version, manifest=run.manifest, derived=run.payload)
+        _require(budget_payload_digest(artifact) == run.payload_sha256)
+        _require(_finding_counts(run.payload) == (run.finding_count, run.in_scope_error_count))
+        validate_budget_calculations(artifact, ledger_rows=reconstruct_ledger(dependency)['rows'])
+        budget_detail_payload(run)
+    except (ValueError, KeyError, TypeError, OverflowError, RunSchemaError):
+        raise FinanceRunError('BUDGET_RUN_INTEGRITY_INVALID') from None

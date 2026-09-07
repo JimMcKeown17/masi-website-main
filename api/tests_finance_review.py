@@ -30,7 +30,7 @@ class DependencyReleaseTests(SimpleTestCase):
         from unittest import mock
         from masi_finance.publish import run_schema
         digests = run_schema.verify_installed_contracts()
-        self.assertEqual(set(digests), {'finance-run-2.0.0.json', 'finance-snapshot-1.0.0.json', 'finance-snapshot-1.1.0.json'})
+        self.assertEqual(set(digests), {'finance-run-2.0.0.json', 'finance-snapshot-1.0.0.json', 'finance-snapshot-1.1.0.json', 'budget-run-1.0.0.json'})
         altered = {name: dict(value, schema_sha256='0' * 64) for name, value in run_schema.RESOURCE_DIGESTS.items()}
         with mock.patch.dict(run_schema.RESOURCE_DIGESTS, altered, clear=True):
             with self.assertRaises(ValueError) as caught:

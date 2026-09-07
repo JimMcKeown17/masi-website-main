@@ -268,14 +268,18 @@ def _check_declarations(archive, path, code):
             tail = declaration_bytes[-overlap:]
 
 
-def _scan_sheet(archive, path, name, strings):
+def _scan_sheet(archive, path, name, strings, budget=None):
     _check_declarations(archive, path, 'SHEET_XML_DECLARATION')
     # Reopen directly into the single defusedxml scanner; never buffer a part.
-    _scan_sheet_xml(archive, path, name, strings)
+    return _scan_sheet_xml(archive, path, name, strings, budget)
 
 
-def _scan_sheet_xml(archive, path, name, strings):
-    limit = 50000 if name == 'Expenditure' else 5000
+def _scan_sheet_xml(archive, path, name, strings, budget=None):
+    limit = 50000 if name == 'Expenditure' and budget is None else 5000
+    seen_rows, seen_cols = set(), set()
+    current_row = max_row = max_col = 0
+    nonempty = False
+    budget_header_width = 0
     extent = header_width = header_rows = max_data_col = 0
     headers = {}
     row_values = {}
@@ -305,6 +309,13 @@ def _scan_sheet_xml(archive, path, name, strings):
                 row_nodes += 1
                 require(row_nodes <= MAX_SHEET_RETAINED_NODES, 'XML_INVALID')
         if event == 'start' and tag == NS + 'c':
+            if budget is not None:
+                r, c = _coordinate(element.get('r'))
+                require(r == current_row and r <= limit and c <= 256 and c not in seen_cols, 'BUDGET_SHEET_LIMIT')
+                seen_cols.add(c)
+                max_row, max_col = max(max_row, r), max(max_col, c)
+                require(budget['cells'] + max_row * max_col <= 4000000, 'BUDGET_SHEET_LIMIT')
+                require(element.get('t') != 'e', 'BUDGET_EXCEL_ERROR')
             value = None
             formula = False
             inline = []
@@ -313,6 +324,8 @@ def _scan_sheet_xml(archive, path, name, strings):
                 value = element.text or ''
             elif tag == NS + 'f':
                 formula = True
+                if budget is not None:
+                    _budget_formula_references(element.text or '', budget['names'])
             elif tag == NS + 't':
                 inline.append(element.text or '')
         if event == 'start' and tag == NS + 'dimension':
@@ -326,6 +339,13 @@ def _scan_sheet_xml(archive, path, name, strings):
             number = element.get('r', '')
             require(re.fullmatch(r'[1-9][0-9]{0,6}', number) is not None and int(number) <= limit, 'SHEET_BOUNDS')
             extent = max(extent, int(number))
+            if budget is not None:
+                current_row = int(number)
+                require(current_row not in seen_rows, 'BUDGET_SHEET_LIMIT')
+                seen_rows.add(current_row)
+                seen_cols = set()
+                max_row = max(max_row, current_row)
+                require(budget['cells'] + max_row * max_col <= 4000000, 'BUDGET_SHEET_LIMIT')
             row_values = {}
         if event == 'end' and tag == NS + 'c':
             row, col = _coordinate(element.get('r'))
@@ -343,7 +363,11 @@ def _scan_sheet_xml(archive, path, name, strings):
             else:
                 label = _label(value) if value is not None else False
             nonblank = bool(label) or formula
-            if name == 'Expenditure':
+            if budget is not None:
+                nonempty |= nonblank
+                if row == 3 and nonblank:
+                    budget_header_width = max(budget_header_width, col)
+            elif name == 'Expenditure':
                 if row == 1 and nonblank:
                     require(col <= 128, 'LEDGER_HEADER_LIMIT')
                     require(col not in headers, 'LEDGER_DUPLICATE_HEADER')
@@ -363,7 +387,13 @@ def _scan_sheet_xml(archive, path, name, strings):
             if depth == row_depth:
                 row_depth = 0
             depth -= 1
-    if name == 'Expenditure':
+    if budget is not None:
+        if name in budget['required']:
+            require(nonempty, 'BUDGET_REQUIRED_SHEET')
+        if name == budget['required'][0]:
+            require(budget_header_width >= 47, 'BUDGET_HEADER_INVALID')
+        budget['cells'] += max_row * max_col
+    elif name == 'Expenditure':
         require(all(list(headers.values()).count(h) == 1 for h in LEDGER_HEADERS), 'LEDGER_REQUIRED_HEADER')
         require(extent * header_width <= 4000000, 'LEDGER_CELL_LIMIT')
         require(max_data_col <= header_width, 'LEDGER_DATA_BEYOND_HEADER')
@@ -408,9 +438,11 @@ def _canonical_package(archive):
     require(bool(strings) == ('xl/sharedStrings.xml' in archive.namelist()), 'WORKBOOK_METADATA_INVALID')
 
 
-def scan_workbook(upload):
+def _scan_workbook(upload, *, kind='funders', year=None):
     try:
         with zipfile.ZipFile(upload.buffer) as archive:
+            if kind == 'budgets':
+                _budget_relationships(archive)
             _canonical_package(archive)
             root = _metadata(archive, 'xl/workbook.xml')
             require(root.tag == NS + 'workbook' and len(root.findall(NS + 'sheets')) == 1,
@@ -418,8 +450,12 @@ def scan_workbook(upload):
             sheets = [(sheet.get('name'), sheet.get(RID))
                       for sheet in root.find(NS + 'sheets')]
             require(all(isinstance(name, str) for name, _ in sheets), 'WORKBOOK_METADATA_INVALID')
-            require(all(sum(name == required for name, _ in sheets) == 1
-                        for required in ('Funder Budgets', 'Expenditure')), 'REQUIRED_SHEETS')
+            required = (f'{year} Budget', 'Codes', f'Actual {year}') if kind == 'budgets' else ('Funder Budgets', 'Expenditure')
+            require(all(sum(name == item for name, _ in sheets) == 1 for item in required), 'REQUIRED_SHEETS')
+            budget = None
+            if kind == 'budgets':
+                require(len(sheets) <= 64, 'BUDGET_SHEET_LIMIT')
+                budget = dict(cells=0, names={name for name, _ in sheets}, required=required)
             require(len({name.casefold() for name, _ in sheets}) == len(sheets), 'WORKBOOK_METADATA_INVALID')
             rel_ns = '{http://schemas.openxmlformats.org/package/2006/relationships}'
             rels = _metadata(archive, 'xl/_rels/workbook.xml.rels')
@@ -438,15 +474,64 @@ def scan_workbook(upload):
                 relationships[key] = (path, element.get('Type'), element.get('TargetMode'))
             strings = _shared_strings(archive)
             for name, key in sheets:
-                if name in ('Funder Budgets', 'Expenditure'):
+                if budget is not None or name in ('Funder Budgets', 'Expenditure'):
                     require(key in relationships, 'WORKBOOK_METADATA_INVALID')
                     path, kind, mode = relationships[key]
                     require(kind == 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet'
                             and mode != 'External', 'WORKBOOK_METADATA_INVALID')
-                    _scan_sheet(archive, path, name, strings)
+                    _scan_sheet(archive, path, name, strings, budget)
     except (ParseError, DefusedXmlException, zipfile.BadZipFile, KeyError, OSError, ValueError) as error:
         if isinstance(error, WorkbookError):
             raise
         raise WorkbookError('XML_INVALID') from None
     finally:
         upload.buffer.seek(0)
+
+
+def _budget_formula_references(formula, names):
+    # Tokenize formulas, never XML. Unknown tokenizer failures are value-free.
+    from openpyxl.formula.tokenizer import Tokenizer
+    try:
+        tokens = Tokenizer('=' + formula).items
+        for token in tokens:
+            if token.type == 'OPERAND' and token.subtype == 'RANGE' and '!' in token.value:
+                target = token.value.rsplit('!', 1)[0].strip("'").replace("''", "'")
+                require('[' not in target and ']' not in target, 'BUDGET_EXTERNAL_REFERENCE')
+                require(target in names, 'BUDGET_REFERENCED_SHEET_MISSING')
+    except WorkbookError:
+        raise
+    except Exception:
+        raise WorkbookError('WORKBOOK_DECODE_FAILURE') from None
+
+
+def _budget_relationships(archive):
+    for path in archive.namelist():
+        require('externalLinks/' not in path and not path.endswith('vbaProject.bin'), 'BUDGET_EXTERNAL_REFERENCE')
+        if path.endswith('.rels'):
+            _check_declarations(archive, path, 'XML_INVALID')
+            for element in _metadata(archive, path):
+                require(element.get('TargetMode') != 'External', 'BUDGET_EXTERNAL_REFERENCE')
+
+
+
+def scan_workbook(upload, *, kind='funders', year=None):
+    if kind == 'funders':
+        return _scan_workbook(upload)
+    require(kind == 'budgets' and type(year) is int, 'WORKBOOK_METADATA_INVALID')
+    from collections import Counter
+    from contextlib import redirect_stdout, redirect_stderr
+    from io import StringIO
+    import warnings
+    try:
+        with (StringIO() as discarded, redirect_stdout(discarded), redirect_stderr(discarded),
+              warnings.catch_warnings(record=True) as recorded):
+            warnings.simplefilter('always')
+            _scan_workbook(upload, kind=kind, year=year)
+            diagnostics = [{'category': category, 'count': count} for category, count in
+                           sorted(Counter(w.category.__name__ for w in recorded).items())]
+            recorded.clear()
+            return diagnostics
+    except WorkbookError:
+        raise
+    except Exception:
+        raise WorkbookError('WORKBOOK_DECODE_FAILURE') from None

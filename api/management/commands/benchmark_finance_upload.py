@@ -18,6 +18,8 @@ class Command(BaseCommand):
         parser.add_argument('path')
         parser.add_argument('--actor-user-id', type=int, required=True)
         parser.add_argument('--year', type=int, required=True)
+        parser.add_argument('--kind', choices=['funders', 'budgets'], default='funders')
+        parser.add_argument('--ledger-run-id')
         parser.add_argument('--trace-allocations', action='store_true',
                             help='Measure scoped Python allocations separately; adds substantial overhead.')
 
@@ -36,7 +38,8 @@ class Command(BaseCommand):
             tracemalloc.start()
         try:
             with path.open('rb') as stream:
-                run, status = upload_workbook(stream, actor, kind='funders', year=options['year'],
+                run, status = upload_workbook(stream, actor, kind=options['kind'], year=options['year'],
+                                              ledger_run_id=options['ledger_run_id'],
                                               source_name=path.name, content_type=MIME)
         except FinanceRunError as error:
             raise CommandError(error.code) from None
@@ -47,7 +50,7 @@ class Command(BaseCommand):
                 python_peak = tracemalloc.get_traced_memory()[1]
                 tracemalloc.stop()
         rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
-        record = dict(basename=run.source_name, bytes=run.source_size_bytes, sha256=run.source_sha256,
+        record = dict(kind=run.kind, dependency_run_id=str(run.dependency_run_id) if run.dependency_run_id else None, basename=run.source_name, bytes=run.source_size_bytes, sha256=run.source_sha256,
                       producer_version=run.producer_version, producer_tag='v' + run.producer_version,
                       schema=run.schema_version, run_id=str(run.pk), status=run.status,
                       service_status=status, parse_duration_ms=run.parse_duration_ms,

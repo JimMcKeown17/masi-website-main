@@ -2040,7 +2040,7 @@ class FinanceRun(models.Model):
     """Immutable finance artifact; only checked services change approval state."""
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    kind = models.CharField(max_length=24, choices=[('funders', 'Funders')], default='funders')
+    kind = models.CharField(max_length=24, choices=[('funders', 'Funders'), ('budgets', 'Budgets')], default='funders')
     accounting_year = models.PositiveSmallIntegerField()
     status = models.CharField(max_length=16, choices=[(s, s.title()) for s in ('candidate', 'approved', 'superseded', 'failed')])
     source_name = models.CharField(max_length=255)
@@ -2058,6 +2058,7 @@ class FinanceRun(models.Model):
     uploaded_at = models.DateTimeField(default=timezone.now, editable=False)
     approved_by = models.ForeignKey(User, on_delete=models.PROTECT, null=True, related_name='approved_finance_runs')
     approved_at = models.DateTimeField(null=True)
+    dependency_run = models.ForeignKey('self', on_delete=models.PROTECT, null=True, related_name='dependent_runs')
     previous_approved = models.ForeignKey('self', on_delete=models.PROTECT, null=True, related_name='successors')
     approval_overrode_rollback = models.BooleanField(default=False)
     approval_acknowledged_findings = models.BooleanField(default=False)
@@ -2075,18 +2076,32 @@ class FinanceRun(models.Model):
     finding_count = models.PositiveIntegerField(default=0)
     in_scope_error_count = models.PositiveIntegerField(default=0)
 
+    def clean(self):
+        super().clean()
+        from django.core.exceptions import ValidationError
+        if self.dependency_run_id is not None:
+            if (self.kind != 'budgets' or self.dependency_run.kind != 'funders'
+                    or self.dependency_run.accounting_year != self.accounting_year):
+                raise ValidationError({'dependency_run': 'BUDGET_DEPENDENCY_INVALID'})
+        elif self.kind == 'budgets':
+            raise ValidationError({'dependency_run': 'BUDGET_DEPENDENCY_REQUIRED'})
+
     class Meta:
         permissions = [('read_finance', 'Can read the finance dashboard'), ('publish_finance', 'Can publish finance runs')]
         indexes = [models.Index(fields=['kind', 'accounting_year', 'status', '-uploaded_at'], name='finance_run_status_idx')]
         constraints = [
             models.UniqueConstraint(fields=['kind', 'accounting_year'], condition=models.Q(status='approved'), name='finance_one_approved'),
-            models.UniqueConstraint(fields=['kind', 'accounting_year', 'source_sha256', 'producer_version'], name='finance_upload_identity'),
-            models.CheckConstraint(condition=models.Q(kind='funders', accounting_year__gte=1, status__in=['candidate', 'approved', 'superseded', 'failed']), name='finance_closed_state'),
-            models.CheckConstraint(condition=(
+            models.UniqueConstraint(fields=['kind', 'accounting_year', 'source_sha256', 'producer_version'], condition=models.Q(kind='funders'), name='finance_upload_identity'),
+            models.UniqueConstraint(fields=['kind', 'accounting_year', 'source_sha256', 'producer_version', 'dependency_run'], condition=models.Q(kind='budgets'), name='finance_budget_upload_identity'),
+            models.CheckConstraint(condition=models.Q(kind__in=['funders', 'budgets'], accounting_year__gte=1, status__in=['candidate', 'approved', 'superseded', 'failed']), name='finance_closed_state'),
+            models.CheckConstraint(condition=(models.Q(kind='funders', dependency_run__isnull=True) & (
                 models.Q(status__in=['candidate', 'approved', 'superseded'], schema_version='2.0.0', producer_version__isnull=False, payload__isnull=False, payload_sha256__isnull=False, facts_sha256__isnull=False, failure__isnull=True)
                 | models.Q(status__in=['approved', 'superseded'], schema_version='1.0.0', producer_version__isnull=True, payload__isnull=False, payload_sha256__isnull=False, facts_sha256__isnull=True, fact_row_count=0, allocation_count=0, failure__isnull=True)
                 | models.Q(status='failed', schema_version='2.0.0', producer_version__isnull=False, payload__isnull=True, payload_sha256__isnull=True, facts_sha256__isnull=True, failure__isnull=False, fact_row_count=0, allocation_count=0)
-            ), name='finance_version_payload'),
+            ) | models.Q(kind='budgets', dependency_run__isnull=False, schema_version='1.0.0', producer_version__isnull=False, facts_sha256__isnull=True, fact_row_count=0, allocation_count=0) & (
+                models.Q(status__in=['candidate', 'approved', 'superseded'], payload__isnull=False, payload_sha256__isnull=False, failure__isnull=True)
+                | models.Q(status='failed', payload__isnull=True, payload_sha256__isnull=True, failure__isnull=False)
+            )), name='finance_version_payload'),
             models.CheckConstraint(condition=(
                 models.Q(status__in=['approved', 'superseded'], approved_by__isnull=False, approved_at__isnull=False)
                 | models.Q(status__in=['candidate', 'failed'], approved_by__isnull=True, approved_at__isnull=True, previous_approved__isnull=True)

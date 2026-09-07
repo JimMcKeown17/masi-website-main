@@ -33,7 +33,7 @@ from .youth_budget import (
     update_youth_budget_expenditure,
 )
 from .finance import finance_snapshot
-from .finance_runs import FinanceRunList, FinanceRunDetail, FinanceRunApprove, FinanceRunDemote, FinanceCurrent
+from .finance_runs import FinanceRunList, FinanceRunDetail, FinanceRunApprove, FinanceRunDemote, FinanceCurrent, FinanceRunRows, FinanceRunRowsExport
 from .closures import (
     ClosureListCreateAPIView, ClosureDetailAPIView, closures_bulk, closures_bulk_set, closures_export,
     closures_lookups, identity_export,

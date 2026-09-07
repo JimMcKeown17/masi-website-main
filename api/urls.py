@@ -76,6 +76,8 @@ urlpatterns = [
     # GET history and publisher-only raw XLSX POST share the runs resource.
     path('finance/runs/', views.FinanceRunList.as_view(), name='finance_run_list'),
     path('finance/runs/<uuid:run_id>/', views.FinanceRunDetail.as_view(), name='finance_run_detail'),
+    path('finance/runs/<uuid:run_id>/rows/', views.FinanceRunRows.as_view(), name='finance_run_rows'),
+    path('finance/runs/<uuid:run_id>/rows/export/', views.FinanceRunRowsExport.as_view(), name='finance_run_rows_export'),
     path('finance/runs/<uuid:run_id>/approve/', views.FinanceRunApprove.as_view(), name='finance_run_approve'),
     path('finance/runs/<uuid:run_id>/demote/', views.FinanceRunDemote.as_view(), name='finance_run_demote'),
     path('finance/current/', views.FinanceCurrent.as_view(), name='finance_current'),
