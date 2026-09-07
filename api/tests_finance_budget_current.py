@@ -101,6 +101,9 @@ class BudgetCurrentTests(TestCase):
 
 @skipUnless(connection.vendor=='postgresql','Requires PostgreSQL advisory locks, row locks and separate connections; SQLite is functional evidence only.')
 class BudgetPostgresTests(TransactionTestCase):
+    # Migration-created rows (the Finance Managers group) must survive this class's flush;
+    # without this, later tests depend on alphabetical ordering.
+    serialized_rollback = True
     def setUp(self):
         self.user=actor(); self.dep=budget_ledger(self.user)
         self.data=budget_workbook()

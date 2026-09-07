@@ -9,6 +9,9 @@ from api.finance_run_test_utils import actor, candidate, approve, legacy
 
 @skipUnless(connection.vendor == "postgresql", "Requires PostgreSQL advisory locks and separate connections.")
 class FinanceConcurrencyTests(TransactionTestCase):
+    # Migration-created rows (the Finance Managers group) must survive this class's flush;
+    # without this, later tests depend on alphabetical ordering.
+    serialized_rollback = True
     def setUp(self):
         from api.services import finance_runs
         self.service=finance_runs
