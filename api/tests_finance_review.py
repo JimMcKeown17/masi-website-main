@@ -44,23 +44,22 @@ class DependencyReleaseTests(SimpleTestCase):
         self.assertIn('finance-run-2.0.0.json', result.stdout)
 
 
-class FoundationSnapshotTests(TestCase):
-    def test_legacy_endpoint_is_unchanged_before_and_after_import(self):
+class CutoverSnapshotTests(TestCase):
+    def test_legacy_only_rows_do_not_serve_and_imported_endpoint_has_parity(self):
         from api.services.finance_runs import import_legacy_snapshots
         from api.finance_snapshot_compat import snapshot_response
         user = actor()
         row = legacy()
         client = APIClient()
         client.force_authenticate(user)
-        before = client.get('/api/finance/snapshot/')
-        self.assertEqual(before.status_code, 200)
-        self.assertEqual(before.json()['snapshot'], row.payload)
+        self.assertEqual(client.get('/api/finance/snapshot/').status_code, 404)
         imported = import_legacy_snapshots(user, year=2026, legacy_row_id=row.pk)[0]
-        self.assertEqual(client.get('/api/finance/snapshot/').json(), before.json())
-        self.assertEqual(snapshot_response(imported, [2026]), before.json())
-        # Foundation keeps serving the legacy row even if the imported run is absent.
-        imported.delete()
-        self.assertEqual(client.get('/api/finance/snapshot/').json(), before.json())
+        expected = snapshot_response(imported, [2026])
+        response = client.get('/api/finance/snapshot/')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), expected)
+        row.delete()
+        self.assertEqual(client.get('/api/finance/snapshot/').json(), expected)
 
 
 class ApprovalServabilityTests(TestCase):
@@ -101,3 +100,20 @@ class ApprovalServabilityTests(TestCase):
         self.assertEqual((current.approved_at, current.approved_by_id, current.approval_note), before)
         self.assertIsNone(target.approved_at)
         self.assertIsNone(target.previous_approved_id)
+
+
+class CutoverTimestampTests(TestCase):
+    def test_lowercase_timestamp_approve_then_snapshot_get_200(self):
+        user = actor()
+        artifact = golden()
+        artifact['manifest']['source']['client_modified_at'] = '2026-09-01t10:00:00z'
+        run = candidate(user, artifact=artifact)
+        client = APIClient()
+        client.force_authenticate(user)
+        response = client.post(f'/api/finance/runs/{run.pk}/approve/',
+            {'acknowledge_findings': True, 'note': 'Reviewed'}, format='json')
+        self.assertEqual(response.status_code, 200)
+        client.raise_request_exception = False
+        response = client.get('/api/finance/snapshot/')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['snapshot']['source']['modified_at'], '2026-09-01T10:00:00Z')
