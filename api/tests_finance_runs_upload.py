@@ -28,7 +28,7 @@ class FinanceUploadTests(TestCase):
         artifact = build_run_artifact(self.data, source_name=NAME, accounting_year=2026)
         self.assertEqual(run.status, 'candidate')
         self.assertEqual(run.manifest, artifact['manifest'])
-        self.assertEqual((run.schema_version, run.producer_version), ('2.0.0', '0.2.0'))
+        self.assertEqual((run.schema_version, run.producer_version), ('2.0.0', '0.3.0'))
         self.assertEqual(run.payload_sha256, payload_digest(artifact))
         self.assertEqual(run.facts_sha256, facts_digest(artifact['ledger']))
         self.assertEqual((run.fact_row_count, run.allocation_count), (1, 1))
@@ -157,7 +157,7 @@ class FinanceUploadTests(TestCase):
 
     def test_exact_version_pair_failure_is_internal_rollback(self):
         artifact = build_run_artifact(self.data, source_name=NAME, accounting_year=2026)
-        artifact['manifest']['producer']['version'] = '0.3.0'
+        artifact['manifest']['producer']['version'] = '99.0.0'
         with patch('api.services.finance_runs.build_run_artifact', return_value=artifact):
             self.assertEqual(self.upload().status_code, 500)
         self.assertFalse(FinanceRun.objects.exists())

@@ -196,9 +196,9 @@ def _xml_events(stream):
                 stack[-1].remove(element)
 
 
-def _coordinate(value):
+def _coordinate(value, code='SHEET_BOUNDS'):
     match = re.fullmatch(r'([A-Z]{1,3})([1-9][0-9]{0,6})', value or '')
-    require(match is not None, 'SHEET_BOUNDS')
+    require(match is not None, code)
     column = 0
     for letter in match[1]:
         column = column * 26 + ord(letter) - 64
@@ -211,13 +211,82 @@ def _label(value):
     return value if value in (*LEDGER_HEADERS, *CONTRACT_HEADERS) else bool(value)
 
 
+class _Payload:
+    """Streaming child grammar and Text.content projection, without a retained tree.
+
+    Single-valued children cannot repeat: openpyxl would select one and lose
+    another. Only r/rPh are sequences. Phonetic text is bounded but not content.
+    """
+    _children = {
+        'c': ('f', 'v', 'is'),
+        'si': ('t', 'r', 'rPh', 'phoneticPr'),
+        'is': ('t', 'r', 'rPh', 'phoneticPr'),
+        'r': ('rPr', 't'),
+        'rPh': ('t',),
+        'rPr': ('rFont', 'charset', 'family', 'b', 'i', 'strike', 'outline',
+                'shadow', 'condense', 'extend', 'color', 'sz', 'u', 'vertAlign', 'scheme'),
+    }
+
+    def __init__(self):
+        self.stack = []
+        self.cell_type = None
+        self.plain = ''
+        self.runs = []
+        self.value = None
+        self.formula = None
+
+    def start(self, element):
+        tag = element.tag
+        require(tag.startswith(NS), 'XML_INVALID')
+        name = tag[len(NS):]
+        if name == 'c' and not self.stack:
+            self.cell_type = element.get('t', 'n')
+            require(self.cell_type in ('n', 'b', 'd', 'e', 's', 'str', 'inlineStr'),
+                    'XML_INVALID')
+        if self.stack:
+            parent, seen = self.stack[-1]
+            require(name in self._children.get(parent, ()), 'XML_INVALID')
+            if parent == 'c':
+                # parse_cell reads v except for inlineStr, which reads is.
+                # f remains available in formula mode, alongside its cache.
+                require(name != ('v' if self.cell_type == 'inlineStr' else 'is'),
+                        'XML_INVALID')
+            require(name not in seen or parent in ('si', 'is') and name in ('r', 'rPh'),
+                    'XML_INVALID')
+            seen.add(name)
+        self.stack.append((name, set()))
+
+    def end(self, element):
+        name, _ = self.stack[-1]
+        parent = self.stack[-2][0] if len(self.stack) > 1 else None
+        text = element.text or ''
+        # No ignored mixed character content outside the consumed text leaves.
+        require(name in ('t', 'v', 'f') or not text.strip(), 'XML_INVALID')
+        require(not (element.tail or '').strip(), 'XML_INVALID')
+        if name == 'v':
+            self.value = text
+        elif name == 'f':
+            self.formula = text
+        elif name == 't':
+            if parent in ('si', 'is'):
+                self.plain = text
+            elif parent == 'r':
+                self.runs.append(text)
+        self.stack.pop()
+
+    @property
+    def content(self):
+        # Text.content prepends plain text regardless of XML sibling order.
+        return self.plain + ''.join(self.runs)
+
+
 def _shared_strings(archive):
     values = []
     if 'xl/sharedStrings.xml' not in archive.namelist():
         return values
     _check_declarations(archive, 'xl/sharedStrings.xml', 'XML_INVALID')
     nodes = children = length = depth = 0
-    texts = None
+    payload = None
     for event, element in _events(archive, 'xl/sharedStrings.xml'):
         if event == 'start':
             depth += 1
@@ -225,28 +294,31 @@ def _shared_strings(archive):
             # outside entries until the complete string table has been read.
             if depth == 1:
                 require(element.tag == NS + 'sst', 'SHARED_STRING_LIMIT')
-            elif texts is None:
+            elif payload is None:
                 require(depth == 2 and element.tag == NS + 'si', 'SHARED_STRING_LIMIT')
             nodes += 1
             require(nodes <= MAX_SHARED_STRING_NODES, 'SHARED_STRING_LIMIT')
-            if texts is not None:
+            if payload is not None:
                 children += 1
                 require(children <= MAX_SHARED_STRING_CHILDREN, 'SHARED_STRING_LIMIT')
             if element.tag == NS + 'si':
-                require(texts is None, 'XML_INVALID')
+                require(payload is None, 'XML_INVALID')
                 require(len(values) < MAX_SHARED_STRINGS, 'SHARED_STRING_LIMIT')
-                texts = []
+                payload = _Payload()
                 children = length = 0
+            if payload is not None:
+                payload.start(element)
         else:
             depth -= 1
-            if texts is not None and element.tag == NS + 't':
-                text = element.text or ''
-                length += len(text)
-                require(length <= MAX_STRING_LENGTH, 'SHARED_STRING_LIMIT')
-                texts.append(text)
-            elif texts is not None and element.tag == NS + 'si':
-                values.append(_label(''.join(texts)))
-                texts = None
+            if payload is not None:
+                if element.tag == NS + 't':
+                    length += len(element.text or '')
+                    require(length <= MAX_STRING_LENGTH, 'SHARED_STRING_LIMIT')
+                payload.end(element)
+                if element.tag == NS + 'si':
+                    # read_string_table applies this after Text.content.
+                    values.append(_label(payload.content.replace('x005F_', '')))
+                    payload = None
     return values
 
 
@@ -268,24 +340,93 @@ def _check_declarations(archive, path, code):
             tail = declaration_bytes[-overlap:]
 
 
-def _scan_sheet(archive, path, name, strings):
+def _scan_sheet(archive, path, name, strings, budget=None):
     _check_declarations(archive, path, 'SHEET_XML_DECLARATION')
     # Reopen directly into the single defusedxml scanner; never buffer a part.
-    _scan_sheet_xml(archive, path, name, strings)
+    return _scan_sheet_xml(archive, path, name, strings, budget)
 
 
-def _scan_sheet_xml(archive, path, name, strings):
-    limit = 50000 if name == 'Expenditure' else 5000
+class _FormulaDefinitions:
+    """Bounded per-sheet shared identities, without retaining formula text.
+
+    openpyxl replaces every later shared definition with the first one's
+    translation, and discards dataTable text. Admit only unambiguous encodings.
+    """
+    def __init__(self, row_limit):
+        self.shared = {}
+        self.row_limit = row_limit
+
+    def check(self, element, coordinate):
+        kind = element.get('t', 'normal')
+        text = element.text or ''
+        require(kind in ('normal', 'shared', 'array', 'dataTable'), 'XML_INVALID')
+        require(kind == 'shared' or 'si' not in element.attrib, 'XML_INVALID')
+        # These attributes define a data table's inputs and orientation; other
+        # formula types ignore them. Calculation hints ca/aca/bx remain valid.
+        table_attributes = {'dt2D', 'dtr', 'r1', 'r2', 'del1', 'del2'}
+        require(kind == 'dataTable' or not table_attributes.intersection(element.attrib),
+                'XML_INVALID')
+        if kind == 'normal':
+            require('ref' not in element.attrib, 'XML_INVALID')
+            return
+        if kind == 'dataTable':
+            require(not text, 'XML_INVALID')
+        if kind == 'shared':
+            index = element.get('si', '')
+            require(re.fullmatch(r'[0-9]{1,10}', index) is not None
+                    and int(index) <= 4294967295, 'XML_INVALID')
+            if index in self.shared:
+                require(not text and 'ref' not in element.attrib, 'XML_INVALID')
+                first, last = self.shared[index]
+                require(first[0] <= coordinate[0] <= last[0]
+                        and first[1] <= coordinate[1] <= last[1], 'XML_INVALID')
+                return
+            require(bool(text), 'XML_INVALID')
+        refs = element.get('ref', '').split(':')
+        require(1 <= len(refs) <= 2, 'XML_INVALID')
+        first, last = _coordinate(refs[0], 'XML_INVALID'), _coordinate(refs[-1], 'XML_INVALID')
+        require(first[0] <= coordinate[0] <= last[0] <= self.row_limit
+                and first[1] <= coordinate[1] <= last[1] <= 256, 'XML_INVALID')
+        if kind == 'shared':
+            require(len(self.shared) < MAX_SHEET_RETAINED_NODES, 'XML_INVALID')
+            self.shared[index] = (first, last)
+
+
+def _scan_sheet_xml(archive, path, name, strings, budget=None):
+    limit = 50000 if name == 'Expenditure' and budget is None else 5000
+    definitions = _FormulaDefinitions(limit)
+    seen_rows, seen_cols = set(), set()
+    current_row = max_row = max_col = 0
+    previous_row = previous_col = 0
+    nonempty = False
+    budget_header_width = 0
     extent = header_width = header_rows = max_data_col = 0
     headers = {}
     row_values = {}
     value = None
     formula = False
-    inline = []
+    payload = None
     nodes = metadata_nodes = row_nodes = depth = row_depth = 0
+    parents = []
+    sheet_data_seen = False
     for event, element in _events(archive, path):
         tag = element.tag
         if event == 'start':
+            parent = parents[-1] if parents else None
+            # The consumer emits rows on end events regardless of parent and
+            # parses EVERY direct row child as a cell. Establish its structure
+            # before coordinate/order checks, without accepting inferred cells.
+            local_name = tag.rsplit('}', 1)[-1]
+            if local_name == 'sheetData':
+                require(tag == NS + 'sheetData' and parents == [NS + 'worksheet']
+                        and not sheet_data_seen, 'XML_INVALID')
+                sheet_data_seen = True
+            if local_name == 'row':
+                require(tag == NS + 'row' and parent == NS + 'sheetData', 'XML_INVALID')
+            if parent == NS + 'row' or local_name == 'c':
+                require(tag == NS + 'c' and parent == NS + 'row', 'XML_INVALID')
+                _coordinate(element.get('r'), 'XML_INVALID')
+            parents.append(tag)
             depth += 1
             if depth == 1:
                 require(tag == NS + 'worksheet', 'XML_INVALID')
@@ -305,16 +446,32 @@ def _scan_sheet_xml(archive, path, name, strings):
                 row_nodes += 1
                 require(row_nodes <= MAX_SHEET_RETAINED_NODES, 'XML_INVALID')
         if event == 'start' and tag == NS + 'c':
+            r, c = _coordinate(element.get('r'))
+            # Read-only iteration advances through coordinates: disorder can
+            # silently omit populated inputs. Reject as unsafe before parsing.
+            require(row_depth and r == current_row and c > previous_col, 'XML_INVALID')
+            previous_col = c
+            if budget is not None:
+                r, c = _coordinate(element.get('r'))
+                require(r == current_row and r <= limit and c <= 256 and c not in seen_cols, 'BUDGET_SHEET_LIMIT')
+                seen_cols.add(c)
+                max_row, max_col = max(max_row, r), max(max_col, c)
+                require(budget['cells'] + max_row * max_col <= 4000000, 'BUDGET_SHEET_LIMIT')
             value = None
             formula = False
-            inline = []
-        if event == 'end':
-            if tag == NS + 'v':
-                value = element.text or ''
-            elif tag == NS + 'f':
-                formula = True
-            elif tag == NS + 't':
-                inline.append(element.text or '')
+            payload = _Payload()
+        if payload is not None:
+            if event == 'start':
+                payload.start(element)
+            else:
+                payload.end(element)
+                if tag == NS + 'v':
+                    value = payload.value
+                elif tag == NS + 'f':
+                    formula = True
+                    definitions.check(element, (current_row, previous_col))
+                    if budget is not None:
+                        _budget_formula_references(payload.formula, budget['names'])
         if event == 'start' and tag == NS + 'dimension':
             coordinates = element.get('ref', '').split(':')
             require(1 <= len(coordinates) <= 2, 'SHEET_BOUNDS')
@@ -324,14 +481,25 @@ def _scan_sheet_xml(archive, path, name, strings):
                 extent = max(extent, row)
         if event == 'start' and tag == NS + 'row':
             number = element.get('r', '')
-            require(re.fullmatch(r'[1-9][0-9]{0,6}', number) is not None and int(number) <= limit, 'SHEET_BOUNDS')
+            require(re.fullmatch(r'[1-9][0-9]{0,6}', number) is not None, 'XML_INVALID')
+            require(int(number) <= limit, 'SHEET_BOUNDS')
+            current_row = int(number)
+            require(current_row > previous_row, 'XML_INVALID')
+            previous_row, previous_col = current_row, 0
             extent = max(extent, int(number))
+            if budget is not None:
+                current_row = int(number)
+                require(current_row not in seen_rows, 'BUDGET_SHEET_LIMIT')
+                seen_rows.add(current_row)
+                seen_cols = set()
+                max_row = max(max_row, current_row)
+                require(budget['cells'] + max_row * max_col <= 4000000, 'BUDGET_SHEET_LIMIT')
             row_values = {}
         if event == 'end' and tag == NS + 'c':
             row, col = _coordinate(element.get('r'))
             require(row <= limit and col <= 256, 'SHEET_BOUNDS')
             extent = max(extent, row)
-            if element.get('t') == 's':
+            if element.get('t') == 's' and value:
                 try:
                     index = int(value)
                     require(0 <= index < len(strings), 'XML_INVALID')
@@ -339,11 +507,16 @@ def _scan_sheet_xml(archive, path, name, strings):
                 except (ValueError, TypeError, AttributeError):
                     raise WorkbookError('XML_INVALID') from None
             elif element.get('t') == 'inlineStr':
-                label = _label(''.join(inline))
+                label = _label(payload.content)
             else:
                 label = _label(value) if value is not None else False
+            payload = None
             nonblank = bool(label) or formula
-            if name == 'Expenditure':
+            if budget is not None:
+                nonempty |= nonblank
+                if row == 3 and nonblank:
+                    budget_header_width = max(budget_header_width, col)
+            elif name == 'Expenditure':
                 if row == 1 and nonblank:
                     require(col <= 128, 'LEDGER_HEADER_LIMIT')
                     require(col not in headers, 'LEDGER_DUPLICATE_HEADER')
@@ -363,7 +536,15 @@ def _scan_sheet_xml(archive, path, name, strings):
             if depth == row_depth:
                 row_depth = 0
             depth -= 1
-    if name == 'Expenditure':
+            parents.pop()
+    require(sheet_data_seen, 'XML_INVALID')
+    if budget is not None:
+        if name in budget['required']:
+            require(nonempty, 'BUDGET_REQUIRED_SHEET')
+        if name == budget['required'][0]:
+            require(budget_header_width >= 47, 'BUDGET_HEADER_INVALID')
+        budget['cells'] += max_row * max_col
+    elif name == 'Expenditure':
         require(all(list(headers.values()).count(h) == 1 for h in LEDGER_HEADERS), 'LEDGER_REQUIRED_HEADER')
         require(extent * header_width <= 4000000, 'LEDGER_CELL_LIMIT')
         require(max_data_col <= header_width, 'LEDGER_DATA_BEYOND_HEADER')
@@ -408,9 +589,11 @@ def _canonical_package(archive):
     require(bool(strings) == ('xl/sharedStrings.xml' in archive.namelist()), 'WORKBOOK_METADATA_INVALID')
 
 
-def scan_workbook(upload):
+def _scan_workbook(upload, *, kind='funders', year=None):
     try:
         with zipfile.ZipFile(upload.buffer) as archive:
+            if kind == 'budgets':
+                _budget_relationships(archive)
             _canonical_package(archive)
             root = _metadata(archive, 'xl/workbook.xml')
             require(root.tag == NS + 'workbook' and len(root.findall(NS + 'sheets')) == 1,
@@ -418,8 +601,17 @@ def scan_workbook(upload):
             sheets = [(sheet.get('name'), sheet.get(RID))
                       for sheet in root.find(NS + 'sheets')]
             require(all(isinstance(name, str) for name, _ in sheets), 'WORKBOOK_METADATA_INVALID')
-            require(all(sum(name == required for name, _ in sheets) == 1
-                        for required in ('Funder Budgets', 'Expenditure')), 'REQUIRED_SHEETS')
+            required = (f'{year} Budget', 'Codes', f'Actual {year}') if kind == 'budgets' else ('Funder Budgets', 'Expenditure')
+            require(all(sum(name == item for name, _ in sheets) == 1 for item in required), 'REQUIRED_SHEETS')
+            budget = None
+            if kind == 'budgets':
+                require(len(sheets) <= 64, 'BUDGET_SHEET_LIMIT')
+                budget = dict(cells=0, names={name for name, _ in sheets}, required=required)
+                # Names can hide external dependencies behind an ordinary cell
+                # RANGE token. Inspect their definitions without evaluating them
+                # or changing built-in/internal name interpretation.
+                for defined in root.iter(NS + 'definedName'):
+                    _budget_formula_references(defined.text or '', None)
             require(len({name.casefold() for name, _ in sheets}) == len(sheets), 'WORKBOOK_METADATA_INVALID')
             rel_ns = '{http://schemas.openxmlformats.org/package/2006/relationships}'
             rels = _metadata(archive, 'xl/_rels/workbook.xml.rels')
@@ -438,15 +630,82 @@ def scan_workbook(upload):
                 relationships[key] = (path, element.get('Type'), element.get('TargetMode'))
             strings = _shared_strings(archive)
             for name, key in sheets:
-                if name in ('Funder Budgets', 'Expenditure'):
+                if budget is not None or name in ('Funder Budgets', 'Expenditure'):
                     require(key in relationships, 'WORKBOOK_METADATA_INVALID')
                     path, kind, mode = relationships[key]
                     require(kind == 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet'
                             and mode != 'External', 'WORKBOOK_METADATA_INVALID')
-                    _scan_sheet(archive, path, name, strings)
+                    _scan_sheet(archive, path, name, strings, budget)
     except (ParseError, DefusedXmlException, zipfile.BadZipFile, KeyError, OSError, ValueError) as error:
         if isinstance(error, WorkbookError):
             raise
         raise WorkbookError('XML_INVALID') from None
     finally:
         upload.buffer.seek(0)
+
+
+def _budget_formula_references(formula, names):
+    # Tokenize formulas, never XML. Unknown tokenizer failures are value-free.
+    from openpyxl.formula.tokenizer import Tokenizer
+    try:
+        tokens = Tokenizer(formula if formula.startswith('=') else '=' + formula).items
+        for token in tokens:
+            if token.type != 'OPERAND' or token.subtype != 'RANGE':
+                continue
+            # [workbook]Name is an external name even without a sheet '!'.
+            # Local structured refs [Column]/[[#This Row],[Column]] end in ']';
+            # table-qualified refs have a table name before the opening '['.
+            value = token.value.strip("'")
+            if value.startswith('['):
+                closing = value.find(']')
+                require(closing < 0 or closing == len(value) - 1
+                        or value[closing + 1] in ',]', 'BUDGET_EXTERNAL_REFERENCE')
+            if '!' in token.value:
+                target = token.value.rsplit('!', 1)[0].strip("'").replace("''", "'")
+                require('[' not in target and ']' not in target, 'BUDGET_EXTERNAL_REFERENCE')
+                if names is not None:
+                    require(target in names, 'BUDGET_REFERENCED_SHEET_MISSING')
+    except WorkbookError:
+        raise
+    except Exception:
+        raise WorkbookError('WORKBOOK_DECODE_FAILURE') from None
+
+
+def _budget_relationships(archive):
+    for path in archive.namelist():
+        require('externalLinks/' not in path and not path.endswith('vbaProject.bin'), 'BUDGET_EXTERNAL_REFERENCE')
+        if path.endswith('.rels'):
+            _check_declarations(archive, path, 'XML_INVALID')
+            for element in _metadata(archive, path):
+                # Read-only cell values do not include hyperlinks; never resolve targets.
+                worksheet_hyperlink = (
+                    posixpath.dirname(path) == 'xl/worksheets/_rels'
+                    and element.get('Type') ==
+                    'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink'
+                )
+                require(element.get('TargetMode') != 'External' or worksheet_hyperlink,
+                        'BUDGET_EXTERNAL_REFERENCE')
+
+
+
+def scan_workbook(upload, *, kind='funders', year=None):
+    if kind == 'funders':
+        return _scan_workbook(upload)
+    require(kind == 'budgets' and type(year) is int, 'WORKBOOK_METADATA_INVALID')
+    from collections import Counter
+    from contextlib import redirect_stdout, redirect_stderr
+    from io import StringIO
+    import warnings
+    try:
+        with (StringIO() as discarded, redirect_stdout(discarded), redirect_stderr(discarded),
+              warnings.catch_warnings(record=True) as recorded):
+            warnings.simplefilter('always')
+            _scan_workbook(upload, kind=kind, year=year)
+            diagnostics = [{'category': category, 'count': count} for category, count in
+                           sorted(Counter(w.category.__name__ for w in recorded).items())]
+            recorded.clear()
+            return diagnostics
+    except WorkbookError:
+        raise
+    except Exception:
+        raise WorkbookError('WORKBOOK_DECODE_FAILURE') from None

@@ -37,12 +37,12 @@ class ApprovalTests(TestCase):
                 a['derived']['findings'][0]['message'] += ' reviewed'
             b = candidate(self.user, sha=str(index+1)*64, artifact=a, **kwargs)
             if index == 2:
-                type(b).objects.filter(pk=b.pk).update(source_sha256=self.a.source_sha256, producer_version='0.2.1')
+                type(b).objects.filter(pk=b.pk).update(source_sha256=self.a.source_sha256, producer_version='0.3.0')
                 b.refresh_from_db()
                 b.manifest['source']['sha256'] = b.source_sha256
-                b.manifest['producer']['version'] = '0.2.1'
+                b.manifest['producer']['version'] = '0.3.0'
                 b.save(update_fields=['manifest'])
-            with patch.dict(self.service.SUPPORTED_PAIRS, {('2.0.0','0.2.1'): '2.0.0'}):
+            with patch.dict(self.service.SUPPORTED_PAIRS, {('2.0.0','0.3.0'): '2.0.0'}):
                 with self.assertRaisesRegex(self.service.FinanceRunError, 'ANTI_ROLLBACK'):
                     self.service.approve_run(b.pk, self.user, acknowledge_findings=True, note='Reviewed')
                 for options in ({}, {'override_anti_rollback':True}):

@@ -11,14 +11,14 @@ from api.finance_run_test_utils import actor, approve, candidate, golden, legacy
 class DependencyReleaseTests(SimpleTestCase):
     def test_publisher_pin_is_in_deployment_requirements(self):
         requirements = (Path(__file__).resolve().parents[1] / 'requirements.txt').read_text()
-        pin = 'masi-finance @ git+https://JimMcKeown17:${MASI_FINANCE_GITHUB_TOKEN}@github.com/JimMcKeown17/masi-finance-app.git@v0.2.0'
+        pin = 'masi-finance @ git+https://JimMcKeown17:${MASI_FINANCE_GITHUB_TOKEN}@github.com/JimMcKeown17/masi-finance-app.git@v0.3.0'
         self.assertIn(pin, requirements.splitlines(), 'Missing pinned publisher deployment dependency')
 
     def test_build_checks_publisher_immediately_after_install(self):
         lines = (Path(__file__).resolve().parents[1] / 'build.sh').read_text().splitlines()
         check = ("python -c \"from importlib.metadata import version; "
                  "from masi_finance.publish.run_schema import verify_installed_contracts; "
-                 "assert version('masi-finance') == '0.2.0'; print(verify_installed_contracts())\"")
+                 "assert version('masi-finance') == '0.3.0'; print(verify_installed_contracts())\"")
         install = lines.index('pip install -r requirements.txt')
         self.assertEqual(lines[install + 1], check)
         self.assertLess(install + 1, lines.index('python manage.py migrate'), 'contract check must precede migrate')
@@ -30,7 +30,7 @@ class DependencyReleaseTests(SimpleTestCase):
         from unittest import mock
         from masi_finance.publish import run_schema
         digests = run_schema.verify_installed_contracts()
-        self.assertEqual(set(digests), {'finance-run-2.0.0.json', 'finance-snapshot-1.0.0.json', 'finance-snapshot-1.1.0.json'})
+        self.assertEqual(set(digests), {'finance-run-2.0.0.json', 'finance-snapshot-1.0.0.json', 'finance-snapshot-1.1.0.json', 'budget-run-1.0.0.json'})
         altered = {name: dict(value, schema_sha256='0' * 64) for name, value in run_schema.RESOURCE_DIGESTS.items()}
         with mock.patch.dict(run_schema.RESOURCE_DIGESTS, altered, clear=True):
             with self.assertRaises(ValueError) as caught:

@@ -1,0 +1,1206 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "money": {
+      "type": "string",
+      "pattern": "^-?[0-9]+\\.[0-9]{2}$"
+    },
+    "moneyOrNull": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/money"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "exact": {
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "coefficient",
+            "scale"
+          ],
+          "properties": {
+            "coefficient": {
+              "type": "string",
+              "pattern": "^(0|-?[1-9][0-9]*)$",
+              "maxLength": 1000
+            },
+            "scale": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000
+            }
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "part": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ref",
+        "sign"
+      ],
+      "properties": {
+        "ref": {
+          "type": "string",
+          "pattern": "^/(derived|dependency)/"
+        },
+        "sign": {
+          "enum": [
+            1,
+            -1
+          ]
+        }
+      }
+    },
+    "monetaryProjection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "total",
+        "residual",
+        "part_refs"
+      ],
+      "properties": {
+        "total": {
+          "$ref": "#/$defs/moneyOrNull"
+        },
+        "residual": {
+          "$ref": "#/$defs/moneyOrNull"
+        },
+        "part_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/part"
+          },
+          "uniqueItems": true
+        }
+      }
+    },
+    "check": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "cached",
+        "recomputed",
+        "delta",
+        "reason",
+        "monetary_projections"
+      ],
+      "properties": {
+        "cached": {
+          "$ref": "#/$defs/moneyOrNull"
+        },
+        "recomputed": {
+          "$ref": "#/$defs/moneyOrNull"
+        },
+        "delta": {
+          "$ref": "#/$defs/moneyOrNull"
+        },
+        "reason": {
+          "enum": [
+            null,
+            "formula_mismatch",
+            "cache_missing",
+            "input_unavailable"
+          ]
+        },
+        "monetary_projections": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [],
+          "properties": {
+            "delta": {
+              "$ref": "#/$defs/monetaryProjection"
+            }
+          }
+        }
+      }
+    }
+  },
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "kind",
+    "schema_version",
+    "manifest",
+    "derived"
+  ],
+  "properties": {
+    "kind": {
+      "enum": [
+        "budgets"
+      ]
+    },
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "manifest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "producer",
+        "source",
+        "accounting_year",
+        "rule_config_sha256",
+        "dependencies",
+        "acquisition"
+      ],
+      "properties": {
+        "schema_version": {
+          "enum": [
+            "1.0.0"
+          ]
+        },
+        "producer": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "version"
+          ],
+          "properties": {
+            "name": {
+              "enum": [
+                "masi-finance"
+              ]
+            },
+            "version": {
+              "type": "string",
+              "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+            }
+          }
+        },
+        "source": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "date",
+            "sha256",
+            "size_bytes",
+            "client_modified_at"
+          ],
+          "properties": {
+            "name": {
+              "type": "string",
+              "pattern": "^[0-9]{8}[^/\\\\]*\\.xlsx$"
+            },
+            "date": {
+              "type": "string",
+              "format": "date"
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "size_bytes": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "client_modified_at": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        },
+        "accounting_year": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "rule_config_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "dependencies": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "kind",
+              "run_id",
+              "source_name",
+              "source_date",
+              "source_sha256",
+              "payload_sha256",
+              "facts_sha256",
+              "producer_version",
+              "schema_version"
+            ],
+            "properties": {
+              "kind": {
+                "enum": [
+                  "management_accounts"
+                ]
+              },
+              "run_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "source_name": {
+                "type": "string",
+                "pattern": "^[0-9]{8}[^/\\\\]*\\.xlsx$"
+              },
+              "source_date": {
+                "type": "string",
+                "format": "date"
+              },
+              "source_sha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "payload_sha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "facts_sha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "producer_version": {
+                "type": "string",
+                "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+              },
+              "schema_version": {
+                "enum": [
+                  "2.0.0"
+                ]
+              }
+            }
+          },
+          "minItems": 1,
+          "maxItems": 1
+        },
+        "acquisition": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "method",
+            "fetched_at",
+            "source_modified_at"
+          ],
+          "properties": {
+            "method": {
+              "enum": [
+                "file_upload",
+                "google_sheets_export"
+              ]
+            },
+            "fetched_at": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "source_modified_at": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "derived": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "hierarchy",
+        "lines",
+        "findings",
+        "projection",
+        "lines_by_bc",
+        "unbound_line_ids",
+        "orphan_actuals",
+        "summary"
+      ],
+      "properties": {
+        "hierarchy": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "sheet_row",
+              "label",
+              "parent_id",
+              "level",
+              "child_ids",
+              "line_ids",
+              "rollup_shapes",
+              "calculation_inputs",
+              "budget",
+              "actual",
+              "projected",
+              "variance_all",
+              "variance_masi",
+              "known_subtotals",
+              "monetary_projections",
+              "complete",
+              "completeness_reasons",
+              "cross_checks"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "sheet_row": {
+                "type": "integer",
+                "minimum": 4,
+                "maximum": 5000
+              },
+              "label": {
+                "type": "string"
+              },
+              "parent_id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "level": {
+                "enum": [
+                  1,
+                  2
+                ]
+              },
+              "child_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "uniqueItems": true
+              },
+              "line_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "uniqueItems": true
+              },
+              "rollup_shapes": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "M",
+                  "N"
+                ],
+                "properties": {
+                  "M": {
+                    "enum": [
+                      "sum",
+                      "mismatch"
+                    ]
+                  },
+                  "N": {
+                    "enum": [
+                      "sum",
+                      "mismatch"
+                    ]
+                  }
+                }
+              },
+              "calculation_inputs": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "M",
+                  "N"
+                ],
+                "properties": {
+                  "M": {
+                    "$ref": "#/$defs/exact"
+                  },
+                  "N": {
+                    "$ref": "#/$defs/exact"
+                  }
+                }
+              },
+              "budget": {
+                "$ref": "#/$defs/moneyOrNull"
+              },
+              "actual": {
+                "$ref": "#/$defs/moneyOrNull"
+              },
+              "projected": {
+                "$ref": "#/$defs/moneyOrNull"
+              },
+              "variance_all": {
+                "$ref": "#/$defs/moneyOrNull"
+              },
+              "variance_masi": {
+                "$ref": "#/$defs/moneyOrNull"
+              },
+              "known_subtotals": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "budget",
+                  "actual",
+                  "projected",
+                  "variance_all",
+                  "variance_masi"
+                ],
+                "properties": {
+                  "budget": {
+                    "$ref": "#/$defs/moneyOrNull"
+                  },
+                  "actual": {
+                    "$ref": "#/$defs/moneyOrNull"
+                  },
+                  "projected": {
+                    "$ref": "#/$defs/moneyOrNull"
+                  },
+                  "variance_all": {
+                    "$ref": "#/$defs/moneyOrNull"
+                  },
+                  "variance_masi": {
+                    "$ref": "#/$defs/moneyOrNull"
+                  }
+                }
+              },
+              "monetary_projections": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "budget",
+                  "actual",
+                  "projected",
+                  "variance_all",
+                  "variance_masi",
+                  "known_subtotals.budget",
+                  "known_subtotals.actual",
+                  "known_subtotals.projected",
+                  "known_subtotals.variance_all",
+                  "known_subtotals.variance_masi"
+                ],
+                "properties": {
+                  "budget": {
+                    "$ref": "#/$defs/monetaryProjection"
+                  },
+                  "actual": {
+                    "$ref": "#/$defs/monetaryProjection"
+                  },
+                  "projected": {
+                    "$ref": "#/$defs/monetaryProjection"
+                  },
+                  "variance_all": {
+                    "$ref": "#/$defs/monetaryProjection"
+                  },
+                  "variance_masi": {
+                    "$ref": "#/$defs/monetaryProjection"
+                  },
+                  "known_subtotals.budget": {
+                    "$ref": "#/$defs/monetaryProjection"
+                  },
+                  "known_subtotals.actual": {
+                    "$ref": "#/$defs/monetaryProjection"
+                  },
+                  "known_subtotals.projected": {
+                    "$ref": "#/$defs/monetaryProjection"
+                  },
+                  "known_subtotals.variance_all": {
+                    "$ref": "#/$defs/monetaryProjection"
+                  },
+                  "known_subtotals.variance_masi": {
+                    "$ref": "#/$defs/monetaryProjection"
+                  }
+                }
+              },
+              "complete": {
+                "type": "boolean"
+              },
+              "completeness_reasons": {
+                "type": "array",
+                "items": {
+                  "enum": [
+                    "budget_unavailable",
+                    "actual_unavailable",
+                    "wf_excluded",
+                    "budget_incomplete",
+                    "actual_incomplete",
+                    "projected_incomplete",
+                    "variance_all_incomplete",
+                    "variance_masi_incomplete"
+                  ]
+                },
+                "uniqueItems": true
+              },
+              "cross_checks": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "variance"
+                ],
+                "properties": {
+                  "variance": {
+                    "$ref": "#/$defs/check"
+                  }
+                }
+              }
+            }
+          },
+          "minItems": 1
+        },
+        "lines": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "sheet_row",
+              "label",
+              "parent_id",
+              "bc",
+              "calc",
+              "wf",
+              "actual_share",
+              "budget_source",
+              "calculation_inputs",
+              "formula_shapes",
+              "source_cells",
+              "budget",
+              "actual",
+              "projected",
+              "variance_all",
+              "variance_masi",
+              "ledger_row_count",
+              "complete",
+              "completeness_reasons",
+              "monetary_projections",
+              "variance_masi_ref",
+              "cross_checks"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "sheet_row": {
+                "type": "integer",
+                "minimum": 4,
+                "maximum": 5000
+              },
+              "label": {
+                "type": "string"
+              },
+              "parent_id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "bc": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "calc": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "wf": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "actual_share": {
+                "enum": [
+                  "1",
+                  "1/2"
+                ]
+              },
+              "budget_source": {
+                "enum": [
+                  "literal",
+                  "formula_cache",
+                  "blank",
+                  "formula_cache_missing"
+                ]
+              },
+              "calculation_inputs": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "budget_assertion",
+                  "g_cached",
+                  "m_cached"
+                ],
+                "properties": {
+                  "budget_assertion": {
+                    "$ref": "#/$defs/exact"
+                  },
+                  "g_cached": {
+                    "$ref": "#/$defs/exact"
+                  },
+                  "m_cached": {
+                    "$ref": "#/$defs/exact"
+                  }
+                }
+              },
+              "formula_shapes": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "g",
+                  "l",
+                  "m",
+                  "n"
+                ],
+                "properties": {
+                  "g": {
+                    "enum": [
+                      "missing",
+                      "lookup",
+                      "lookup_half"
+                    ]
+                  },
+                  "l": {
+                    "enum": [
+                      "calc_b_y_else"
+                    ]
+                  },
+                  "m": {
+                    "enum": [
+                      "projected_minus_budget"
+                    ]
+                  },
+                  "n": {
+                    "enum": [
+                      "wf",
+                      "missing",
+                      "mismatch"
+                    ]
+                  }
+                }
+              },
+              "source_cells": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "B",
+                  "C",
+                  "D",
+                  "E",
+                  "F",
+                  "G",
+                  "L",
+                  "M",
+                  "N"
+                ],
+                "properties": {
+                  "B": {
+                    "type": "string"
+                  },
+                  "C": {
+                    "type": "string"
+                  },
+                  "D": {
+                    "type": "string"
+                  },
+                  "E": {
+                    "type": "string"
+                  },
+                  "F": {
+                    "type": "string"
+                  },
+                  "G": {
+                    "type": "string"
+                  },
+                  "L": {
+                    "type": "string"
+                  },
+                  "M": {
+                    "type": "string"
+                  },
+                  "N": {
+                    "type": "string"
+                  }
+                }
+              },
+              "budget": {
+                "$ref": "#/$defs/moneyOrNull"
+              },
+              "actual": {
+                "$ref": "#/$defs/moneyOrNull"
+              },
+              "projected": {
+                "$ref": "#/$defs/moneyOrNull"
+              },
+              "variance_all": {
+                "$ref": "#/$defs/moneyOrNull"
+              },
+              "variance_masi": {
+                "$ref": "#/$defs/moneyOrNull"
+              },
+              "ledger_row_count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "complete": {
+                "type": "boolean"
+              },
+              "completeness_reasons": {
+                "type": "array",
+                "items": {
+                  "enum": [
+                    "budget_unavailable",
+                    "actual_unavailable",
+                    "wf_excluded",
+                    "budget_incomplete",
+                    "actual_incomplete",
+                    "projected_incomplete",
+                    "variance_all_incomplete",
+                    "variance_masi_incomplete"
+                  ]
+                },
+                "uniqueItems": true
+              },
+              "monetary_projections": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "variance_all"
+                ],
+                "properties": {
+                  "variance_all": {
+                    "$ref": "#/$defs/monetaryProjection"
+                  }
+                }
+              },
+              "variance_masi_ref": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "cross_checks": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "actual",
+                  "variance"
+                ],
+                "properties": {
+                  "actual": {
+                    "$ref": "#/$defs/check"
+                  },
+                  "variance": {
+                    "$ref": "#/$defs/check"
+                  }
+                }
+              }
+            }
+          },
+          "minItems": 1
+        },
+        "findings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "code",
+              "severity",
+              "domain",
+              "accounting_year",
+              "in_scope_year",
+              "line_id",
+              "node_id",
+              "source_cells",
+              "bc",
+              "message",
+              "cached",
+              "recomputed",
+              "delta",
+              "monetary_projections"
+            ],
+            "properties": {
+              "code": {
+                "enum": [
+                  "STALE_BUDGET_MONTH",
+                  "BUDGET_AS_OF_YEAR_MISMATCH",
+                  "BUDGET_ACTUAL_FORMULA_MISSING",
+                  "BUDGET_MASI_FORMULA_MISSING",
+                  "BUDGET_ROLLUP_FORMULA_MISMATCH",
+                  "BUDGET_FORMULA_CACHE_MISSING",
+                  "MISSING_BUDGET",
+                  "BUDGET_BC_MISSING",
+                  "BUDGET_CALC_OTHER",
+                  "BUDGET_WF_OTHER",
+                  "BUDGET_CODE_NOT_FOUND",
+                  "BUDGET_CODES_MISMATCH",
+                  "BUDGET_BC_WITHOUT_LEDGER",
+                  "LEDGER_BC_MISSING",
+                  "LEDGER_BC_WITHOUT_BUDGET",
+                  "STALE_BUDGET_ACTUAL",
+                  "STALE_BUDGET_VARIANCE",
+                  "BUDGET_VARIANCE_CACHE_MISSING",
+                  "PARSER_WARNING"
+                ]
+              },
+              "severity": {
+                "enum": [
+                  "error",
+                  "warn",
+                  "info"
+                ]
+              },
+              "domain": {
+                "enum": [
+                  "budgets"
+                ]
+              },
+              "accounting_year": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "in_scope_year": {
+                "type": "boolean"
+              },
+              "line_id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "node_id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "source_cells": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "uniqueItems": true
+              },
+              "bc": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "message": {
+                "type": "string"
+              },
+              "cached": {
+                "$ref": "#/$defs/moneyOrNull"
+              },
+              "recomputed": {
+                "$ref": "#/$defs/moneyOrNull"
+              },
+              "delta": {
+                "$ref": "#/$defs/moneyOrNull"
+              },
+              "monetary_projections": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [],
+                "properties": {
+                  "delta": {
+                    "$ref": "#/$defs/monetaryProjection"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "projection": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "sheet_as_of",
+            "month_count",
+            "month_cell",
+            "month_cached",
+            "actual_basis",
+            "calculation_precision",
+            "rounding",
+            "policy"
+          ],
+          "properties": {
+            "sheet_as_of": {
+              "type": "string",
+              "format": "date"
+            },
+            "month_count": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 12
+            },
+            "month_cell": {
+              "type": "string"
+            },
+            "month_cached": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "actual_basis": {
+              "enum": [
+                "ledger_amount"
+              ]
+            },
+            "calculation_precision": {
+              "type": "integer",
+              "minimum": 38,
+              "maximum": 5000
+            },
+            "rounding": {
+              "enum": [
+                "ROUND_HALF_UP"
+              ]
+            },
+            "policy": {
+              "enum": [
+                "R37_B_Y_11_else_12"
+              ]
+            }
+          }
+        },
+        "lines_by_bc": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "bc",
+              "line_ids",
+              "ledger_actual",
+              "ledger_row_count",
+              "monetary_projections"
+            ],
+            "properties": {
+              "bc": {
+                "type": "string"
+              },
+              "line_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "uniqueItems": true
+              },
+              "ledger_actual": {
+                "$ref": "#/$defs/money"
+              },
+              "ledger_row_count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "monetary_projections": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "ledger_sum",
+                  "actual"
+                ],
+                "properties": {
+                  "ledger_sum": {
+                    "$ref": "#/$defs/monetaryProjection"
+                  },
+                  "actual": {
+                    "$ref": "#/$defs/monetaryProjection"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "unbound_line_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        },
+        "orphan_actuals": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "bc",
+              "actual",
+              "ledger_row_count",
+              "monetary_projections"
+            ],
+            "properties": {
+              "bc": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "actual": {
+                "$ref": "#/$defs/money"
+              },
+              "ledger_row_count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "monetary_projections": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "actual"
+                ],
+                "properties": {
+                  "actual": {
+                    "$ref": "#/$defs/monetaryProjection"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "hierarchy_count",
+            "line_count",
+            "bc_count",
+            "unbound_count",
+            "orphan_count",
+            "finding_count",
+            "ledger_contributor_count",
+            "complete",
+            "year_actual",
+            "monetary_projections"
+          ],
+          "properties": {
+            "hierarchy_count": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "line_count": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "bc_count": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "unbound_count": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "orphan_count": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "finding_count": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "ledger_contributor_count": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "complete": {
+              "type": "boolean"
+            },
+            "year_actual": {
+              "$ref": "#/$defs/money"
+            },
+            "monetary_projections": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "year_actual"
+              ],
+              "properties": {
+                "year_actual": {
+                  "$ref": "#/$defs/monetaryProjection"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

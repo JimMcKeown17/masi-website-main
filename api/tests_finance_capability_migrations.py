@@ -4,6 +4,9 @@ from django.db.migrations.executor import MigrationExecutor
 
 
 class CapabilityMigrationTests(TransactionTestCase):
+    # Migration-created rows (the Finance Managers group) must survive this class's flush;
+    # without this, later tests depend on alphabetical ordering.
+    serialized_rollback = True
     migrate_from=('api','0050_finance_read_capability')
     migrate_to=('api','0051_finance_runs_foundation')
 

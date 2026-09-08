@@ -1,6 +1,6 @@
 # Backend Build Log
 
-Last updated: 4 September 2026
+Last updated: 8 September 2026
 
 This is the project-level implementation and release log for the Django repository. It starts with the current work rather than reconstructing older history. Domain history and source topology remain in `data_map.md` and `airtable_pipeline_sync.md`.
 
@@ -1923,3 +1923,979 @@ untracked `.review-detached.pid` is untouched.
 Git: staging the three named files was denied creating `.git/index.lock` with
 `Operation not permitted`. No commit or workaround was attempted; the tree is
 intact and uncommitted. Final documentation-inclusive `git diff --check` passed.
+
+## 2026-09-07 WP4 slice A backend stage
+
+Authority: approved revision 2 `/tmp/wp4-plan-for-backend.md`, extending released
+WP2a at `b6dcfc1` in this standalone `feat/wp4a-budgets-backend` clone.
+Supervisor D15, D17.1, D21, D29–D31, D33, D36–D38 remain binding. No network or
+production access. This stage uses the supervisor-installed publisher from
+masi-finance main `480dc00`; its distribution metadata remains `0.2.0` while its
+installed contract verifier includes budgets. `requirements.txt` and `build.sh`
+remain unchanged: the deployment pin moves at the next unique publisher release,
+when the budgets upload pin and cumulative supported-pair registry must be updated.
+This installed-development-build evidence is not a tagged publisher release.
+
+### RED before implementation
+
+`DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py test api.tests_finance_budgets api.tests_finance_budget_safety api.tests_finance_budget_current --noinput --verbosity=2`
+— **Ran 21 tests in 0.677s; FAILED (failures=8, errors=9, skipped=2)**.
+Log: gitignored `venv/wp4-evidence/red.log`. Failures are unsupported upload
+metadata (400); errors are unsupported `ledger_run_id`/scanner kind arguments.
+Two existing-behavior controls passed. The PostgreSQL tests skip by engine with
+`Requires PostgreSQL advisory locks, row locks and separate connections; SQLite is functional evidence only.`
+
+Exact named RED suite (all names from approved 7-A items 6–8):
+
+- `api.tests_finance_budgets.BudgetTests.test_budget_raw_upload_reuses_candidate_transaction`
+- `api.tests_finance_budgets.BudgetTests.test_same_bytes_new_dependency_is_new_candidate`
+- `api.tests_finance_budgets.BudgetTests.test_replay_preserves_uploader_and_status`
+- `api.tests_finance_budgets.BudgetTests.test_dependency_factless_missing_corrupt_candidate_refuses`
+- `api.tests_finance_budgets.BudgetTests.test_dependency_fk_and_manifest_must_agree`
+- `api.tests_finance_budgets.BudgetTests.test_budget_approval_revalidates_derived_and_dependency`
+- `api.tests_finance_budgets.BudgetTests.test_funders_retained_candidate_still_approves_after_pin_update`
+- `api.tests_finance_budgets.BudgetTests.test_demote_replay_reapprove_preserves_acyclic_recovery`
+- `api.tests_finance_budgets.BudgetTests.test_all_mutations_require_publish_and_actors_are_server_derived`
+- `api.tests_finance_budget_safety.BudgetSafetyTests.test_31_sheet_unsized_export_reaches_producer`
+- `api.tests_finance_budget_safety.BudgetSafetyTests.test_stream_cap_and_unsafe_zip_create_no_history`
+- `api.tests_finance_budget_safety.BudgetSafetyTests.test_dimension_spoof_duplicate_nodes_and_shared_strings_reject_early`
+- `api.tests_finance_budget_safety.BudgetSafetyTests.test_external_link_and_missing_referenced_sheet_refuse`
+- `api.tests_finance_budget_safety.BudgetSafetyTests.test_empty_ancillary_is_not_empty_required_sheet`
+- `api.tests_finance_budget_safety.BudgetSafetyTests.test_parser_diagnostics_never_leak_auxiliary_values`
+- `api.tests_finance_budget_current.BudgetCurrentTests.test_same_management_sha_is_compatible_across_kinds`
+- `api.tests_finance_budget_current.BudgetCurrentTests.test_missing_kind_tolerated_but_unresolved_dependency_is_not`
+- `api.tests_finance_budget_current.BudgetCurrentTests.test_new_funder_current_marks_old_budget_incompatible_without_recompute`
+- `api.tests_finance_budget_current.BudgetCurrentTests.test_budget_approval_does_not_change_funder_snapshot_or_years`
+- `api.tests_finance_budget_current.BudgetPostgresTests.test_postgres_racing_approval_upload_and_injected_failure_preserve_current`
+- `api.tests_finance_budget_current.BudgetPostgresTests.test_postgres_dependency_admission_uses_consistent_lock_order`
+
+### Implementation and interpretation
+
+- Migration `0052_finance_budget_runs` adds the protected dependency FK and budgets
+  shape, preserving every funder row and immutable JSON. The existing unconditional
+  `finance_upload_identity` necessarily becomes conditional on `kind=funders`:
+  same name, same four columns and exactly the same funder uniqueness behavior.
+  Leaving it unconditional would prohibit the expressly required budget replay
+  against a new dependency. Budgets have a separate five-column partial unique key.
+- Same-year/kind dependency validation is a model/service invariant; cross-row
+  equality cannot be expressed in a portable SQL CHECK. The FK protects retention;
+  SQL checks require dependency on candidate/approved/superseded/failed budgets,
+  prohibit it for funders and prohibit budget fact counts/digests.
+- Shared service owns upload transaction, replay, measured RSS, history insertion
+  and all approval/demotion behavior. Sorted `(budgets, year)` then `(funders, year)`
+  advisory locks precede row locks in both upload and transitions. Dependencies may
+  be retained superseded, but must have validated 2.0.0 committed ledger facts.
+- Budgets approval invokes packaged calculation replay and its own serving schema;
+  it never invokes the funder 1.1.0 projection. Retained precise inputs, all digest
+  bindings and signed residual membership are checked before current changes.
+- The shared streaming scanner adds a budget profile; all released ZIP, expansion,
+  shared-string/declaration and retained-node limits stay in force. No XML slicing.
+- WP2b rows endpoints are absent at this base. Bring forward only bounded BC/Year
+  reads and CSV/XLSX export at the planned run-scoped paths, with the pinned ledger,
+  finite stored-BC variant resolution through `excel_equal`, and per-request access
+  checks. No generic metrics/diff/filter-token API is added.
+
+### Additional acceptance checks and diagnostic RED
+
+- Extended the named functional tests with safe failed-run retention/replay,
+  protected FK and SQL checks, error acknowledgement/note, all three anti-rollback
+  cases, actual contributor exports/access revocation, budget-only current and two
+  different ledger UUIDs sharing the same Management Accounts SHA.
+- `BudgetMigrationTests.test_upgrade_preserves_every_funder_field_and_constraint`
+  executes 0051 → 0052 on SQLite with both a successful 2.0.0 funder and imported
+  1.0.0 run. Every old field compares equal; dependency is null; funder illegal
+  state/payload/audit and duplicate-upload writes still refuse. No data migration.
+- `BudgetTests.test_odd_cent_half_shares_replay_without_assigning_residuals_to_inputs`
+  builds an actual synthetic funder workbook with 0.01 ledger Amount, two explicit
+  budget halves and fractional-cent budget assertions. Each displayed actual is
+  0.01 with group residual -0.01; month-3 projection is 0.02 each. Approval replays
+  with openpyxl forbidden. Residuals never become calculation inputs.
+- Additional diagnostic RED:
+  `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py test api.tests_finance_budget_safety.BudgetSafetyTests.test_scanner_unknown_decode_and_warning_channels_are_value_free --noinput`
+  — **Ran 1 test in 0.010s; FAILED (failures=1)**, exposing synthetic stdout,
+  stderr and warning text (`venv/wp4-evidence/diagnostic-red.log`). The budgets-only
+  scanner boundary now discards/restores stdout/stderr, captures category/count
+  diagnostics, converts unknown scanner exceptions to WORKBOOK_DECODE_FAILURE and
+  appends only PARSER_WARNING info to successful derived findings.
+- Producer diagnostic regression separately exposed jsonschema's multi-argument
+  exception representation: safe RUN_SCHEMA_INVALID is matched against its fixed
+  `message`, not a one-element `args` tuple. Unknown decoder errors remain
+  WORKBOOK_DECODE_FAILURE; unexpected service/database failures remain HTTP 500
+  and cannot create a plausible failed run. The released funder boundary is intact.
+- 31-sheet unsized fixture now actually reaches the installed producer and returns
+  a candidate. Unsafe stream/ZIP/shared-string tests prove no producer/openpyxl
+  invocation or budget history. Additional sparse-sheet aggregate/65-sheet/header
+  tests enforce the bounded profile before producer work. Synthetic workbooks are
+  built entirely in memory with fixed metadata/ZIP timestamps for stable replay.
+- CSV/XLSX use the same authorized BC/Year queryset and WP2's stable
+  `(date, sheet_row, row_key)` order. Pages are 100 rows; exports cap at 50,000.
+  `format` is the download format, not DRF renderer selection (the first export
+  test exposed a 404, corrected locally). XLSX is an in-memory new workbook;
+  source uploads are never retained or reconstructed.
+
+### Section 8 evidence rows
+
+| Evidence | Backend-stage result / supervisor gate |
+|---|---|
+| Local source / workbook acceptance | Synthetic full raw upload → detail → approval → current → contributors/export → demote/reapprove executed locally; real input PENDING. |
+| Adversarial plan review | Revision 2 APPROVED per supplied approval; no new independent implementation review claimed. |
+| Slice A RED / focused GREEN | Initial 21-test RED above; final focused suite recorded below. Slice B PENDING. |
+| Full suites / PostgreSQL / skips / warnings | SQLite results below; PostgreSQL and other repositories PENDING. Existing missing-staticfiles warning and private payroll skip remain. |
+| Publisher commit / unique tag | Supervisor-supplied main 480dc00 installed, metadata 0.2.0; unique tag/release pin PENDING. |
+| Budget schema SHA-256 | `4e35186a43eaf30cacb9ffc305db8c7f1be954905b9d87ee12afbfae417889b8`; backend copy exactly equals installed resource. |
+| Synthetic golden SHA-256 / equality | `86c6ada0f86a592d3228544cfe5917d3183a61910e5c97769735d6a49f7c0497`; backend copy exactly equals installed golden; frontend equality PENDING. |
+| Wheel/sdist / isolated installed checks | Four installed resources verified, digest mismatch still fails closed. Separate wheel/sdist build hashes and isolated installs PENDING with publisher release. |
+| Backend commit / migration / Render | Migration 0052 executes on SQLite; commit result below; PostgreSQL migration and Render deployment PENDING. |
+| Frontend / Vercel targets | PENDING supervisor/frontend stage. |
+| Real original-export rejection | PENDING coordinate-only diagnosis, timing and sampled RSS; no real workbook was supplied or accessed. |
+| Corrected-export upload / approval | PENDING operator-corrected export and exact named ledger, UUIDs/digests/counts and private actor audit. |
+| Parser / full-path benchmark | Command supports `--kind budgets --ledger-run-id UUID`, shared RSS measurement and actual file path; real successful/rejection runs, PostgreSQL, worker/aggregate memory, timeout margin and reader latency PENDING. |
+| Cross-kind current / retained run | SQLite same/mismatch/absent-kind, unchanged snapshot/years and retained funder approval verified; production PENDING. |
+| Transaction / recovery | SQLite rollback and acyclic recovery verified; named PostgreSQL races and lock order PENDING. |
+| Arithmetic reconciliation | Packaged retained-input replay, odd-cent shares, tamper/rehash rejection and synthetic contributor parity verified; real BC/share/orphan/Year reconciliation PENDING. |
+| Minimal UI / exports | Backend CSV/XLSX parity verified; browser/screenshots/keyboard and frontend rendering PENDING. |
+| Sheets acquisition / secrets | PENDING slice B; no credentials, Google integration or schedule added. |
+| Production reader probes | PENDING ADMIN, read-only Finance Manager, PROJECT MANAGER and plain STAFF live probes. No production access. |
+
+Required supervisor command shape (writes a candidate/failed run to its explicitly
+configured test/release database):
+`venv/bin/python manage.py benchmark_finance_upload '<dated-export-path>' --actor-user-id <authorized-id> --year 2026 --kind budgets --ledger-run-id <exact-ledger-uuid>`.
+No real-export byte count, SHA, latency, RSS, actor or run identity is invented here.
+No new environment variables, schedules, credentials or automatic operations.
+
+Full-suite integration exposed two test-isolation issues before final GREEN:
+`venv/wp4-evidence/full-final.log` — 806 tests in 48.886s, one failure and one
+error, 11 skips. Replay rebuilt a ZIP across a wall-clock second and got new bytes;
+the synthetic builder now canonicalizes core/ZIP timestamps. The new migration
+TransactionTestCase flushed migration-seeded Finance Managers grants before the
+released fresh-install test inspected them. The migration probe now runs in a
+separate explicitly in-memory SQLite subprocess, leaving the shared test database
+and released tests unchanged. It remains SQLite migration evidence only.
+
+### Final GREEN and gate inventory
+
+- Focused: `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py test api.tests_finance_budgets api.tests_finance_budget_safety api.tests_finance_budget_current --noinput`
+  — **Ran 33 tests in 4.398s; OK (skipped=2)**, 31 passed. Log:
+  `venv/wp4-evidence/focused-final.log`, SHA-256
+  `9405c1e5f50ef0f292f80e6d371965fb1aea546fa3f580acfd5eeb32121e69be`.
+  The subsequent fixture-isolation corrections were verified in the final full run.
+- Isolation regression: named budget migration + recovery + released capability
+  migration tests — **4 tests in 5.021s; OK**, no skips
+  (`venv/wp4-evidence/isolation-green.log`).
+- Full exact code/test tree:
+  `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py test api --noinput --verbosity=2`
+  — **Ran 806 tests in 51.727s; OK (skipped=11)**: **795 passed**, zero failures/errors.
+  Log: `venv/wp4-evidence/full-green.log`, SHA-256
+  `d9e3f1235cc6c18db3527216b6fc9a04f797d28eca4fd90b05f301efacfeb3b7`.
+- `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py check`:
+  **System check identified no issues (0 silenced).**
+- `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py makemigrations --check --dry-run`:
+  **No changes detected.** Exactly one new migration: `0052_finance_budget_runs`.
+- `git diff --check`: **passed**. Protected `requirements.txt`, `build.sh`,
+  `api/finance_snapshot_compat.py` and `api/views/finance.py` have no diff.
+- The installed verifier regression now asserts all four named resources and
+  still proves `CONTRACT_RESOURCE_DIGEST_MISMATCH` before migrations.
+- Initial named RED log SHA-256:
+  `6ca94df6670edf1d7cd1b5f2ceb7bf3e9b9d87f6c824a46f17cfaade2dbaf4ad`.
+- Existing WhiteNoise missing-staticfiles warning remains; no new unexplained
+  warning or xfail. Existing hostile funder safety probes also remain GREEN:
+  out-of-entry rejected RSS 119,586,816 bytes / 2 events; inside-entry rejected
+  RSS 117,637,120 bytes / 2,051 events; accepted string-heavy RSS 145,555,456 bytes.
+  These are synthetic process measurements, not real budget capacity evidence.
+
+PENDING PostgreSQL tests — must execute without SQLite skips at supervisor gate:
+
+1. `api.tests_finance_budget_current.BudgetPostgresTests.test_postgres_racing_approval_upload_and_injected_failure_preserve_current`
+2. `api.tests_finance_budget_current.BudgetPostgresTests.test_postgres_dependency_admission_uses_consistent_lock_order`
+3. `api.tests_finance_runs_model.FinanceRunModelTests.test_partial_unique_current`
+4. `api.tests_finance_runs_concurrency.FinanceConcurrencyTests.test_two_concurrent_approvals_one_wins_one_refuses`
+5. `api.tests_finance_runs_concurrency.FinanceConcurrencyTests.test_different_tuples_do_not_share_lock`
+6. `api.tests_finance_runs_concurrency.FinanceConcurrencyTests.test_import_uses_same_lock_and_replays_after_release`
+7. `api.tests_finance_runs_concurrency.FinanceConcurrencyTests.test_transition_select_for_update_locks_existing_rows`
+8. `api.tests_finance_runs_concurrency.FinanceConcurrencyTests.test_concurrent_imports_serialize_before_first_insert`
+9. `api.tests_finance_runs_concurrency.FinanceConcurrencyTests.test_first_ever_same_tuple_uploads_one_completes_one_conflicts`
+10. `api.tests_finance_runs_concurrency.FinanceConcurrencyTests.test_different_tuple_uploads_complete_while_first_is_locked`
+
+The other skip is unchanged:
+`api.tests_youth_budget.RealLedgerSeedTests.test_real_csv_parses_june_total_and_trimmed_april`
+— `real payroll ledger not on this machine`.
+PostgreSQL 0052 migration/constraint preservation, real original-export rejection,
+corrected-export acceptance/RSS/capacity, new publisher release/pin, deployment and
+production role probes remain **PENDING**. This stage is local backend evidence only.
+
+Git result: **uncommitted**. Staging the 17 explicitly named deliverable files was
+refused at this clone's `.git/index.lock` with `Operation not permitted`.
+No metadata workaround, alternate checkout, network, push or commit was attempted.
+All files remain intact; documentation-inclusive `git diff --check` passed.
+
+## WP4 backend stage, review fixes round 1
+
+RED first on bd27991, SQLite in memory, installed publisher supplied at 480dc00.
+Command: `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py test api.tests_finance_sheet_order --noinput`.
+Result: **Ran 5 tests in 0.462s; FAILED (failures=4)** (two passing controls;
+two row-order failures and two cell-order subtest failures). Log: `venv/wp4-order-red.log`.
+Names in `api.tests_finance_sheet_order.SheetOrderUploadTests`:
+- `test_budget_populated_row_8_after_row_9_refuses_before_producer`
+- `test_budget_ordered_row_8_reaches_hierarchy_failure`
+- `test_funders_populated_expenditure_row_after_higher_row_refuses_before_producer`
+- `test_funders_ordered_expenditure_reaches_candidate_with_ledger_row`
+- `test_decreasing_cells_refuse_before_producer_for_both_kinds`
+
+Both reversed-row uploads incorrectly returned 201 candidates; the funders
+candidate lost its ledger row. Ordered budget F8=999 reached the expected
+BUDGET_HIERARCHY_INVALID failed run; ordered funders retained one ledger row.
+Both cell-order subtests incorrectly returned 201.
+Use existing stable unsafe-structure code `XML_INVALID` for order violations
+(the initial RED expected proposed SHEET_ROW_ORDER/SHEET_CELL_ORDER codes; all
+failures occurred at the preceding HTTP status assertion). This preserves the
+released shared service's no-history boundary without changing funders services.
+
+Implementation: the shared streaming scanner requires strictly increasing row
+coordinates per scanned part and strictly increasing cell columns within their
+containing row, at start events. Both kinds reject violations as `XML_INVALID`
+before producer execution or FinanceRun insertion. All released limits remain
+unchanged; no regex slicing, service edits, models or migrations were added.
+New regressions use raw authenticated HTTP uploads, real installed producers as
+spies, and exact before/after FinanceRun identity sets on refusals.
+
+Focused GREEN: **Ran 5 tests in 0.373s; OK**, zero skips
+(`venv/wp4-order-green.log`). First full run: **Ran 811 tests in 52.114s;
+FAILED (failures=4, skipped=11)** (`venv/wp4-order-full.log`). Four existing
+header/bounds tests generated duplicate rows and now hit the earlier structural
+guard. Their fixtures now append cells to the existing row or use increasing
+rows, retaining the original expected limit codes. The retained-row-shell cap
+fixture also uses increasing coordinates so it still exercises its node limit.
+
+PENDING supervisor PostgreSQL gate: all ten tests listed in the preceding stage
+(two budget lock/race tests, seven released concurrency tests, partial unique
+constraint test), PostgreSQL migration/constraint validation. Named SQLite skip
+reasons remain `Requires PostgreSQL advisory locks, row locks and separate
+connections; SQLite is functional evidence only.`, `Requires PostgreSQL advisory
+locks and separate connections.`, and `Requires PostgreSQL conditional unique
+constraint release evidence.` The eleventh skip remains `real payroll ledger not
+on this machine`. Real-export rejection/acceptance and capacity benchmarking for
+both kinds remain PENDING under D38; no real workbook, network or production
+operation was performed. Deployment and live verification remain PENDING.
+No environment variables, schedules or one-off migrations are required by this fix.
+
+Final GREEN: `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py test api --noinput`
+— **Ran 811 tests in 52.216s; OK (skipped=11)**: **800 passed**, zero failures/errors.
+Log: `venv/wp4-order-full-green.log`. Existing missing-staticfiles warning remains.
+`DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py check` — **System check
+identified no issues (0 silenced).**
+`DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py makemigrations --check --dry-run`
+— **No changes detected.** `git diff --check` — **passed**.
+Evidence is local synthetic SQLite only; PostgreSQL and live gates remain above.
+
+Git result: **uncommitted**. Staging the four deliverable files was refused at
+this clone's `.git/index.lock`: `Operation not permitted`. Tree left intact;
+pre-existing `.review-detached.pid` untouched. No metadata workaround attempted.
+
+## WP4 backend stage, review fixes round 2
+
+Scope: shared sheet scanner only, starting on `feat/wp4a-budgets-backend` at
+`aa3bc5a`, with the supervisor-supplied publisher from main `480dc00` installed.
+Read plan section 5.2 and decisions D29-D31/D38. No funders service changes,
+new models, migrations, environment variables, schedules or one-off operations.
+
+RED first, before scanner changes:
+`DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py test api.tests_finance_sheet_order --noinput`
+— **Ran 9 tests in 3.285s; FAILED (failures=76)**, zero skips.
+Log: `venv/wp4-structure-red.log`. This is 75 structural subtest failures plus
+one canonical-control fixture assertion: the first funders data cell is a date,
+not an inline string. The fixture now locates its existing inline-string cell.
+The other ten structural cases already refused. The new named tests, all under
+`api.tests_finance_sheet_order.SheetOrderUploadTests`, are:
+- `test_budget_noncanonical_structure_refuses_before_producer`
+- `test_funders_noncanonical_structure_refuses_before_producer`
+- `test_budget_canonical_inline_string_and_empty_styled_cell`
+- `test_funders_canonical_inline_string_and_empty_styled_cell`
+Retained tests run in the same RED/GREEN command:
+- `test_budget_populated_row_8_after_row_9_refuses_before_producer`
+- `test_budget_ordered_row_8_reaches_hierarchy_failure`
+- `test_funders_populated_expenditure_row_after_higher_row_refuses_before_producer`
+- `test_funders_ordered_expenditure_reaches_candidate_with_ledger_row`
+- `test_decreasing_cells_refuse_before_producer_for_both_kinds`
+
+Consumer checked from the installed openpyxl **3.1.5** source, not assumed:
+`venv/lib/python3.13/site-packages/openpyxl/worksheet/_reader.py`,
+`WorkSheetParser.parse` (125-170), `parse_cell` (189-244), `parse_row` (282-304),
+and `worksheet/_read_only.py`, `_cells_by_row` / `_get_row` (60-138).
+- `parse()` dispatches main-namespace rows at end events without checking their
+  parent. Nested rows therefore emit before their populated containing row;
+  the read-only counter can then skip the containing row. Rows outside
+  sheetData or inside cells are also dispatched. Multiple, misplaced or foreign
+  sheetData containers do not constrain this row dispatch; missing sheetData
+  is not validated as a required singleton.
+- `parse_row()` calls `parse_cell()` for every direct child regardless of its
+  local name or namespace. An x child or foreign-namespace cell with a canonical
+  v child is interpreted as a cell. The F8=999 then E8 case can be truncated when
+  iteration derives width from the last cell. A nested row already cleared at
+  its end event remains a direct child and can be interpreted as an empty cell.
+- Missing cell r is inferred from the preceding column; missing row r is inferred
+  from the preceding row. Some noncanonical forms are normalized (lowercase cell
+  columns and integer-valued decimal row numbers); other malformed coordinates
+  raise during parsing. The scanner now refuses before any of these interpretations.
+- A c outside a direct row is not independently emitted by the consumer; a wrapped
+  or nested c is not traversed as another cell by parse_row. Foreign rows are not
+  dispatched as rows. These shapes can therefore be ignored/reinterpreted rather
+  than preserving the scanner's populated-input model, and are refused.
+
+Implementation: a parent-tag stack is maintained on every start/end event in
+all scanned sheet parts for both kinds. Structural checks run at start events
+before coordinate order checks. Exactly one main-namespace sheetData must be a
+root worksheet child (absence checked at end of part). Every row must be a direct
+child of that container. Every direct row child must be a main-namespace c with
+an explicit canonical r; every c must be a direct row child. Foreign/unqualified
+structural names are refused. Row r must be explicit and canonical, child row
+numbers must match, and round-1 strictly increasing row/column order remains.
+All structural refusals use existing XML_INVALID before producer/history. Existing
+numeric bounds, resource ceilings and their codes remain unchanged; coordinate
+syntax failures at this structural boundary use XML_INVALID. No regex slicing.
+
+Regression matrix: **17 shapes x 3 budget parts = 51 raw authenticated uploads**;
+**17 shapes x 2 funders parts = 34 raw authenticated uploads**. Each requires HTTP
+400/XML_INVALID, no producer call, and an unchanged exact FinanceRun identity set.
+Shapes: nested row; x child; foreign-namespace child; missing/malformed cell r;
+missing/malformed row r; second/missing/nested/foreign sheetData; row outside
+sheetData; row inside cell; foreign row; c outside row; c inside c; wrapped c.
+Includes the exact populated Expenditure row 2/nested row 3 and budget row 8
+F8=999/nested row 9 reproductions, plus budget x F8=999 followed by c E8.
+Ordered budget controls still reach BUDGET_HIERARCHY_INVALID; ordered funders
+retain their ledger row. Both canonical-variety controls include an inline-string
+cell and a serialized empty self-closing styled cell and reach candidates (funders
+retain one ledger row).
+
+Focused GREEN: **Ran 9 tests in 1.984s; OK**, zero skips.
+Log: `venv/wp4-structure-green.log`.
+
+First full run: **Ran 815 tests in 54.010s; FAILED (failures=1, skipped=11)**,
+log `venv/wp4-structure-full-green.log`. The retained-row-subtree limit fixture
+used a direct row child a, so the new structure check correctly refused on start
+event 4 rather than the expected node-cap event 6. Changed only that fixture to
+canonical c/is/t nesting with explicit A1, retaining the same limit of 3, expected
+six-event rejection, released ceiling assertion and XML_INVALID code.
+
+PENDING supervisor PostgreSQL gate: ten PostgreSQL-only tests (two budget lock/race
+tests, seven released concurrency tests, one conditional unique-constraint test),
+plus PostgreSQL migration/constraint validation. Named reasons unchanged:
+`Requires PostgreSQL advisory locks, row locks and separate connections; SQLite is functional evidence only.`,
+`Requires PostgreSQL advisory locks and separate connections.`, and
+`Requires PostgreSQL conditional unique constraint release evidence.` The remaining
+skip is `real payroll ledger not on this machine`. D38 real-export rejection,
+corrected acceptance and capacity/RSS benchmarks for both kinds remain PENDING;
+deployment and live verification remain PENDING. No network, production access,
+or changes outside this clone. These results are local synthetic SQLite evidence.
+
+Git result: **uncommitted**. This session explicitly grants read-only access to
+this clone's `.git`; no staging/commit or metadata workaround was attempted.
+Deliverables: `api/parsers/finance_workbook.py`, `api/tests_finance_sheet_order.py`,
+`api/tests_finance_upload_safety.py`, `documentation/build-log.md`.
+Pre-existing `.review-detached.pid` untouched. Evidence logs remain in ignored venv.
+
+Final GREEN:
+- `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py test api --noinput`
+  — **Ran 815 tests in 54.143s; OK (skipped=11)**: **804 passed**, zero failures/errors.
+  Log: `venv/wp4-structure-full-green-final.log`. Existing missing-staticfiles
+  warning remains; no new unexplained warning or xfail.
+- `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py check`
+  — **System check identified no issues (0 silenced).**
+- `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py makemigrations --check --dry-run`
+  — **No changes detected.**
+- Documentation-inclusive `git diff --check` — **passed**.
+
+## WP4 backend stage, fix pass 3 (real-export hyperlinks)
+
+D40 supervisor finding: supporting-document worksheet hyperlinks were refused
+as external data references. Local baseline: cd8cf15 on feat/wp4a-budgets-backend.
+Authority: plan section 5.2 and D29–D31/D38, with the task's binding D40 admission.
+Installed openpyxl 3.1.5 worksheet/_reader.py parse() maps HYPERLINK_TAG to
+HyperlinkList sheet properties, separately from rows/cells; verified locally.
+
+RED before parser changes, using DATABASE_URL=sqlite:///:memory: and venv/bin/python:
+`manage.py test api.tests_finance_budgets.BudgetTests.test_worksheet_hyperlinks_preserve_candidate_figures api.tests_finance_budgets.BudgetTests.test_external_reference_refusals_preserve_history_before_producer --noinput`
+— Ran 2 tests in 0.325s; FAILED (errors=1), one passed. Hyperlink fixture confirmed
+both serialized worksheet relationship parts have the exact OOXML hyperlink Type
+and TargetMode="External", then failed in scan with BUDGET_EXTERNAL_REFERENCE.
+All seven refusal controls passed over authenticated HTTP, with no producer call
+and the unchanged exact FinanceRun identity set. Log: venv/wp4-hyperlinks-red.log.
+
+Implementation: an External TargetMode is allowed only with Type exactly
+http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink
+in a .rels part whose immediate directory is xl/worksheets/_rels. Nested paths
+and workbook-level hyperlinks are excluded. Every other external mode still
+raises BUDGET_EXTERNAL_REFERENCE. externalLinks/ parts, vbaProject.bin and external
+formula references remain refused. No target is read, resolved, fetched, logged
+or persisted by this change. The funders kind does NOT run _budget_relationships;
+its path and funders services are unchanged.
+
+The positive regression uses openpyxl cell.hyperlink on required-sheet F6 and
+ancillary-sheet A1, explicitly scans after preflight, then creates a candidate via
+authenticated raw HTTP with the real producer. The complete stored derived payload
+matches the unlinked control and contains no target URL. Negative HTTP cases:
+worksheet image, worksheet unknown Type, workbook hyperlink, nested non-worksheet
+hyperlink, externalLinks part, VBA part, and [Book] formula reference.
+
+First focused post-fix run: Ran 2 tests in 0.378s; FAILED (errors=1) because the
+new assertion incorrectly indexed payload['derived']. FinanceRun.payload already
+stores derived; corrected the assertion to compare the complete payloads.
+Focused GREEN: Ran 2 tests in 0.373s; OK, zero skips.
+Log: venv/wp4-hyperlinks-green.log.
+
+PENDING supervisor: PostgreSQL full API gate, including ten PostgreSQL-only tests
+and migration/constraint validation; D38 real-export re-check for budget acceptance
+and funders retention, with capacity/RSS evidence. No real operator export was
+available here. Named PostgreSQL skip reasons remain:
+- Requires PostgreSQL advisory locks, row locks and separate connections; SQLite is functional evidence only.
+- Requires PostgreSQL advisory locks and separate connections.
+- Requires PostgreSQL conditional unique constraint release evidence.
+The other existing skip is: real payroll ledger not on this machine.
+No new migration, environment variable, schedule or one-off operation is required.
+All evidence here is local synthetic SQLite evidence; deployment/live verification
+are not claimed. No network or production access occurred.
+
+Git: uncommitted because this session's filesystem policy explicitly grants only
+read access to .git; no metadata write or workaround attempted. Changed files:
+api/parsers/finance_workbook.py, api/tests_finance_budgets.py,
+documentation/build-log.md. Pre-existing .review-detached.pid remains untouched;
+run logs are in ignored venv.
+
+Final GREEN:
+- DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py test api --noinput
+  — Ran 817 tests in 54.377s; OK (skipped=11): 806 passed, zero failures/errors.
+  Log: venv/wp4-hyperlinks-full-green.log.
+- DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py check
+  — System check identified no issues (0 silenced).
+- DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py makemigrations --check --dry-run
+  — No changes detected.
+- Documentation-inclusive git diff --check — passed.
+
+## WP4 backend stage, fix pass 4 (Excel error cells)
+
+Baseline edd2ef7 on feat/wp4a-budgets-backend; installed publisher supplied by
+the supervisor from masi-finance main 480dc00. Binding D41 supersedes section
+5.2's Excel-error-cache wording: preflight owns safety/shape; producer owns meaning.
+
+RED before parser edits, authenticated HTTP with the real producer wrapped by a spy:
+`DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py test api.tests_finance_budgets.BudgetTests.test_actual_label_excel_error_preserves_candidate_payload api.tests_finance_budgets.BudgetTests.test_ancillary_excel_error_preserves_candidate_payload api.tests_finance_budgets.BudgetTests.test_budget_amount_excel_error_records_producer_failure --noinput`
+— Ran 3 tests in 0.409s; FAILED (failures=3), zero skips. All three reached
+HTTP 201 but the producer was called zero times because scan refused error cells.
+Log: venv/wp4-excel-errors-red.log. Fixture reload verifies error data_type=e.
+
+Implementation removes only the error-typed-cell require and its code from the
+budget scanner. No replacement semantic check; every other preflight code/limit
+and the funders services remain unchanged. The two accepted-error HTTP tests
+compare the complete stored derived payload to an unedited control and require
+a candidate with no failure. The consumed F6 error uses the real producer once
+and retains a failed run with phase=producer, code/message=BUDGET_AMOUNT_INVALID,
+the selected dependency and no payload.
+
+Tests removed: none. Rewritten:
+`api.tests_finance_budget_safety.BudgetSafetyTests.test_parser_diagnostics_never_leak_auxiliary_values`
+previously relied indirectly on the deleted error refusal; now a row 5001
+inline-string fixture exercises existing SHEET_BOUNDS and preserves the assertion
+that private cell text is absent from diagnostics. Initial focused post-fix run:
+30 tests in 6.817s; FAILED (failures=1), because this rewritten test expected
+BUDGET_SHEET_LIMIT instead of the existing SHEET_BOUNDS. Corrected only its assertion.
+Focused final GREEN: 30 tests in 6.855s; OK, zero skips.
+Log: venv/wp4-excel-errors-focused-green-final.log.
+
+PENDING supervisor: PostgreSQL full API gate (ten PostgreSQL-only tests,
+including two budget lock/race tests, seven released concurrency tests and one
+conditional unique-constraint test), plus migration/constraint validation.
+Named skip reasons unchanged:
+- Requires PostgreSQL advisory locks, row locks and separate connections; SQLite is functional evidence only.
+- Requires PostgreSQL advisory locks and separate connections.
+- Requires PostgreSQL conditional unique constraint release evidence.
+The other existing skip is: real payroll ledger not on this machine.
+PENDING supervisor D38 real-export re-check: budget acceptance, funders retention
+and capacity/RSS evidence. All results here are local synthetic SQLite evidence.
+No new migrations, environment variables, schedules or one-off operations required.
+No network, production access, changes outside this clone or funders service edits.
+
+Git: uncommitted; session filesystem policy explicitly makes .git read-only.
+No staging/commit or metadata workaround attempted. Deliverables:
+api/parsers/finance_workbook.py, api/tests_finance_budgets.py,
+api/tests_finance_budget_safety.py, documentation/build-log.md.
+Pre-existing .review-detached.pid untouched; evidence logs in ignored venv.
+
+First full run, started before the privacy-test assertion correction:
+Ran 820 tests in 54.587s; FAILED (failures=1, skipped=11); the sole failure was
+that same SHEET_BOUNDS versus BUDGET_SHEET_LIMIT assertion.
+Log: venv/wp4-excel-errors-full-green.log.
+
+Final GREEN:
+- `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py test api --noinput`
+  — Ran 820 tests in 54.466s; OK (skipped=11): 809 passed, zero failures/errors.
+  Log: venv/wp4-excel-errors-full-green-final.log. Existing missing-staticfiles
+  warning remains; no new unexplained warning or xfail.
+- `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py check`
+  — System check identified no issues (0 silenced).
+- `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py makemigrations --check --dry-run`
+  — No changes detected.
+- Documentation-inclusive `git diff --check` — passed.
+- `rg -n BUDGET_EXCEL_ERROR api` — no remaining code/test references.
+
+## WP4 backend stage, fix pass 5 (cell payload parity)
+
+Baseline 364848e, feat/wp4a-budgets-backend; installed publisher supplied from
+masi-finance main 480dc00. Read plan section 5.2 and D29-D31/D38; inspected
+installed openpyxl 3.1.5 WorkSheetParser.parse_cell/parse_formula,
+Text.content, RichText/InlineFont/PhoneticText, CellRichText.from_tree,
+read_string_table and Serialisable.from_tree.
+
+RED before scanner edits:
+`DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py test api.tests_finance_cell_payloads --noinput`
+Initial run: 35 tests in 2.424s, FAILED (failures=34). Replaced the rejection
+mock with a wrapped real producer so RED demonstrates actual downstream behavior,
+not an invalid mock artifact. Final RED output: venv/wp4-cell-payload-red-final.log.
+Test names: CellPayloadUploadTests.test_{budgets,funders}_{shape}_refused,
+where shape is wrapped_v, duplicate_v, nested_v, unknown_cell_child,
+foreign_cell_child, wrapped_inline_t, unknown_inline_child, wrapped_shared_t,
+unknown_shared_child, duplicate_f, nested_f, duplicate_is, duplicate_plain_t,
+duplicate_run_t, nested_run_properties, foreign_shared_child.
+Controls: test_{budgets,funders}_payload_controls and
+test_rich_header_scanner_matches_openpyxl.
+Final RED: Ran 35 tests in 2.819s; FAILED (failures=34), zero skips.
+The 32 malformed-payload tests failed refusal assertions; the rich-header test
+failed both inline/shared subtests because preflight missed the required header.
+Both original control tests passed. All tests use raw authenticated uploads.
+
+Implementation: shared streaming _Payload validates main-namespace c children
+(f/v/is, each at most once), text-only v/f, and the is/si child grammar from
+Text/RichText/InlineFont/PhoneticText. Only r/rPh repeat; rPr properties are known
+leaf children, phoneticPr is a leaf. Unknown/foreign children, wrappers, duplicate
+singletons, nested text leaves and ignored mixed text refuse as XML_INVALID.
+Text.content projection uses direct plain t first, then direct r/t in run order;
+rPh text is excluded. Shared-string projection also mirrors read_string_table's
+x005F_ removal. Existing sst/si strictness, per-entry descendant bound, every
+released limit/code and clearing/detaching remain intact; no regex XML slicing.
+No funders service edits, new migration, environment variable, schedule or one-off
+operation. No network or production access; all writes stay inside this clone.
+
+Focused initial GREEN: 35 tests in 2.495s; OK, zero skips.
+Log: venv/wp4-cell-payload-focused-green.log.
+First full GREEN: 855 tests in 61.757s; OK (skipped=11), 844 passed.
+Log: venv/wp4-cell-payload-full-green.log.
+Controls then strengthened to use valid rich-text headers and require candidate
+status on every accepted case. This exposed a fixture issue: arbitrary formula
+in budget L1 violates the producer's date contract (BUDGET_MONTH_INVALID).
+Intermediate focused run: 35 tests in 2.520s, FAILED (failures=1).
+Changed that control to the supported M1 formula INT(MONTH(L1)) with cached v=3;
+the funders control retains its formula plus cached date at A2.
+Final focused GREEN: 35 tests in 2.564s; OK, zero skips.
+Log: venv/wp4-cell-payload-focused-green-final.log.
+
+Regressions: 16 named malformed-payload tests per kind, each requiring HTTP 400,
+XML_INVALID, no producer call and an unchanged FinanceRun identity set. Per-kind
+controls require HTTP 201/candidate and inspect the exact producer input stream
+with openpyxl in both data-only and formula modes: plain date, rich shared string
+with rPr, rich inline string, both with phoneticPr/rPh, formula plus cached v.
+Rich header assertion covers inline/shared plain-after-run XML, ignored phonetic
+text and shared-string escape removal; scanner input to _label equals the
+openpyxl header value Date.
+
+PENDING supervisor: PostgreSQL full API gate, including ten PostgreSQL-only
+tests and migration/constraint validation. Existing named skip reasons:
+- Requires PostgreSQL advisory locks, row locks and separate connections; SQLite is functional evidence only.
+- Requires PostgreSQL advisory locks and separate connections.
+- Requires PostgreSQL conditional unique constraint release evidence.
+The eleventh existing skip is: real payroll ledger not on this machine.
+PENDING supervisor D38 real-workbook re-check: budget acceptance, released funders
+retention, capacity/RSS evidence. Synthetic local SQLite is not PostgreSQL,
+real-export, deployment or live-data proof.
+
+Git: uncommitted because session policy explicitly makes .git read-only; no
+metadata write/workaround attempted. Deliverables: api/parsers/finance_workbook.py,
+api/tests_finance_cell_payloads.py, documentation/build-log.md.
+Pre-existing .review-detached.pid remains untouched; logs are in ignored venv.
+
+Final GREEN:
+- `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py test api --noinput`
+  — Ran 855 tests in 63.704s; OK (skipped=11): 844 passed, zero failures/errors.
+  Log: venv/wp4-cell-payload-full-green-final.log. Existing missing-staticfiles
+  warning remains. Synthetic shared-string probes: rejected peak RSS 120143872
+  bytes (2051 events); accepted peak RSS 145260544 bytes. These are synthetic
+  subprocess bounds only, not D38 real-workbook capacity evidence.
+- `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py check`
+  — System check identified no issues (0 silenced).
+- `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py makemigrations --check --dry-run`
+  — No changes detected.
+- Documentation-inclusive `git diff --check` — passed.
+- AST comparison against 364848e — all 13 released MAX_* expressions unchanged.
+
+## WP4 backend stage, review fixes round 3 (type-dependent payloads)
+
+Baseline 9fbc0ed on feat/wp4a-budgets-backend; publisher supplied from main
+480dc00. Read CLAUDE.md, existing finance build-log pipeline entries, plan 5.2,
+and decisions D29-D31, D38, D40, D41. Consumer inspected directly:
+venv/lib/python3.13/site-packages/openpyxl/worksheet/_reader.py, parse_cell.
+
+RED before scanner edits:
+`DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py test api.tests_finance_cell_payloads.CellTypePayloadUploadTests --noinput`
+— Ran 48 tests in 3.896s; FAILED (failures=20), zero skips.
+Log: venv/wp4-type-red.log. Names are
+CellTypePayloadUploadTests.test_{budgets,funders}_{shape}_{refused,control}.
+Refused shapes: inline_v, numeric_is, shared_is, shared_index_outside_table,
+shared_negative_index, shared_noninteger_index, unknown_type, inline_is_and_v,
+default_is, boolean_is, date_is, error_is, string_is.
+Control shapes: numeric, default_numeric, formula_cache, inline, shared,
+boolean, date, error, string, empty_styled, empty_shared.
+The 18 failures for newly covered incompatible/unknown types demonstrate admission
+past preflight; existing shared-index and shared-is refusals pass. Two additional
+failures show empty shared cells were refused although the consumer returns None.
+Every refusal asserts HTTP 400/XML_INVALID, no producer call and unchanged
+FinanceRun identity set. Raw authenticated controls wrap the real producer,
+inspect its input in read-only data-only and formula modes (value and Python type),
+and require HTTP 201/candidate. Malformed cases append ordered F8, matching the
+review reproduction; controls use unused H1 (budget) or Z1 (Funder Budgets).
+
+Implementation: _Payload captures and allowlists the enclosing c type at its
+start event; incompatible direct children refuse immediately as XML_INVALID.
+The grammar excludes even empty incompatible v/is children, retaining a canonical
+payload shape. Shared-string indices retain the existing integer conversion and
+0 <= index < admitted table length check; absent/empty v now bypasses lookup,
+matching parse_cell's `findtext(VALUE_TAG, None) or None`.
+
+Consumer-checked per-type table (openpyxl 3.1.5 parse_cell):
+
+| Cell t | Data-only child read and conversion | Formula-mode child | Refused child |
+| --- | --- | --- | --- |
+| absent | v; numeric, with style date conversion | f if present, otherwise v | is |
+| n | v; numeric, with style date conversion | f if present, otherwise v | is |
+| b | v; bool(int(value)) | f if present, otherwise v | is |
+| d | v; from_ISO8601 | f if present, otherwise v | is |
+| e | v; error text retained under D41 | f if present, otherwise v | is |
+| s | v; int index into admitted shared strings | f if present, otherwise v | is |
+| str | v; string, output type s | f if present, otherwise v | is |
+| inlineStr | is; Text.content (plain plus runs) | f if present, otherwise is | v |
+| unknown, including empty t | XML_INVALID at cell start | XML_INVALID | all |
+
+f/v/is remain singletons; legitimate f plus cached v remains admitted on every
+supported non-inline type. Empty styled cells and empty shared cells return None.
+Only selection/shape is newly enforced; semantic conversion remains with the
+consumer and producer. Existing D40/D41 logic and funders services are untouched.
+No models, migrations, schedules, environment variables or one-off operations
+required. AST comparison against 9fbc0ed: all 13 MAX_* expressions unchanged.
+
+Focused GREEN: `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py test api.tests_finance_cell_payloads --noinput`
+— Ran 83 tests in 6.003s; OK, zero skips.
+Log: venv/wp4-type-focused-green.log.
+
+PENDING supervisor: PostgreSQL full API gate and migration/constraint validation.
+Ten PostgreSQL-only tests retain the named reasons:
+- Requires PostgreSQL advisory locks, row locks and separate connections; SQLite is functional evidence only.
+- Requires PostgreSQL advisory locks and separate connections.
+- Requires PostgreSQL conditional unique constraint release evidence.
+The other existing skip is: real payroll ledger not on this machine.
+PENDING supervisor D38 real-workbook re-check: budget export acceptance, released
+funders retention, and capacity/RSS evidence. Local synthetic SQLite is not
+PostgreSQL, real-workbook, deployed or live-data proof.
+
+Git: uncommitted; session filesystem policy makes .git read-only. No metadata
+write or workaround attempted. Files: api/parsers/finance_workbook.py,
+api/tests_finance_cell_payloads.py, documentation/build-log.md.
+Pre-existing .review-detached.pid untouched. Logs stay in ignored venv.
+No network, production access or writes outside this clone.
+
+Final GREEN:
+- `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py test api --noinput`
+  — Ran 903 tests in 68.867s; OK (skipped=11): 892 passed, zero failures/errors.
+  Log: venv/wp4-type-full-green.log. Existing missing-staticfiles warning remains.
+- `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py check`
+  — System check identified no issues (0 silenced).
+- `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py makemigrations --check --dry-run`
+  — No changes detected.
+- Documentation-inclusive `git diff --check` — passed.
+
+Supervisor verification, 2026-09-07 (Codex handoff continuation):
+- Reviewed the three-file fix-pass-6 diff against 9fbc0ed. Full local PostgreSQL
+  API gate: Ran 903 tests in 97.085s; OK (skipped=1), PostgreSQL 17.10 on the
+  verified masi-wp2-pg container, localhost:5544, test_masi_test. The remaining skip
+  is the unavailable real payroll ledger; SQLite is not used for this evidence.
+- manage.py check: System check identified no issues (0 silenced).
+- manage.py makemigrations --check --dry-run: No changes detected.
+- git diff --check: passed on the three changed files.
+- D38 actual local files through preflight plus scan_workbook: funders ACCEPTED
+  (12,132,538 bytes, source SHA prefix 9784baa1, 21.88 s); current budget export
+  ACCEPTED (1,460,069 bytes, source SHA prefix 3e6b78d0, 6.03 s). Budget bytes differ
+  from the handoff snapshot; these timings describe the files read in this check.
+  No money, labels, or row content is included in this log. These are scanner
+  acceptance results, not successful budget production or full-path capacity proof.
+- Pending: independent round-4 review, exact-commit independent-clone reproduction,
+  worker RSS/concurrent-reader capacity, hosted deployment and role probes.
+
+## 2026-09-07 — WP4 backend fix pass 7: formula definition fidelity and names
+
+Independent review round 4 found two admission gaps at base 3c8996c on
+feat/wp4a-budgets-backend. The high reproduction uses G6 shared master (half
+lookup) and G7 shared follower with explicit full lookup text: openpyxl silently
+ignores the follower's definition and translates the master. The medium uses a
+workbook defined name containing an external reference, or a direct external
+name token without `!`, to admit a cached budget assertion. Synthetic probes:
+/private/tmp/masi-review4-probes.py, tightened adjacent cases lines 64–87.
+Read CLAUDE.md, existing build log, canonical WP4 plan sections 5–8 and binding
+D29–D41. No publisher/package source change in this pass.
+
+Consumer inspection: installed openpyxl 3.1.5 WorkSheetParser.parse_formula
+retains normal formula text, translates later shared formula instances from the
+first instance (ignoring any later text/ref), retains array text/ref in
+ArrayFormula, and discards dataTable text while retaining its input/orientation
+attributes in DataTableFormula. Unknown t falls through as normal; shared si and
+data-table inputs on other types are ignored. Calculation hints remain admitted.
+
+Implementation:
+- Per-sheet shared registry contains only index strings of at most 10 digits and
+  two coordinate pairs per master, capped by existing MAX_SHEET_RETAINED_NODES.
+  It retains no formula text, tokens or XML trees. It resets per sheet. Masters
+  need a bounded ref and text; followers need an earlier master, no text/ref and
+  coordinates inside that master ref. Duplicate explicit definitions refuse even
+  if their text happens to agree: there must be only one authored definition.
+- Unknown formula types, incompatible si/ref/data-table metadata, and dataTable
+  text refuse as XML_INVALID before either producer and before FinanceRun insert.
+  Empty shared followers, canonical array/dataTable formulas and ordinary formula
+  calculation hints remain admitted. Existing sheet limits and all 13 released
+  MAX_* expressions are unchanged (AST comparison against 3c8996c).
+- Budget external-reference token checks include external names without `!` and
+  every workbook definedName definition, including unused names. Definitions are
+  checked for external dependencies only; internal name interpretation, built-in
+  names, constants and structured refs stay with the consumer/producer. No name
+  evaluation, recursion or dependency graph is introduced. The workbook metadata
+  part remains covered by its existing byte limit. D40 hyperlinks and D41 error
+  cells retain their existing behavior.
+
+Named RED:
+- `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py test api.tests_finance_formula_payloads --noinput`
+  — Ran 41 tests in 4.158s; FAILED (failures=24), zero errors/skips.
+  Log: venv/wp4-formula-red.log. New admission cases returned 201 instead of 400.
+  Named groups: test_budget_adjacent_explicit_shared_follower_refused;
+  test_budget_external_{bare_name,defined_external_name,defined_formula,
+  defined_sheet,unused_defined_external}_refused; both-kind explicit follower,
+  missing shared si/master/ref, outside/redefined ref, unknown type, normal si,
+  and ignored dataTable text refusals. Direct external sheet rejection already
+  passed. Ordinary adjacent half/full control reached the real producer and
+  failed BUDGET_BC_BINDING_INVALID; valid empty follower candidate approved.
+- Same command after adding incompatible data-table attribute cases and two
+  internal controls — Ran 49 tests in 4.260s; FAILED (failures=6).
+  Log: venv/wp4-formula-attributes-red.log. The six named new failures are
+  test_{budgets,funders}_{normal,array,shared}_datatable_inputs_refused.
+
+Final focused GREEN:
+- `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py test api.tests_finance_formula_payloads api.tests_finance_cell_payloads api.tests_finance_budget_safety api.tests_finance_upload_safety --noinput`
+  — Ran 201 tests in 30.776s; OK, zero skips. Log:
+  venv/wp4-formula-focused-green.log. Includes all 49 new tests and existing
+  D40/D41/payload/bounded-upload regressions. Every new malformed test posts an
+  authenticated raw XLSX and asserts fixed-code HTTP 400, no producer call and
+  unchanged FinanceRun identity set. Valid controls wrap the real producer and
+  require candidate plus successful explicit approval, for both kinds.
+- `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py check`
+  — System check identified no issues (0 silenced).
+- `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py makemigrations --check --dry-run`
+  — No changes detected.
+
+No migrations, schema/version/dependency changes, environment variables, schedules
+or one-off operations required. No network, production, .env or Git metadata
+writes. Only api/parsers/finance_workbook.py,
+api/tests_finance_formula_payloads.py and documentation/build-log.md changed;
+pre-existing .review-detached.pid remains untouched. Changes stay uncommitted.
+Logs remain in ignored venv.
+
+PENDING supervisor: PostgreSQL full API and migration/constraint gate on final
+source; D38 real funders and budget export scan re-check; successful-path worker
+RSS/concurrency/capacity evidence. Synthetic local SQLite tests do not establish
+PostgreSQL, real-file, hosted, deployment or field evidence. The existing SQLite
+skip reasons remain PostgreSQL advisory/row locks and separate connections,
+PostgreSQL conditional unique constraint release evidence, and unavailable real
+payroll ledger. Existing missing-staticfiles warning remains.
+
+Final full GREEN:
+- `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py test api --noinput`
+  — Ran 952 tests in 80.532s; OK (skipped=11): 941 passed, zero failures/errors.
+  Log: venv/wp4-formula-full-green.log. The skip boundary above is unchanged.
+- Documentation-inclusive `git diff --check` — passed.
+- Final scope preflight: branch feat/wp4a-budgets-backend, HEAD 3c8996c;
+  the three listed source/log files changed and .review-detached.pid untouched.
+
+Supervisor gates, 2026-09-08, final fix-pass-7 code tree:
+- PostgreSQL 17.10, verified local masi-wp2-pg on localhost:5544, guarded
+  test_masi_test: Ran 952 tests in 96.883s; OK (skipped=1). The one skip is the
+  unavailable real payroll ledger. System check no issues; no migration changes.
+- D38 actual funders preflight+scan ACCEPTED (12,132,538 bytes, source SHA prefix
+  9784baa1, 19.81s); revised budget export ACCEPTED (1,459,890 bytes, source SHA
+  prefix 639caabc, 3.27s). Jim confirmed removing the intentionally zero-variance
+  budget line on 2026-09-08. This is scanner acceptance, not production approval
+  or full-path capacity evidence. Real files remain private and unmodified.
+- Pending independent review, exact-commit independent PostgreSQL reproduction,
+  successful-path RSS/concurrency, deployment and live role probes. Backend main
+  remains untouched because merging it would deploy.
+
+## 2026-09-08 — WP4 producer canonical-input refusal history
+
+The assembled backend at `0a6e4ce179491cf306e5a558f5a2149d27a23748` did not
+recognize the publisher's fixed `WORKBOOK_NOT_CANONICAL` domain code. An upload
+that passed backend admission but was refused by the publisher therefore
+returned HTTP 500 without failed-run history. The funder fixed-code allowlist
+and budget exact-argument handler now recognize that single code. Known typed
+producer refusals return HTTP 201 with an immutable failed run, in accordance
+with the existing safe producer-domain failure policy. No generic exception
+handling, parser admission rules, publisher behavior or schema pins changed.
+
+Tests use the real installed publisher 0.2.0 wheel built from `c88565798f1f`,
+as identified by its local distribution `direct_url.json`: wheel SHA-256
+`1da019d71a129c7e186d7ed26b82f6e1812a0da96b1dbba58123ba392f6f0da1`.
+Synthetic authenticated raw XLSX requests exercise both funders and budgets,
+with inline and shared strings mixing plain text and rich runs. The backend
+scanner accepts the header interpretation; the publisher intentionally refuses
+the noncanonical source representation. Each refusal retains only the fixed
+producer-phase failure metadata, with null payload and hashes, zero fact counts
+and unchanged ledger/allocation identity sets. Approval returns HTTP 409
+`INVALID_TRANSITION`. Same-byte replay returns the existing failed run without
+calling the producer again.
+
+Unknown producer codes, arbitrary text, decode failures, a code with trailing
+private text, multiple exception arguments, and the same exact spelling in an
+unexpected RuntimeError remain HTTP 500 with no run or fact history. The older
+rich-header test retains its direct scanner and both openpyxl reader-mode
+assertions; its candidate expectation was replaced by the explicit producer
+refusal tests rather than weakening publisher admission.
+
+Named TDD evidence (logs in ignored `venv/`):
+
+- Funder `test_funders_noncanonical_producer_refusal_is_failed_history`:
+  RED ran 1 test in 0.080s, 2 failing inline/shared subtests, HTTP 500
+  `UPLOAD_INTERNAL_ERROR` instead of HTTP 201. GREEN ran 1 test in 0.096s, OK.
+  Logs: `wp4-domain-funders-red.log`, `wp4-domain-funders-green.log`.
+- Budget `test_budgets_noncanonical_producer_refusal_is_failed_history`:
+  RED ran 1 test in 0.103s, 2 failing inline/shared subtests, HTTP 500
+  `WORKBOOK_DECODE_FAILURE` instead of HTTP 201. GREEN ran 1 test in 0.136s, OK.
+  Logs: `wp4-domain-budgets-red.log`, `wp4-domain-budgets-green.log`.
+- The former rich-header candidate control reproduced 2 failures in 0.264s
+  after domain admission was corrected: actual status was failed, with the
+  fixed producer code. Log: `wp4-domain-rich-control-red.log`.
+- Both new refusal tests, the preserved scanner/openpyxl parity test, and
+  `test_untrusted_producer_diagnostics_remain_internal_without_history`:
+  ran 4 tests in 0.538s, OK. Log: `wp4-domain-boundary-green.log`.
+
+Final validation:
+
+- `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py test api.tests_finance_cell_payloads api.tests_finance_formula_payloads api.tests_finance_runs_upload api.tests_finance_budgets api.tests_finance_budget_safety api.tests_finance_upload_safety --noinput`
+  — Ran 249 tests in 51.497s; OK, zero skips. Log:
+  `venv/wp4-domain-focused-green.log`.
+- `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py test api --noinput`
+  — Ran 955 tests in 74.445s; OK (skipped=11): 944 passed, zero failures/errors.
+  Log: `venv/wp4-domain-full-green.log`. Existing skips require PostgreSQL
+  advisory/row locks and separate connections, PostgreSQL conditional unique
+  constraint release evidence, or the unavailable real payroll ledger.
+- `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py check`
+  — System check identified no issues (0 silenced).
+- `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py makemigrations --check --dry-run`
+  — No changes detected.
+
+No migrations, dependency changes, environment variables, schedules or one-off
+operations are required. This work writes only `api/services/finance_runs.py`,
+`api/tests_finance_cell_payloads.py` and this build log; the pre-existing
+`.review-detached.pid` is untouched. Source changes remain uncommitted. No Git,
+PostgreSQL, network, real workbook, production or environment-file writes were
+performed. The existing missing-staticfiles warning remains. Independent review
+and final PostgreSQL evidence remain with the supervisor; local SQLite tests do
+not establish PostgreSQL, real-file, hosted, deployment or capacity evidence.
+
+## 2026-09-08 — WP4B operator-triggered Google budget refresh
+
+Status: isolated implementation on `feat/wp4b-budget-pull`, based on reviewed
+WP4A `ada4414`; not merged or deployed. Implements approved WP4 plan section 5.3.
+
+- Adds publisher-only `POST /api/finance/runs/pull-budget/`. Only JSON `year` and
+  `ledger_run_id` are accepted; actual request bytes are capped at 4 KiB, duplicate
+  fields and unknown inputs refuse before acquisition. Dependency admission also
+  precedes Google access and is repeated under the ordinary transaction locks.
+- Both transports enter the same candidate service, scanner, producer, identity
+  lookup, and approval policy. Acquisition method is provenance, not identity:
+  upload/pull replays retain the first immutable run and original acquisition.
+  Pull measurements include the network phase. No migration or new run state.
+- The server uses `GOOGLE_CREDENTIALS`, `GOOGLE_SERVICE_ACCOUNT_EMAIL`, and
+  `MASI_BUDGET_<year>_URL`. Only the configured docs.google.com sheet is selected;
+  OAuth audience and Drive origins are fixed, readonly scope, no delegated subject,
+  redirects, automatic approval, polling, or retries. Secrets remain server-side.
+- Drive modifiedTime/version are checked before and after the XLSX export. UTC
+  source modification date forms the basename. Actual bytes are hashed; equal
+  modification metadata does not imply byte-identical Google exports.
+- Acquisition uses one cancellable 60-second deadline over async DNS, TLS, headers,
+  token, metadata, and export bodies. Explicit `aiohttp==3.14.3` and
+  `aiodns==4.0.4` dependencies avoid the Requests inactivity-timeout gap and default
+  threaded DNS cleanup. Token/metadata cap 16 KiB; export cap 10 MiB. Identity
+  encoding, bounded streams, resolver/session closure, and value-free failures
+  apply throughout. Downstream service exceptions retain their own classification.
+- TDD: HTTP authorization 404→403; real-producer candidate 503→201; duplicate JSON
+  503→400; oversized token response 201→400. A live compressed-token response
+  exposed an encoding gap; explicit identity negotiation regression is green.
+  Independent review found the overall-deadline and context-yield exception gaps;
+  regressions cover DNS cancellation, real localhost HTTP dripping headers/body,
+  no remaining tasks, and downstream exception propagation/stream cleanup.
+- Full guarded local PostgreSQL 17.10 suite: 969 tests, 1 existing skip, PASS in
+  95.723 seconds. Django checks pass; no missing migrations. Focused pull suite
+  includes 14 tests. Installed publisher is the exact reviewed `11fba0e` wheel,
+  retaining version 0.2.0; no publisher/schema bytes changed in this slice.
+- Live readonly Google export + real preflight using the new transport: PASS,
+  1,090,534 bytes in 5.441 seconds, zero scanner diagnostics. This is acquisition
+  evidence, not production candidate/approval, financial reconciliation, or hosted
+  worker capacity proof. Full real-source local HTTP acceptance, frontend build,
+  independent revised-source review, exact release pins and deployment remain
+  separate gates while this entry is being completed.
+
+API references verified for this implementation:
+[Drive export](https://developers.google.com/workspace/drive/api/reference/rest/v3/files/export),
+[Drive metadata](https://developers.google.com/workspace/drive/api/reference/rest/v3/files/get),
+[aiohttp timeouts](https://docs.aiohttp.org/en/stable/client_reference.html),
+[async DNS resolver](https://docs.aiohttp.org/en/stable/client_advanced.html),
+[public JWT signing](https://google-auth.readthedocs.io/en/latest/reference/google.auth.jwt.html).
+
+Final local gate update:
+- Revised independent code review: APPROVED, zero findings. Independent focused
+  backend 13/13 (loopback bind blocked in its sandbox); root executed all 14 pull
+  tests including real HTTP header/body deadline cancellation. Independent frontend
+  full suite 106/106. `pip check` found no broken requirements.
+- Disposable local PostgreSQL real-source HTTP acceptance: PASS in 136.524 seconds.
+  Management Accounts candidate: 77.868 seconds, 23,914 facts; budget pull candidate:
+  31.494 seconds end-to-end, including live export, 283 findings/13 in-scope errors
+  retained. Explicit approval, compatible current metadata and contributor reads
+  passed. Process RSS upper observation 367,214,592 bytes; not hosted concurrency
+  proof. Test database destroyed normally. No production data changed.
+- GitHub metadata confirms the website repositories are public. The originating
+  finance repository forbids public pushes; source stays local pending Jim's
+  explicit destination decision. No merge, deployment, or publisher release tag.
+
+
+## 2026-09-08 — WP4 producer 0.3.0 and authorized release
+
+- Pin the reviewed private finance v0.3.0 release and require actual installed
+  version 0.3.0 at build. Both upload kinds now produce 0.3.0; cumulative registries
+  retain historical 0.2.0 support. Immutable old records and fixture bytes remain
+  unchanged. Shared candidate test fixtures take metadata from their artifact.
+- New HTTP regressions verify old/new artifact readability, distinct new-version
+  candidate identity, replay, dependency compatibility, anti-rollback refusal and
+  explicit restoration, and Finance Manager reads with publish/candidate denial.
+- Independent review approved with zero findings. Publisher 0.3.0 at
+  `0a6d918cee5ac1f3ae043c8b1ac560ba58bc0361`: full suite 3213 passed, 12 skipped,
+  1 xfailed; exact wheel and sdist installation/contract gates pass.
+- Exact 0.3.0 real-source HTTP acceptance on disposable local PostgreSQL: PASS,
+  90.379 seconds overall. Management Accounts candidate 49.823 seconds, 23,914
+  facts; live Google budget candidate 22.848 seconds, 283 findings/13 in-scope
+  errors retained. Explicit approval, compatible current and contributor reads
+  pass. Observed process RSS 330,104,832 bytes. Test DB destroyed; no production
+  financial writes. This is not hosted concurrency/browser proof.
+- Jim authorized public website source publication and exact Render configuration
+  plus both website deployments. Render email/URL keys and installed contract
+  verification before migrations were applied and read back. Existing Google
+  credentials, three-worker start command and permission grants are preserved.
+- Release order: private v0.3.0 tag, backend merge/live deployment, frontend merge.
+  Hosted migration/deploy identity and authenticated browser workflow remain
+  separate gates. Admin plus Finance Manager are readers; publish remains a
+  distinct capability. Old 0.2-only backend is not safe after approving 0.3 runs.
+
+- Final exact-interpreter PostgreSQL gate: 971 tests in 66.770 seconds,
+  OK (1 existing skip); Django checks pass, no migration drift. The installed
+  0.3.0 version was asserted before database access. Historical helper correction
+  independently approved; focused 7/7 passed. An intermediate copied-venv activation
+  selected an older interpreter and was discarded; this final gate uses the
+  explicit named-clone interpreter.

@@ -1,4 +1,6 @@
 """Run history, checked publication and coherent current finance metadata."""
+import json
+
 from django.shortcuts import get_object_or_404
 from rest_framework import serializers
 from rest_framework.exceptions import PermissionDenied, ValidationError
@@ -8,7 +10,8 @@ from rest_framework.views import APIView
 
 from api.models import FinanceRun
 from api.permissions import IsFinancePublisher, IsFinanceReader, finance_capabilities_for
-from api.services.finance_runs import FinanceRunError, approve_run, demote_run, upload_workbook
+from api.services.finance_runs import (FinanceRunError, approve_run, demote_run, upload_workbook, pull_budget,
+    validate_stored_run, budget_dependency_metadata)
 from api.views.finance import AUTH_CLASSES
 
 
@@ -37,7 +40,7 @@ class RunMetadataSerializer(serializers.ModelSerializer):
                   'uploaded_by', 'uploaded_at', 'approved_by', 'approved_at', 'previous_approved',
                   'approval_overrode_rollback', 'approval_acknowledged_findings', 'approval_note',
                   'demoted_by', 'demoted_at', 'demotion_note', 'parse_duration_ms', 'total_duration_ms',
-                  'peak_memory_bytes', 'fact_row_count', 'allocation_count', 'finding_count', 'in_scope_error_count')
+                  'peak_memory_bytes', 'dependency_run', 'fact_row_count', 'allocation_count', 'finding_count', 'in_scope_error_count')
         read_only_fields = fields
 
 
@@ -66,15 +69,68 @@ def year_parameter(params, *, required=False):
 
 
 class UploadMetadataSerializer(serializers.Serializer):
-    kind = serializers.ChoiceField(choices=['funders'])
+    kind = serializers.ChoiceField(choices=['funders', 'budgets'])
     year = serializers.IntegerField(min_value=2000, max_value=2100)
     source_name = serializers.CharField(max_length=255, trim_whitespace=False)
     client_modified_at = serializers.CharField(required=False, trim_whitespace=False)
+    ledger_run_id = serializers.UUIDField(required=False)
 
     def to_internal_value(self, data):
         if set(data) - set(self.fields) or any(len(data.getlist(key)) != 1 for key in data):
             raise ValidationError('UPLOAD_METADATA_INVALID')
         return super().to_internal_value(data)
+
+
+class BudgetPullSerializer(serializers.Serializer):
+    year = serializers.IntegerField(min_value=2000, max_value=2100)
+    ledger_run_id = serializers.UUIDField()
+
+
+def _unique_json_object(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError()
+        result[key] = value
+    return result
+
+
+class FinanceBudgetPull(APIView):
+    authentication_classes = AUTH_CLASSES
+    permission_classes = [IsFinancePublisher]
+    parser_classes = []
+
+    def post(self, request):
+        try:
+            if request.content_type.split(';', 1)[0] != 'application/json':
+                raise ValueError()
+            raw = request._request
+            stream = raw.environ['wsgi.input'] if hasattr(raw, 'environ') else raw
+            body = bytearray()
+            while len(body) <= 4096:
+                count = 4097 - len(body)
+                if hasattr(stream, '__len__'):
+                    count = min(count, len(stream))
+                chunk = stream.read(count)
+                if not chunk:
+                    break
+                body.extend(chunk)
+            if len(body) > 4096:
+                raise ValueError()
+            data = json.loads(body, object_pairs_hook=_unique_json_object)
+        except (ValueError, TypeError, RecursionError):
+            return Response({'code': 'UPLOAD_METADATA_INVALID'}, status=400)
+        if (request.query_params or not isinstance(data, dict)
+                or set(data) != {'year', 'ledger_run_id'} or type(data.get('year')) is not int):
+            return Response({'code': 'UPLOAD_METADATA_INVALID'}, status=400)
+        serializer = BudgetPullSerializer(data=data)
+        if not serializer.is_valid():
+            return Response({'code': 'UPLOAD_METADATA_INVALID'}, status=400)
+        try:
+            run, status = pull_budget(request.user, **serializer.validated_data)
+        except FinanceRunError as error:
+            return Response({'code': error.code}, status=error.status)
+        return Response(run_detail(run, request.user), status=status)
 
 
 class FinanceRunList(APIView):
@@ -112,9 +168,9 @@ class FinanceRunList(APIView):
         if unknown:
             raise ValidationError('Unknown run filter.')
         if 'kind' in request.query_params:
-            if request.query_params['kind'] != 'funders':
+            if request.query_params['kind'] not in ('funders', 'budgets'):
                 raise ValidationError({'kind': 'Unsupported finance kind.'})
-            queryset = queryset.filter(kind='funders')
+            queryset = queryset.filter(kind=request.query_params['kind'])
         year = year_parameter(request.query_params)
         if year is not None:
             queryset = queryset.filter(accounting_year=year)
@@ -133,6 +189,12 @@ class FinanceRunDetail(APIView):
 
     def get(self, request, run_id):
         run = get_object_or_404(visible_runs(request.user), pk=run_id)
+        if run.kind == 'budgets' and run.status != 'failed':
+            try:
+                validate_stored_run(run)
+                authorize_dependency(run, request.user)
+            except FinanceRunError as error:
+                return Response({'code': error.code}, status=error.status)
         return Response(run_detail(run, request.user))
 
 
@@ -184,6 +246,15 @@ def compatibility_result(runs):
 def management_accounts_sha(run):
     if run.kind == 'funders':
         return run.source_sha256
+    if run.kind == 'budgets':
+        dependency = run.dependency_run
+        if (dependency is None or dependency.kind != 'funders'
+                or dependency.accounting_year != run.accounting_year
+                or dependency.status not in ('approved', 'superseded')
+                or dependency.schema_version != '2.0.0' or not dependency.facts_sha256
+                or run.manifest.get('dependencies') != [budget_dependency_metadata(dependency)]):
+            return None
+        return dependency.source_sha256
     # Future kinds must declare their source explicitly. Ambiguity fails closed.
     dependencies = run.manifest.get('dependencies', [])
     sources = {item.get('source_sha256') for item in dependencies if item.get('kind') == 'funders'}
@@ -203,5 +274,127 @@ class FinanceCurrent(APIView):
             runs[run.kind] = {'id': str(run.pk), 'source_sha256': run.source_sha256,
                               'management_accounts_sha256': management_accounts_sha(run),
                               'schema_version': run.schema_version, 'approved_at': run.approved_at.isoformat()}
+            if run.kind == 'budgets':
+                runs[run.kind].update(budget_source_sha256=run.source_sha256,
+                                      dependency_run_id=str(run.dependency_run_id))
         compatible, reason = compatibility_result(runs)
         return Response({'accounting_year': year, 'runs': runs, 'compatible': compatible, 'compatibility_reason': reason})
+
+
+
+def authorize_dependency(run, user):
+    """Recheck both capabilities and pinned dependency on every budget read."""
+    capabilities = finance_capabilities_for(user)
+    required = 'finance.publish' if run.status in ('candidate', 'failed') else 'finance.read'
+    if required not in capabilities:
+        raise PermissionDenied('Finance access is not granted for this account.')
+    dependency = run.dependency_run
+    if (dependency is None or dependency.kind != 'funders'
+            or dependency.status not in ('approved', 'superseded')
+            or dependency.accounting_year != run.accounting_year):
+        raise ValidationError('BUDGET_DEPENDENCY_INVALID')
+    return dependency
+
+
+class RowPagination(CursorPagination):
+    page_size = 100
+    ordering = ('date', 'sheet_row', 'row_key')
+    offset_cutoff = 50000
+
+
+class FinanceRunRows(APIView):
+    authentication_classes = AUTH_CLASSES
+
+    def filtered_rows(self, request, run_id):
+        from masi_finance.publish.excel import excel_equal
+        allowed = {'year', 'bc', 'cursor', 'format'}
+        if (set(request.query_params) - allowed
+                or any(len(request.query_params.getlist(k)) != 1 for k in request.query_params)):
+            raise ValidationError('ROW_FILTER_INVALID')
+        year = year_parameter(request.query_params, required=True)
+        bc = request.query_params.get('bc')
+        if bc is None or len(bc) > 256:
+            raise ValidationError('ROW_FILTER_INVALID')
+        run = get_object_or_404(visible_runs(request.user), pk=run_id)
+        ledger = authorize_dependency(run, request.user) if run.kind == 'budgets' else run
+        if ledger.schema_version != '2.0.0' or not ledger.facts_sha256 or ledger.status == 'failed':
+            raise ValidationError('FACTS_UNAVAILABLE')
+        if run.kind == 'budgets' and year != run.accounting_year:
+            raise ValidationError('ROW_FILTER_INVALID')
+        try:
+            validate_stored_run(run)
+        except FinanceRunError:
+            raise ValidationError('RUN_INTEGRITY_INVALID') from None
+        rows = ledger.ledger_rows.filter(year=year)
+        # SQL equality would lose R32 numeric-text and case equivalence. Resolve
+        # only the finite BC vocabulary, then let indexed SQL bound the rows.
+        variants = [value for value in rows.values_list('bc', flat=True).distinct()
+                    if value is not None and excel_equal(value, bc)]
+        return run, ledger, rows.filter(bc__in=variants).order_by('date', 'sheet_row', 'row_key')
+
+    def get(self, request, run_id):
+        run, ledger, rows = self.filtered_rows(request, run_id)
+        pagination = RowPagination()
+        page = pagination.paginate_queryset(rows, request, view=self)
+        result = pagination.get_paginated_response([ledger_row_document(row) for row in page])
+        result.data.update(run_id=str(run.pk), ledger_run_id=str(ledger.pk),
+                           management_accounts_sha256=ledger.source_sha256,
+                           contributor_basis='full_ledger_amount_before_budget_share')
+        return result
+
+
+def ledger_row_document(row):
+    from api.services.finance_runs import ROW_FIELDS, _money_string
+    result = {field: getattr(row, field) for field in ROW_FIELDS}
+    result['date'] = row.date.isoformat()
+    result['amount'] = _money_string(row.amount)
+    result['coverage_amount'] = _money_string(row.coverage_amount)
+    return result
+
+
+class FinanceRunRowsExport(FinanceRunRows):
+    def get_content_negotiator(self):
+        from rest_framework.negotiation import DefaultContentNegotiation
+
+        class ExportNegotiation(DefaultContentNegotiation):
+            def filter_renderers(self, renderers, format):
+                # format belongs to the download contract, not DRF's renderer.
+                return renderers
+
+        return ExportNegotiation()
+
+    def get(self, request, run_id):
+        import csv
+        from io import BytesIO, StringIO
+        from django.http import HttpResponse
+        from api.services.finance_runs import ROW_FIELDS
+        run, ledger, rows = self.filtered_rows(request, run_id)
+        format_name = request.query_params.get('format', 'csv')
+        if format_name not in ('csv', 'xlsx') or 'cursor' in request.query_params:
+            raise ValidationError('ROW_FILTER_INVALID')
+        if rows.count() > 50000:
+            raise ValidationError('ROW_EXPORT_LIMIT')
+        # Escape formula-leading text in CSV; XLSX stores text explicitly.
+        if format_name == 'csv':
+            output = StringIO(); writer = csv.writer(output); writer.writerow(ROW_FIELDS)
+            for row in rows.iterator(chunk_size=1000):
+                doc = ledger_row_document(row)
+                writer.writerow([("'" + doc[k] if isinstance(doc[k], str) and doc[k].startswith(('=', '+', '-', '@'))
+                                  and k not in ('amount', 'coverage_amount') else doc[k]) for k in ROW_FIELDS])
+            response = HttpResponse(output.getvalue(), content_type='text/csv')
+        else:
+            from openpyxl import Workbook
+            from openpyxl.cell import WriteOnlyCell
+            wb = Workbook(); sheet = wb.active; sheet.title = 'Rows'
+            sheet.append(list(ROW_FIELDS))
+            for row in rows.iterator(chunk_size=1000):
+                doc = ledger_row_document(row); cells = []
+                for key in ROW_FIELDS:
+                    cell = WriteOnlyCell(sheet, value=doc[key])
+                    if isinstance(doc[key], str): cell.data_type = 's'
+                    cells.append(cell)
+                sheet.append(cells)
+            output = BytesIO(); wb.save(output); wb.close()
+            response = HttpResponse(output.getvalue(), content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        response['Content-Disposition'] = f'attachment; filename="finance-{run.pk}-rows.{format_name}"'
+        return response

@@ -94,9 +94,9 @@ class WorkbookSafetyTests(SimpleTestCase):
         data = rewrite(self.data, {'xl/worksheets/sheet1.xml': change})
         with self.preflight(data) as upload:
             self.p.scan_workbook(upload)
-        # Empty styled cells must not increase H: a populated L2 still rejects.
+        # Empty styled cells must not increase H: a populated L3 still rejects.
         invalid = rewrite(data, {'xl/worksheets/sheet1.xml': lambda xml: xml.replace(
-            b'</sheetData>', transform(b'<row r="2"><c r="L2"><v>1</v></c></row>')
+            b'</sheetData>', transform(b'<row r="3"><c r="L3"><v>1</v></c></row>')
             + b'</sheetData>')})
         self.reject(invalid, 'LEDGER_DATA_BEYOND_HEADER', sheet=True)
 
@@ -186,8 +186,15 @@ class WorkbookSafetyTests(SimpleTestCase):
                            ('DY1', 'LEDGER_HEADER_LIMIT'), ('LCV1', 'SHEET_BOUNDS')]:
             def change(x):
                 row = re.search(r'\d+', cell).group()
-                extra = f'<row r="{row}"><c r="{cell}" t="inlineStr"><is><t>Private</t></is></c></row>'.encode()
-                return x.replace(b'</sheetData>', extra + b'</sheetData>')
+                from xml.etree import ElementTree as ET
+                ns = '{http://schemas.openxmlformats.org/spreadsheetml/2006/main}'
+                root = ET.fromstring(x)
+                sheet = root.find(ns + 'sheetData')
+                existing = sheet.find(ns + 'row' + f"[@r='{row}']")
+                target = existing if existing is not None else ET.SubElement(sheet, ns + 'row', r=row)
+                value = ET.SubElement(target, ns + 'c', r=cell, t='inlineStr')
+                ET.SubElement(ET.SubElement(value, ns + 'is'), ns + 't').text = 'Private'
+                return ET.tostring(root)
             self.reject(rewrite(self.data, {'xl/worksheets/sheet1.xml': change}), code, sheet=True)
 
     def test_defused_xml_rejects_entities(self):
@@ -859,7 +866,7 @@ class Round6StructureTests(SimpleTestCase):
         # recognized metadata is also built before its end-event dispatch.
         for prefix in (b'<wrapper><a><b><c/></b></a></wrapper>',
                        b'<a/><b/><d/><e/>', b'<mergeCells><a><b><d/></b></a></mergeCells>',
-                       b'<sheetData><row r="1"><a><b><d/></b></a></row></sheetData>'):
+                       b'<sheetData><row r="1"><c r="A1" t="inlineStr"><is><t/></is></c></row></sheetData>'):
             data = rewrite(workbook_bytes(), {'xl/worksheets/sheet1.xml': lambda x:
                 x.replace(b'<sheetPr>', prefix + b'<sheetPr>', 1)})
             with self.subTest(prefix=prefix), patch.object(p, 'MAX_SHEET_RETAINED_NODES', 3):
@@ -874,7 +881,7 @@ class Round6StructureTests(SimpleTestCase):
         with patch.object(p, 'MAX_SHEET_RETAINED_NODES', 40):
             self.scan(data)  # Includes the separate per-row descendant budget.
             data = rewrite(data, {'xl/worksheets/sheet1.xml': lambda x:
-                x.replace(b'</sheetData>', b'<row r="2"/>' * 38 + b'</sheetData>')})
+                x.replace(b'</sheetData>', b''.join(f'<row r="{row}"/>'.encode() for row in range(2, 40)) + b'</sheetData>')})
             with self.assertRaises(p.WorkbookError) as caught:
                 self.scan(data)
             self.assertEqual(str(caught.exception), 'XML_INVALID')
