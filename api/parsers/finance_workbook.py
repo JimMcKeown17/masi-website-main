@@ -338,7 +338,6 @@ def _scan_sheet_xml(archive, path, name, strings, budget=None):
                 seen_cols.add(c)
                 max_row, max_col = max(max_row, r), max(max_col, c)
                 require(budget['cells'] + max_row * max_col <= 4000000, 'BUDGET_SHEET_LIMIT')
-                require(element.get('t') != 'e', 'BUDGET_EXCEL_ERROR')
             value = None
             formula = False
             inline = []

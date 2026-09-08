@@ -2369,3 +2369,69 @@ Final GREEN:
 - DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py makemigrations --check --dry-run
   — No changes detected.
 - Documentation-inclusive git diff --check — passed.
+
+## WP4 backend stage, fix pass 4 (Excel error cells)
+
+Baseline edd2ef7 on feat/wp4a-budgets-backend; installed publisher supplied by
+the supervisor from masi-finance main 480dc00. Binding D41 supersedes section
+5.2's Excel-error-cache wording: preflight owns safety/shape; producer owns meaning.
+
+RED before parser edits, authenticated HTTP with the real producer wrapped by a spy:
+`DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py test api.tests_finance_budgets.BudgetTests.test_actual_label_excel_error_preserves_candidate_payload api.tests_finance_budgets.BudgetTests.test_ancillary_excel_error_preserves_candidate_payload api.tests_finance_budgets.BudgetTests.test_budget_amount_excel_error_records_producer_failure --noinput`
+— Ran 3 tests in 0.409s; FAILED (failures=3), zero skips. All three reached
+HTTP 201 but the producer was called zero times because scan refused error cells.
+Log: venv/wp4-excel-errors-red.log. Fixture reload verifies error data_type=e.
+
+Implementation removes only the error-typed-cell require and its code from the
+budget scanner. No replacement semantic check; every other preflight code/limit
+and the funders services remain unchanged. The two accepted-error HTTP tests
+compare the complete stored derived payload to an unedited control and require
+a candidate with no failure. The consumed F6 error uses the real producer once
+and retains a failed run with phase=producer, code/message=BUDGET_AMOUNT_INVALID,
+the selected dependency and no payload.
+
+Tests removed: none. Rewritten:
+`api.tests_finance_budget_safety.BudgetSafetyTests.test_parser_diagnostics_never_leak_auxiliary_values`
+previously relied indirectly on the deleted error refusal; now a row 5001
+inline-string fixture exercises existing SHEET_BOUNDS and preserves the assertion
+that private cell text is absent from diagnostics. Initial focused post-fix run:
+30 tests in 6.817s; FAILED (failures=1), because this rewritten test expected
+BUDGET_SHEET_LIMIT instead of the existing SHEET_BOUNDS. Corrected only its assertion.
+Focused final GREEN: 30 tests in 6.855s; OK, zero skips.
+Log: venv/wp4-excel-errors-focused-green-final.log.
+
+PENDING supervisor: PostgreSQL full API gate (ten PostgreSQL-only tests,
+including two budget lock/race tests, seven released concurrency tests and one
+conditional unique-constraint test), plus migration/constraint validation.
+Named skip reasons unchanged:
+- Requires PostgreSQL advisory locks, row locks and separate connections; SQLite is functional evidence only.
+- Requires PostgreSQL advisory locks and separate connections.
+- Requires PostgreSQL conditional unique constraint release evidence.
+The other existing skip is: real payroll ledger not on this machine.
+PENDING supervisor D38 real-export re-check: budget acceptance, funders retention
+and capacity/RSS evidence. All results here are local synthetic SQLite evidence.
+No new migrations, environment variables, schedules or one-off operations required.
+No network, production access, changes outside this clone or funders service edits.
+
+Git: uncommitted; session filesystem policy explicitly makes .git read-only.
+No staging/commit or metadata workaround attempted. Deliverables:
+api/parsers/finance_workbook.py, api/tests_finance_budgets.py,
+api/tests_finance_budget_safety.py, documentation/build-log.md.
+Pre-existing .review-detached.pid untouched; evidence logs in ignored venv.
+
+First full run, started before the privacy-test assertion correction:
+Ran 820 tests in 54.587s; FAILED (failures=1, skipped=11); the sole failure was
+that same SHEET_BOUNDS versus BUDGET_SHEET_LIMIT assertion.
+Log: venv/wp4-excel-errors-full-green.log.
+
+Final GREEN:
+- `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py test api --noinput`
+  — Ran 820 tests in 54.466s; OK (skipped=11): 809 passed, zero failures/errors.
+  Log: venv/wp4-excel-errors-full-green-final.log. Existing missing-staticfiles
+  warning remains; no new unexplained warning or xfail.
+- `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py check`
+  — System check identified no issues (0 silenced).
+- `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py makemigrations --check --dry-run`
+  — No changes detected.
+- Documentation-inclusive `git diff --check` — passed.
+- `rg -n BUDGET_EXCEL_ERROR api` — no remaining code/test references.

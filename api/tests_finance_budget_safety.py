@@ -67,8 +67,9 @@ class BudgetSafetyTests(TestCase):
             self.scan(rewrite(budget_workbook(),{'xl/worksheets/sheet3.xml':lambda x:b'<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData/></worksheet>'}))
 
     def test_parser_diagnostics_never_leak_auxiliary_values(self):
-        data=rewrite(budget_workbook(),{'xl/worksheets/sheet1.xml':lambda x:x.replace(b'</sheetData>',b'<row r="10"><c r="F10" t="e"><v>PRIVATE_DIAGNOSTIC</v></c></row></sheetData>')})
+        data=rewrite(budget_workbook(),{'xl/worksheets/sheet1.xml':lambda x:x.replace(b'</sheetData>',b'<row r="5001"><c r="F5001" t="inlineStr"><is><t>PRIVATE_DIAGNOSTIC</t></is></c></row></sheetData>')})
         with self.assertRaises(parser.WorkbookError) as caught: self.scan(data)
+        self.assertEqual(caught.exception.code, 'SHEET_BOUNDS')
         self.assertNotIn('PRIVATE',str(caught.exception))
 
     def test_scanner_unknown_decode_and_warning_channels_are_value_free(self):

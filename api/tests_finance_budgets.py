@@ -75,6 +75,57 @@ class BudgetTests(TestCase):
         self.assertEqual(linked.payload, control.payload)
         self.assertNotIn('https://example.invalid/doc', str(linked.payload))
 
+    def workbook_with_excel_error(self, sheet_name, coordinate):
+        from openpyxl import load_workbook
+        workbook = load_workbook(BytesIO(self.data))
+        sheet = (workbook[sheet_name] if sheet_name in workbook.sheetnames
+                 else workbook.create_sheet(sheet_name))
+        sheet[coordinate] = '#NAME?'
+        output = BytesIO()
+        workbook.save(output)
+        workbook.close()
+        data = output.getvalue()
+        checked = load_workbook(BytesIO(data), read_only=True)
+        try:
+            self.assertEqual(checked[sheet_name][coordinate].data_type, 'e')
+        finally:
+            checked.close()
+        return data
+
+    def assert_excel_error_preserves_candidate(self, sheet_name, coordinate):
+        control = self.budget()
+        data = self.workbook_with_excel_error(sheet_name, coordinate)
+        with patch.object(service, 'build_budget_run_artifact',
+                          wraps=service.build_budget_run_artifact) as producer:
+            response = self.upload(data=data)
+        self.assertEqual(response.status_code, 201, response.data)
+        producer.assert_called_once()
+        run = FinanceRun.objects.get(pk=response.data['id'])
+        self.assertEqual(run.status, 'candidate')
+        self.assertIsNone(run.failure)
+        self.assertEqual(run.payload, control.payload)
+
+    def test_actual_label_excel_error_preserves_candidate_payload(self):
+        self.assert_excel_error_preserves_candidate('Actual 2026', 'A130')
+
+    def test_ancillary_excel_error_preserves_candidate_payload(self):
+        self.assert_excel_error_preserves_candidate('Ancillary', 'A1')
+
+    def test_budget_amount_excel_error_records_producer_failure(self):
+        data = self.workbook_with_excel_error('2026 Budget', 'F6')
+        with patch.object(service, 'build_budget_run_artifact',
+                          wraps=service.build_budget_run_artifact) as producer:
+            response = self.upload(data=data)
+        self.assertEqual(response.status_code, 201, response.data)
+        producer.assert_called_once()
+        run = FinanceRun.objects.get(pk=response.data['id'])
+        self.assertEqual(run.status, 'failed')
+        self.assertEqual(run.failure, {'phase': 'producer',
+                                      'code': 'BUDGET_AMOUNT_INVALID',
+                                      'message': 'BUDGET_AMOUNT_INVALID'})
+        self.assertEqual(run.dependency_run_id, self.dependency.pk)
+        self.assertIsNone(run.payload)
+
     def test_external_reference_refusals_preserve_history_before_producer(self):
         from api.tests_finance_upload_safety import rewrite
         relationship = (b'<Relationship Id="externalTest" Target="https://example.invalid/doc" '
