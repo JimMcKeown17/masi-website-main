@@ -2864,3 +2864,38 @@ Final local gate update:
 - GitHub metadata confirms the website repositories are public. The originating
   finance repository forbids public pushes; source stays local pending Jim's
   explicit destination decision. No merge, deployment, or publisher release tag.
+
+
+## 2026-09-08 — WP4 producer 0.3.0 and authorized release
+
+- Pin the reviewed private finance v0.3.0 release and require actual installed
+  version 0.3.0 at build. Both upload kinds now produce 0.3.0; cumulative registries
+  retain historical 0.2.0 support. Immutable old records and fixture bytes remain
+  unchanged. Shared candidate test fixtures take metadata from their artifact.
+- New HTTP regressions verify old/new artifact readability, distinct new-version
+  candidate identity, replay, dependency compatibility, anti-rollback refusal and
+  explicit restoration, and Finance Manager reads with publish/candidate denial.
+- Independent review approved with zero findings. Publisher 0.3.0 at
+  `0a6d918cee5ac1f3ae043c8b1ac560ba58bc0361`: full suite 3213 passed, 12 skipped,
+  1 xfailed; exact wheel and sdist installation/contract gates pass.
+- Exact 0.3.0 real-source HTTP acceptance on disposable local PostgreSQL: PASS,
+  90.379 seconds overall. Management Accounts candidate 49.823 seconds, 23,914
+  facts; live Google budget candidate 22.848 seconds, 283 findings/13 in-scope
+  errors retained. Explicit approval, compatible current and contributor reads
+  pass. Observed process RSS 330,104,832 bytes. Test DB destroyed; no production
+  financial writes. This is not hosted concurrency/browser proof.
+- Jim authorized public website source publication and exact Render configuration
+  plus both website deployments. Render email/URL keys and installed contract
+  verification before migrations were applied and read back. Existing Google
+  credentials, three-worker start command and permission grants are preserved.
+- Release order: private v0.3.0 tag, backend merge/live deployment, frontend merge.
+  Hosted migration/deploy identity and authenticated browser workflow remain
+  separate gates. Admin plus Finance Manager are readers; publish remains a
+  distinct capability. Old 0.2-only backend is not safe after approving 0.3 runs.
+
+- Final exact-interpreter PostgreSQL gate: 971 tests in 66.770 seconds,
+  OK (1 existing skip); Django checks pass, no migration drift. The installed
+  0.3.0 version was asserted before database access. Historical helper correction
+  independently approved; focused 7/7 passed. An intermediate copied-venv activation
+  selected an older interpreter and was discarded; this final gate uses the
+  explicit named-clone interpreter.

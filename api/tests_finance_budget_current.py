@@ -86,10 +86,10 @@ class BudgetCurrentTests(TestCase):
         self.assertEqual(self.client.get(path+query).status_code,400)
 
     def test_budget_only_current_and_same_sha_distinct_ledger_ids(self):
-        self.dep.producer_version='0.2.1'
-        self.dep.manifest['producer']['version']='0.2.1'
+        self.dep.producer_version='0.3.0'
+        self.dep.manifest['producer']['version']='0.3.0'
         self.dep.save(update_fields=['producer_version','manifest'])
-        with patch.dict(service.SUPPORTED_PAIRS,{('2.0.0','0.2.1'):'2.0.0'}):
+        with patch.dict(service.SUPPORTED_PAIRS,{('2.0.0','0.3.0'):'2.0.0'}):
             budget=self.budget()
             self.dep.status='superseded';self.dep.save(update_fields=['status'])
             self.assertTrue(self.current()['compatible'])
