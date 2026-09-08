@@ -152,3 +152,108 @@ for _kind in ('budgets', 'funders'):
     for _shape, (_payload, _shared) in BAD_PAYLOADS.items():
         setattr(CellPayloadUploadTests, f'test_{_kind}_{_shape}_refused', refusal(_kind, _payload, _shared))
     setattr(CellPayloadUploadTests, f'test_{_kind}_payload_controls', controls(_kind))
+
+
+class CellTypePayloadUploadTests(TestCase):
+    setUp = CellPayloadUploadTests.setUp
+    upload = CellPayloadUploadTests.upload
+
+    def fixture(self, kind, cell_type, payload, *, control=False):
+        data = budget_workbook() if kind == 'budgets' else workbook_bytes()
+        # Refusals reproduce the reviewer's ordered, otherwise empty row 8.
+        # Controls occupy unused cells so business rules do not obscure parsing.
+        coordinate = ('H1' if kind == 'budgets' else 'Z1') if control else 'F8'
+        sheet = 2 if control and kind == 'funders' else 1
+        def change(xml):
+            root = ET.fromstring(xml)
+            rows = root.find(parser.NS + 'sheetData')
+            number = '1' if control else '8'
+            row = rows.find(parser.NS + f"row[@r='{number}']")
+            if row is None:
+                row = ET.SubElement(rows, parser.NS + 'row', r=number)
+            cell = ET.fromstring(f'<c xmlns="{parser.NS[1:-1]}" r="{coordinate}" s="0">{payload}</c>')
+            if cell_type is not None:
+                cell.set('t', cell_type)
+            row.append(cell)
+            row[:] = sorted(row, key=lambda c: parser._coordinate(c.get('r'))[1])
+            root.find(parser.NS + 'dimension').set('ref', 'A1:AU8' if kind == 'budgets' else 'A1:Z8')
+            return ET.tostring(root)
+        changes = {f'xl/worksheets/sheet{sheet}.xml': change,
+                   '[Content_Types].xml': lambda x: x.replace(b'</Types>', b'<Override PartName="/xl/sharedStrings.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/></Types>')}
+        extra = [('xl/sharedStrings.xml', f'<sst xmlns="{parser.NS[1:-1]}"><si><t>Synthetic text</t></si></sst>'.encode())]
+        return rewrite(data, changes, extra), sheet - 1, coordinate
+
+
+TYPE_REFUSALS = {
+    'inline_v': ('inlineStr', '<v>999</v>'),
+    'numeric_is': ('n', '<is><t>999</t></is>'),
+    'shared_is': ('s', '<is><t>999</t></is>'),
+    'shared_index_outside_table': ('s', '<v>1</v>'),
+    'shared_negative_index': ('s', '<v>-1</v>'),
+    'shared_noninteger_index': ('s', '<v>0.5</v>'),
+    'unknown_type': ('unknown', '<v>999</v>'),
+    'inline_is_and_v': ('inlineStr', '<is><t>999</t></is><v>999</v>'),
+    **{f'{name}_is': (kind, '<is><t>999</t></is>') for name, kind in
+       [('default', None), ('boolean', 'b'), ('date', 'd'), ('error', 'e'), ('string', 'str')]},
+}
+TYPE_CONTROLS = {
+    'numeric': ('n', '<v>999</v>', 999, None),
+    'default_numeric': (None, '<v>999</v>', 999, None),
+    'formula_cache': ('n', '<f>1+2</f><v>3</v>', 3, '=1+2'),
+    'inline': ('inlineStr', '<is><t>Synthetic text</t></is>', 'Synthetic text', None),
+    'shared': ('s', '<v>0</v>', 'Synthetic text', None),
+    'boolean': ('b', '<v>1</v>', True, None),
+    'date': ('d', '<v>2026-01-02T00:00:00</v>', datetime(2026, 1, 2), None),
+    'error': ('e', '<v>#NAME?</v>', '#NAME?', None),
+    'string': ('str', '<v>Synthetic text</v>', 'Synthetic text', None),
+    'empty_styled': (None, '', None, None),
+    'empty_shared': ('s', '', None, None),
+}
+
+
+def type_refusal(kind, cell_type, payload):
+    def test(self):
+        data, _, _ = self.fixture(kind, cell_type, payload)
+        before = set(FinanceRun.objects.values_list('pk', flat=True))
+        name = 'build_budget_run_artifact' if kind == 'budgets' else 'build_run_artifact'
+        with patch.object(finance_runs, name, wraps=getattr(finance_runs, name)) as producer:
+            response = self.upload(kind, data)
+        self.assertEqual(response.status_code, 400, response.data)
+        self.assertEqual(response.data['code'], 'XML_INVALID')
+        producer.assert_not_called()
+        self.assertEqual(set(FinanceRun.objects.values_list('pk', flat=True)), before)
+    return test
+
+
+def type_control(kind, cell_type, payload, expected, formula):
+    def test(self):
+        data, sheet, coordinate = self.fixture(kind, cell_type, payload, control=True)
+        name = 'build_budget_run_artifact' if kind == 'budgets' else 'build_run_artifact'
+        original = getattr(finance_runs, name)
+        def inspect(stream, *args, **kwargs):
+            position = stream.tell()
+            for data_only in (True, False):
+                wb = load_workbook(stream, read_only=True, data_only=data_only)
+                try:
+                    actual = wb.worksheets[sheet][coordinate].value
+                    wanted = formula if formula and not data_only else expected
+                    self.assertEqual(actual, wanted)
+                    self.assertIs(type(actual), type(wanted))
+                finally:
+                    wb.close()
+            stream.seek(position)
+            return original(stream, *args, **kwargs)
+        with patch.object(finance_runs, name, side_effect=inspect) as producer:
+            response = self.upload(kind, data)
+        self.assertEqual(response.status_code, 201, response.data)
+        producer.assert_called_once()
+        run = FinanceRun.objects.get(pk=response.data['id'])
+        self.assertEqual(run.status, 'candidate', run.failure)
+    return test
+
+
+for _kind in ('budgets', 'funders'):
+    for _shape, _args in TYPE_REFUSALS.items():
+        setattr(CellTypePayloadUploadTests, f'test_{_kind}_{_shape}_refused', type_refusal(_kind, *_args))
+    for _shape, _args in TYPE_CONTROLS.items():
+        setattr(CellTypePayloadUploadTests, f'test_{_kind}_{_shape}_control', type_control(_kind, *_args))

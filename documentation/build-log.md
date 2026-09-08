@@ -2523,3 +2523,104 @@ Final GREEN:
   — No changes detected.
 - Documentation-inclusive `git diff --check` — passed.
 - AST comparison against 364848e — all 13 released MAX_* expressions unchanged.
+
+## WP4 backend stage, review fixes round 3 (type-dependent payloads)
+
+Baseline 9fbc0ed on feat/wp4a-budgets-backend; publisher supplied from main
+480dc00. Read CLAUDE.md, existing finance build-log pipeline entries, plan 5.2,
+and decisions D29-D31, D38, D40, D41. Consumer inspected directly:
+venv/lib/python3.13/site-packages/openpyxl/worksheet/_reader.py, parse_cell.
+
+RED before scanner edits:
+`DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py test api.tests_finance_cell_payloads.CellTypePayloadUploadTests --noinput`
+— Ran 48 tests in 3.896s; FAILED (failures=20), zero skips.
+Log: venv/wp4-type-red.log. Names are
+CellTypePayloadUploadTests.test_{budgets,funders}_{shape}_{refused,control}.
+Refused shapes: inline_v, numeric_is, shared_is, shared_index_outside_table,
+shared_negative_index, shared_noninteger_index, unknown_type, inline_is_and_v,
+default_is, boolean_is, date_is, error_is, string_is.
+Control shapes: numeric, default_numeric, formula_cache, inline, shared,
+boolean, date, error, string, empty_styled, empty_shared.
+The 18 failures for newly covered incompatible/unknown types demonstrate admission
+past preflight; existing shared-index and shared-is refusals pass. Two additional
+failures show empty shared cells were refused although the consumer returns None.
+Every refusal asserts HTTP 400/XML_INVALID, no producer call and unchanged
+FinanceRun identity set. Raw authenticated controls wrap the real producer,
+inspect its input in read-only data-only and formula modes (value and Python type),
+and require HTTP 201/candidate. Malformed cases append ordered F8, matching the
+review reproduction; controls use unused H1 (budget) or Z1 (Funder Budgets).
+
+Implementation: _Payload captures and allowlists the enclosing c type at its
+start event; incompatible direct children refuse immediately as XML_INVALID.
+The grammar excludes even empty incompatible v/is children, retaining a canonical
+payload shape. Shared-string indices retain the existing integer conversion and
+0 <= index < admitted table length check; absent/empty v now bypasses lookup,
+matching parse_cell's `findtext(VALUE_TAG, None) or None`.
+
+Consumer-checked per-type table (openpyxl 3.1.5 parse_cell):
+
+| Cell t | Data-only child read and conversion | Formula-mode child | Refused child |
+| --- | --- | --- | --- |
+| absent | v; numeric, with style date conversion | f if present, otherwise v | is |
+| n | v; numeric, with style date conversion | f if present, otherwise v | is |
+| b | v; bool(int(value)) | f if present, otherwise v | is |
+| d | v; from_ISO8601 | f if present, otherwise v | is |
+| e | v; error text retained under D41 | f if present, otherwise v | is |
+| s | v; int index into admitted shared strings | f if present, otherwise v | is |
+| str | v; string, output type s | f if present, otherwise v | is |
+| inlineStr | is; Text.content (plain plus runs) | f if present, otherwise is | v |
+| unknown, including empty t | XML_INVALID at cell start | XML_INVALID | all |
+
+f/v/is remain singletons; legitimate f plus cached v remains admitted on every
+supported non-inline type. Empty styled cells and empty shared cells return None.
+Only selection/shape is newly enforced; semantic conversion remains with the
+consumer and producer. Existing D40/D41 logic and funders services are untouched.
+No models, migrations, schedules, environment variables or one-off operations
+required. AST comparison against 9fbc0ed: all 13 MAX_* expressions unchanged.
+
+Focused GREEN: `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py test api.tests_finance_cell_payloads --noinput`
+— Ran 83 tests in 6.003s; OK, zero skips.
+Log: venv/wp4-type-focused-green.log.
+
+PENDING supervisor: PostgreSQL full API gate and migration/constraint validation.
+Ten PostgreSQL-only tests retain the named reasons:
+- Requires PostgreSQL advisory locks, row locks and separate connections; SQLite is functional evidence only.
+- Requires PostgreSQL advisory locks and separate connections.
+- Requires PostgreSQL conditional unique constraint release evidence.
+The other existing skip is: real payroll ledger not on this machine.
+PENDING supervisor D38 real-workbook re-check: budget export acceptance, released
+funders retention, and capacity/RSS evidence. Local synthetic SQLite is not
+PostgreSQL, real-workbook, deployed or live-data proof.
+
+Git: uncommitted; session filesystem policy makes .git read-only. No metadata
+write or workaround attempted. Files: api/parsers/finance_workbook.py,
+api/tests_finance_cell_payloads.py, documentation/build-log.md.
+Pre-existing .review-detached.pid untouched. Logs stay in ignored venv.
+No network, production access or writes outside this clone.
+
+Final GREEN:
+- `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py test api --noinput`
+  — Ran 903 tests in 68.867s; OK (skipped=11): 892 passed, zero failures/errors.
+  Log: venv/wp4-type-full-green.log. Existing missing-staticfiles warning remains.
+- `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py check`
+  — System check identified no issues (0 silenced).
+- `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py makemigrations --check --dry-run`
+  — No changes detected.
+- Documentation-inclusive `git diff --check` — passed.
+
+Supervisor verification, 2026-09-07 (Codex handoff continuation):
+- Reviewed the three-file fix-pass-6 diff against 9fbc0ed. Full local PostgreSQL
+  API gate: Ran 903 tests in 97.085s; OK (skipped=1), PostgreSQL 17.10 on the
+  verified masi-wp2-pg container, localhost:5544, test_masi_test. The remaining skip
+  is the unavailable real payroll ledger; SQLite is not used for this evidence.
+- manage.py check: System check identified no issues (0 silenced).
+- manage.py makemigrations --check --dry-run: No changes detected.
+- git diff --check: passed on the three changed files.
+- D38 actual local files through preflight plus scan_workbook: funders ACCEPTED
+  (12,132,538 bytes, source SHA prefix 9784baa1, 21.88 s); current budget export
+  ACCEPTED (1,460,069 bytes, source SHA prefix 3e6b78d0, 6.03 s). Budget bytes differ
+  from the handoff snapshot; these timings describe the files read in this check.
+  No money, labels, or row content is included in this log. These are scanner
+  acceptance results, not successful budget production or full-path capacity proof.
+- Pending: independent round-4 review, exact-commit independent-clone reproduction,
+  worker RSS/concurrent-reader capacity, hosted deployment and role probes.

@@ -229,6 +229,7 @@ class _Payload:
 
     def __init__(self):
         self.stack = []
+        self.cell_type = None
         self.plain = ''
         self.runs = []
         self.value = None
@@ -238,9 +239,18 @@ class _Payload:
         tag = element.tag
         require(tag.startswith(NS), 'XML_INVALID')
         name = tag[len(NS):]
+        if name == 'c' and not self.stack:
+            self.cell_type = element.get('t', 'n')
+            require(self.cell_type in ('n', 'b', 'd', 'e', 's', 'str', 'inlineStr'),
+                    'XML_INVALID')
         if self.stack:
             parent, seen = self.stack[-1]
             require(name in self._children.get(parent, ()), 'XML_INVALID')
+            if parent == 'c':
+                # parse_cell reads v except for inlineStr, which reads is.
+                # f remains available in formula mode, alongside its cache.
+                require(name != ('v' if self.cell_type == 'inlineStr' else 'is'),
+                        'XML_INVALID')
             require(name not in seen or parent in ('si', 'is') and name in ('r', 'rPh'),
                     'XML_INVALID')
             seen.add(name)
@@ -441,7 +451,7 @@ def _scan_sheet_xml(archive, path, name, strings, budget=None):
             row, col = _coordinate(element.get('r'))
             require(row <= limit and col <= 256, 'SHEET_BOUNDS')
             extent = max(extent, row)
-            if element.get('t') == 's':
+            if element.get('t') == 's' and value:
                 try:
                     index = int(value)
                     require(0 <= index < len(strings), 'XML_INVALID')
