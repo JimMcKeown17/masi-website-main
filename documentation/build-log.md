@@ -2303,3 +2303,69 @@ Final GREEN:
 - `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py makemigrations --check --dry-run`
   — **No changes detected.**
 - Documentation-inclusive `git diff --check` — **passed**.
+
+## WP4 backend stage, fix pass 3 (real-export hyperlinks)
+
+D40 supervisor finding: supporting-document worksheet hyperlinks were refused
+as external data references. Local baseline: cd8cf15 on feat/wp4a-budgets-backend.
+Authority: plan section 5.2 and D29–D31/D38, with the task's binding D40 admission.
+Installed openpyxl 3.1.5 worksheet/_reader.py parse() maps HYPERLINK_TAG to
+HyperlinkList sheet properties, separately from rows/cells; verified locally.
+
+RED before parser changes, using DATABASE_URL=sqlite:///:memory: and venv/bin/python:
+`manage.py test api.tests_finance_budgets.BudgetTests.test_worksheet_hyperlinks_preserve_candidate_figures api.tests_finance_budgets.BudgetTests.test_external_reference_refusals_preserve_history_before_producer --noinput`
+— Ran 2 tests in 0.325s; FAILED (errors=1), one passed. Hyperlink fixture confirmed
+both serialized worksheet relationship parts have the exact OOXML hyperlink Type
+and TargetMode="External", then failed in scan with BUDGET_EXTERNAL_REFERENCE.
+All seven refusal controls passed over authenticated HTTP, with no producer call
+and the unchanged exact FinanceRun identity set. Log: venv/wp4-hyperlinks-red.log.
+
+Implementation: an External TargetMode is allowed only with Type exactly
+http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink
+in a .rels part whose immediate directory is xl/worksheets/_rels. Nested paths
+and workbook-level hyperlinks are excluded. Every other external mode still
+raises BUDGET_EXTERNAL_REFERENCE. externalLinks/ parts, vbaProject.bin and external
+formula references remain refused. No target is read, resolved, fetched, logged
+or persisted by this change. The funders kind does NOT run _budget_relationships;
+its path and funders services are unchanged.
+
+The positive regression uses openpyxl cell.hyperlink on required-sheet F6 and
+ancillary-sheet A1, explicitly scans after preflight, then creates a candidate via
+authenticated raw HTTP with the real producer. The complete stored derived payload
+matches the unlinked control and contains no target URL. Negative HTTP cases:
+worksheet image, worksheet unknown Type, workbook hyperlink, nested non-worksheet
+hyperlink, externalLinks part, VBA part, and [Book] formula reference.
+
+First focused post-fix run: Ran 2 tests in 0.378s; FAILED (errors=1) because the
+new assertion incorrectly indexed payload['derived']. FinanceRun.payload already
+stores derived; corrected the assertion to compare the complete payloads.
+Focused GREEN: Ran 2 tests in 0.373s; OK, zero skips.
+Log: venv/wp4-hyperlinks-green.log.
+
+PENDING supervisor: PostgreSQL full API gate, including ten PostgreSQL-only tests
+and migration/constraint validation; D38 real-export re-check for budget acceptance
+and funders retention, with capacity/RSS evidence. No real operator export was
+available here. Named PostgreSQL skip reasons remain:
+- Requires PostgreSQL advisory locks, row locks and separate connections; SQLite is functional evidence only.
+- Requires PostgreSQL advisory locks and separate connections.
+- Requires PostgreSQL conditional unique constraint release evidence.
+The other existing skip is: real payroll ledger not on this machine.
+No new migration, environment variable, schedule or one-off operation is required.
+All evidence here is local synthetic SQLite evidence; deployment/live verification
+are not claimed. No network or production access occurred.
+
+Git: uncommitted because this session's filesystem policy explicitly grants only
+read access to .git; no metadata write or workaround attempted. Changed files:
+api/parsers/finance_workbook.py, api/tests_finance_budgets.py,
+documentation/build-log.md. Pre-existing .review-detached.pid remains untouched;
+run logs are in ignored venv.
+
+Final GREEN:
+- DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py test api --noinput
+  — Ran 817 tests in 54.377s; OK (skipped=11): 806 passed, zero failures/errors.
+  Log: venv/wp4-hyperlinks-full-green.log.
+- DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py check
+  — System check identified no issues (0 silenced).
+- DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py makemigrations --check --dry-run
+  — No changes detected.
+- Documentation-inclusive git diff --check — passed.

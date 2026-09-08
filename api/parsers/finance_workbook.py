@@ -539,7 +539,14 @@ def _budget_relationships(archive):
         if path.endswith('.rels'):
             _check_declarations(archive, path, 'XML_INVALID')
             for element in _metadata(archive, path):
-                require(element.get('TargetMode') != 'External', 'BUDGET_EXTERNAL_REFERENCE')
+                # Read-only cell values do not include hyperlinks; never resolve targets.
+                worksheet_hyperlink = (
+                    posixpath.dirname(path) == 'xl/worksheets/_rels'
+                    and element.get('Type') ==
+                    'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink'
+                )
+                require(element.get('TargetMode') != 'External' or worksheet_hyperlink,
+                        'BUDGET_EXTERNAL_REFERENCE')
 
 
 

@@ -43,6 +43,69 @@ class BudgetTests(TestCase):
         self.assertEqual(response.status_code,500)
         self.assertEqual(FinanceRun.objects.filter(kind='budgets').count(),1)
 
+    def test_worksheet_hyperlinks_preserve_candidate_figures(self):
+        from openpyxl import load_workbook
+        from zipfile import ZipFile
+        from xml.etree import ElementTree as ET
+        from api.parsers import finance_workbook as parser
+        control = self.budget()
+        workbook = load_workbook(BytesIO(self.data))
+        workbook['2026 Budget']['F6'].hyperlink = 'https://example.invalid/doc'
+        workbook.create_sheet('Ancillary')['A1'] = 'Supporting document'
+        workbook['Ancillary']['A1'].hyperlink = 'https://example.invalid/doc'
+        output = BytesIO()
+        workbook.save(output)
+        workbook.close()
+        data = output.getvalue()
+        with ZipFile(BytesIO(data)) as archive:
+            for path in ('xl/worksheets/_rels/sheet1.xml.rels',
+                         'xl/worksheets/_rels/sheet4.xml.rels'):
+                relationships = list(ET.fromstring(archive.read(path)))
+                self.assertEqual(len(relationships), 1)
+                self.assertEqual(relationships[0].get('TargetMode'), 'External')
+                self.assertEqual(relationships[0].get('Type'),
+                                 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink')
+        with parser.preflight(BytesIO(data), source_name='20260907 - Synthetic.xlsx',
+                              content_type=MIME) as upload:
+            parser.scan_workbook(upload, kind='budgets', year=2026)
+        with patch.object(service, 'build_budget_run_artifact',
+                          wraps=service.build_budget_run_artifact) as producer:
+            linked = self.budget(data=data)
+        producer.assert_called_once()
+        self.assertEqual(linked.payload, control.payload)
+        self.assertNotIn('https://example.invalid/doc', str(linked.payload))
+
+    def test_external_reference_refusals_preserve_history_before_producer(self):
+        from api.tests_finance_upload_safety import rewrite
+        relationship = (b'<Relationship Id="externalTest" Target="https://example.invalid/doc" '
+                        b'TargetMode="External" Type="http://schemas.openxmlformats.org/'
+                        b'officeDocument/2006/relationships/%s"/>')
+        def rel_part(kind):
+            return (b'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+                    + relationship % kind + b'</Relationships>')
+        cases = {
+            'worksheet image': rewrite(self.data, extra=[
+                ('xl/worksheets/_rels/sheet1.xml.rels', rel_part(b'image'))]),
+            'worksheet unknown type': rewrite(self.data, extra=[
+                ('xl/worksheets/_rels/sheet1.xml.rels', rel_part(b'unknown'))]),
+            'workbook hyperlink': rewrite(self.data, {'xl/_rels/workbook.xml.rels':
+                lambda x: x.replace(b'</Relationships>', relationship % b'hyperlink' + b'</Relationships>')}),
+            'nested non-worksheet hyperlink': rewrite(self.data, extra=[
+                ('xl/worksheets/_rels/nested/sheet1.xml.rels', rel_part(b'hyperlink'))]),
+            'externalLinks part': rewrite(self.data, extra=[('xl/externalLinks/externalLink1.xml', b'<externalLink/>')]),
+            'VBA part': rewrite(self.data, extra=[('xl/vbaProject.bin', b'synthetic')]),
+            'external formula': rewrite(self.data, {'xl/worksheets/sheet1.xml':
+                lambda x: x.replace(b'</sheetData>', b'<row r="10"><c r="F10"><f>\'[Book]Sheet\'!A1</f></c></row></sheetData>')}),
+        }
+        before = set(FinanceRun.objects.values_list('pk', flat=True))
+        for name, data in cases.items():
+            with self.subTest(name=name), patch.object(service, 'build_budget_run_artifact') as producer:
+                response = self.upload(data=data)
+                self.assertEqual(response.status_code, 400, response.data)
+                self.assertEqual(response.data['code'], 'BUDGET_EXTERNAL_REFERENCE')
+                producer.assert_not_called()
+                self.assertEqual(set(FinanceRun.objects.values_list('pk', flat=True)), before)
+
     def test_same_bytes_new_dependency_is_new_candidate(self):
         a=self.budget()
         dep=approve(candidate(self.user,sha='b'*64),self.user,override_anti_rollback=True)
