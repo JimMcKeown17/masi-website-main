@@ -1,4 +1,6 @@
 """Run history, checked publication and coherent current finance metadata."""
+import json
+
 from django.shortcuts import get_object_or_404
 from rest_framework import serializers
 from rest_framework.exceptions import PermissionDenied, ValidationError
@@ -8,7 +10,7 @@ from rest_framework.views import APIView
 
 from api.models import FinanceRun
 from api.permissions import IsFinancePublisher, IsFinanceReader, finance_capabilities_for
-from api.services.finance_runs import (FinanceRunError, approve_run, demote_run, upload_workbook,
+from api.services.finance_runs import (FinanceRunError, approve_run, demote_run, upload_workbook, pull_budget,
     validate_stored_run, budget_dependency_metadata)
 from api.views.finance import AUTH_CLASSES
 
@@ -77,6 +79,58 @@ class UploadMetadataSerializer(serializers.Serializer):
         if set(data) - set(self.fields) or any(len(data.getlist(key)) != 1 for key in data):
             raise ValidationError('UPLOAD_METADATA_INVALID')
         return super().to_internal_value(data)
+
+
+class BudgetPullSerializer(serializers.Serializer):
+    year = serializers.IntegerField(min_value=2000, max_value=2100)
+    ledger_run_id = serializers.UUIDField()
+
+
+def _unique_json_object(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError()
+        result[key] = value
+    return result
+
+
+class FinanceBudgetPull(APIView):
+    authentication_classes = AUTH_CLASSES
+    permission_classes = [IsFinancePublisher]
+    parser_classes = []
+
+    def post(self, request):
+        try:
+            if request.content_type.split(';', 1)[0] != 'application/json':
+                raise ValueError()
+            raw = request._request
+            stream = raw.environ['wsgi.input'] if hasattr(raw, 'environ') else raw
+            body = bytearray()
+            while len(body) <= 4096:
+                count = 4097 - len(body)
+                if hasattr(stream, '__len__'):
+                    count = min(count, len(stream))
+                chunk = stream.read(count)
+                if not chunk:
+                    break
+                body.extend(chunk)
+            if len(body) > 4096:
+                raise ValueError()
+            data = json.loads(body, object_pairs_hook=_unique_json_object)
+        except (ValueError, TypeError, RecursionError):
+            return Response({'code': 'UPLOAD_METADATA_INVALID'}, status=400)
+        if (request.query_params or not isinstance(data, dict)
+                or set(data) != {'year', 'ledger_run_id'} or type(data.get('year')) is not int):
+            return Response({'code': 'UPLOAD_METADATA_INVALID'}, status=400)
+        serializer = BudgetPullSerializer(data=data)
+        if not serializer.is_valid():
+            return Response({'code': 'UPLOAD_METADATA_INVALID'}, status=400)
+        try:
+            run, status = pull_budget(request.user, **serializer.validated_data)
+        except FinanceRunError as error:
+            return Response({'code': error.code}, status=error.status)
+        return Response(run_detail(run, request.user), status=status)
 
 
 class FinanceRunList(APIView):

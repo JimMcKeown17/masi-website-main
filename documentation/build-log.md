@@ -2799,3 +2799,68 @@ PostgreSQL, network, real workbook, production or environment-file writes were
 performed. The existing missing-staticfiles warning remains. Independent review
 and final PostgreSQL evidence remain with the supervisor; local SQLite tests do
 not establish PostgreSQL, real-file, hosted, deployment or capacity evidence.
+
+## 2026-09-08 — WP4B operator-triggered Google budget refresh
+
+Status: isolated implementation on `feat/wp4b-budget-pull`, based on reviewed
+WP4A `ada4414`; not merged or deployed. Implements approved WP4 plan section 5.3.
+
+- Adds publisher-only `POST /api/finance/runs/pull-budget/`. Only JSON `year` and
+  `ledger_run_id` are accepted; actual request bytes are capped at 4 KiB, duplicate
+  fields and unknown inputs refuse before acquisition. Dependency admission also
+  precedes Google access and is repeated under the ordinary transaction locks.
+- Both transports enter the same candidate service, scanner, producer, identity
+  lookup, and approval policy. Acquisition method is provenance, not identity:
+  upload/pull replays retain the first immutable run and original acquisition.
+  Pull measurements include the network phase. No migration or new run state.
+- The server uses `GOOGLE_CREDENTIALS`, `GOOGLE_SERVICE_ACCOUNT_EMAIL`, and
+  `MASI_BUDGET_<year>_URL`. Only the configured docs.google.com sheet is selected;
+  OAuth audience and Drive origins are fixed, readonly scope, no delegated subject,
+  redirects, automatic approval, polling, or retries. Secrets remain server-side.
+- Drive modifiedTime/version are checked before and after the XLSX export. UTC
+  source modification date forms the basename. Actual bytes are hashed; equal
+  modification metadata does not imply byte-identical Google exports.
+- Acquisition uses one cancellable 60-second deadline over async DNS, TLS, headers,
+  token, metadata, and export bodies. Explicit `aiohttp==3.14.3` and
+  `aiodns==4.0.4` dependencies avoid the Requests inactivity-timeout gap and default
+  threaded DNS cleanup. Token/metadata cap 16 KiB; export cap 10 MiB. Identity
+  encoding, bounded streams, resolver/session closure, and value-free failures
+  apply throughout. Downstream service exceptions retain their own classification.
+- TDD: HTTP authorization 404→403; real-producer candidate 503→201; duplicate JSON
+  503→400; oversized token response 201→400. A live compressed-token response
+  exposed an encoding gap; explicit identity negotiation regression is green.
+  Independent review found the overall-deadline and context-yield exception gaps;
+  regressions cover DNS cancellation, real localhost HTTP dripping headers/body,
+  no remaining tasks, and downstream exception propagation/stream cleanup.
+- Full guarded local PostgreSQL 17.10 suite: 969 tests, 1 existing skip, PASS in
+  95.723 seconds. Django checks pass; no missing migrations. Focused pull suite
+  includes 14 tests. Installed publisher is the exact reviewed `11fba0e` wheel,
+  retaining version 0.2.0; no publisher/schema bytes changed in this slice.
+- Live readonly Google export + real preflight using the new transport: PASS,
+  1,090,534 bytes in 5.441 seconds, zero scanner diagnostics. This is acquisition
+  evidence, not production candidate/approval, financial reconciliation, or hosted
+  worker capacity proof. Full real-source local HTTP acceptance, frontend build,
+  independent revised-source review, exact release pins and deployment remain
+  separate gates while this entry is being completed.
+
+API references verified for this implementation:
+[Drive export](https://developers.google.com/workspace/drive/api/reference/rest/v3/files/export),
+[Drive metadata](https://developers.google.com/workspace/drive/api/reference/rest/v3/files/get),
+[aiohttp timeouts](https://docs.aiohttp.org/en/stable/client_reference.html),
+[async DNS resolver](https://docs.aiohttp.org/en/stable/client_advanced.html),
+[public JWT signing](https://google-auth.readthedocs.io/en/latest/reference/google.auth.jwt.html).
+
+Final local gate update:
+- Revised independent code review: APPROVED, zero findings. Independent focused
+  backend 13/13 (loopback bind blocked in its sandbox); root executed all 14 pull
+  tests including real HTTP header/body deadline cancellation. Independent frontend
+  full suite 106/106. `pip check` found no broken requirements.
+- Disposable local PostgreSQL real-source HTTP acceptance: PASS in 136.524 seconds.
+  Management Accounts candidate: 77.868 seconds, 23,914 facts; budget pull candidate:
+  31.494 seconds end-to-end, including live export, 283 findings/13 in-scope errors
+  retained. Explicit approval, compatible current metadata and contributor reads
+  passed. Process RSS upper observation 367,214,592 bytes; not hosted concurrency
+  proof. Test database destroyed normally. No production data changed.
+- GitHub metadata confirms the website repositories are public. The originating
+  finance repository forbids public pushes; source stays local pending Jim's
+  explicit destination decision. No merge, deployment, or publisher release tag.

@@ -459,6 +459,32 @@ def _domain_code(error):
 def upload_workbook(stream, actor, *, kind, year, source_name, content_type,
                     content_length=None, client_modified_at=None, ledger_run_id=None):
     """Raw bytes to one immutable run, shared by HTTP and benchmark commands."""
+    with _upload_measurement() as measurement:
+        return _ingest_workbook(stream, actor, kind=kind, year=year, source_name=source_name,
+            content_type=content_type, content_length=content_length,
+            client_modified_at=client_modified_at, ledger_run_id=ledger_run_id,
+            started=perf_counter(), measurement=measurement)
+
+
+def pull_budget(actor, *, year, ledger_run_id):
+    """Acquire the configured source, then enter the ordinary candidate transaction."""
+    from api.services.finance_budget_pull import budget_export
+    require_publisher(actor)
+    if type(year) is not int or not 2000 <= year <= 2100:
+        raise FinanceRunError('UPLOAD_METADATA_INVALID', status=400)
+    # No network or transaction until the caller's selected dependency is admitted.
+    admit_budget_dependency(ledger_run_id, year)
+    started = perf_counter()
+    with _upload_measurement() as measurement, budget_export(year) as export:
+        return _ingest_workbook(export['stream'], actor, kind='budgets', year=year,
+            source_name=export['source_name'], content_type=export['content_type'],
+            ledger_run_id=ledger_run_id, acquisition=export['acquisition'],
+            started=started, measurement=measurement)
+
+
+def _ingest_workbook(stream, actor, *, kind, year, source_name, content_type,
+                     started, measurement, content_length=None, client_modified_at=None,
+                     ledger_run_id=None, acquisition=None):
     require_publisher(actor)
     if kind not in ('funders', 'budgets') or type(year) is not int or not 2000 <= year <= 2100:
         raise FinanceRunError('UPLOAD_METADATA_INVALID', status=400)
@@ -469,9 +495,8 @@ def upload_workbook(stream, actor, *, kind, year, source_name, content_type,
         raise FinanceRunError('UPLOAD_METADATA_INVALID', status=400)
     schema = BUDGET_UPLOAD_SCHEMA if kind == 'budgets' else UPLOAD_SCHEMA
     producer = BUDGET_UPLOAD_PRODUCER if kind == 'budgets' else UPLOAD_PRODUCER
-    started = perf_counter()
     try:
-        with _upload_measurement() as measurement, preflight(
+        with preflight(
                 stream, source_name=source_name, content_type=content_type,
                 content_length=content_length) as upload:
             with transaction.atomic():
@@ -495,7 +520,7 @@ def upload_workbook(stream, actor, *, kind, year, source_name, content_type,
                 if kind == 'budgets':
                     manifest.update(schema_version=schema, rule_config_sha256=canonical_digest(BUDGET_POLICY),
                                     dependencies=[budget_dependency_metadata(dependency)],
-                                    acquisition=dict(method='file_upload', fetched_at=None, source_modified_at=None))
+                                    acquisition=acquisition or dict(method='file_upload', fetched_at=None, source_modified_at=None))
                 fields = dict(kind=kind, accounting_year=year, source_name=upload.source_name,
                               source_date=upload.source_date, source_sha256=upload.sha256,
                               source_size_bytes=upload.size_bytes, schema_version=schema,
@@ -518,7 +543,7 @@ def upload_workbook(stream, actor, *, kind, year, source_name, content_type,
                     try:
                         if kind == 'budgets':
                             artifact = build_budget_run_artifact(upload.buffer, source_name=source_name,
-                                accounting_year=year, client_modified_at=client_modified_at,
+                                accounting_year=year, client_modified_at=client_modified_at, acquisition=acquisition,
                                 ledger_dependency=dict(budget_dependency_metadata(dependency), accounting_year=year),
                                 ledger_rows=reconstruct_ledger(dependency)['rows'])
                         else:
