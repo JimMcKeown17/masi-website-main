@@ -1,6 +1,6 @@
 # Backend Build Log
 
-Last updated: 4 September 2026
+Last updated: 8 September 2026
 
 This is the project-level implementation and release log for the Django repository. It starts with the current work rather than reconstructing older history. Domain history and source topology remain in `data_map.md` and `airtable_pipeline_sync.md`.
 
@@ -2728,3 +2728,74 @@ Supervisor gates, 2026-09-08, final fix-pass-7 code tree:
 - Pending independent review, exact-commit independent PostgreSQL reproduction,
   successful-path RSS/concurrency, deployment and live role probes. Backend main
   remains untouched because merging it would deploy.
+
+## 2026-09-08 — WP4 producer canonical-input refusal history
+
+The assembled backend at `0a6e4ce179491cf306e5a558f5a2149d27a23748` did not
+recognize the publisher's fixed `WORKBOOK_NOT_CANONICAL` domain code. An upload
+that passed backend admission but was refused by the publisher therefore
+returned HTTP 500 without failed-run history. The funder fixed-code allowlist
+and budget exact-argument handler now recognize that single code. Known typed
+producer refusals return HTTP 201 with an immutable failed run, in accordance
+with the existing safe producer-domain failure policy. No generic exception
+handling, parser admission rules, publisher behavior or schema pins changed.
+
+Tests use the real installed publisher 0.2.0 wheel built from `c88565798f1f`,
+as identified by its local distribution `direct_url.json`: wheel SHA-256
+`1da019d71a129c7e186d7ed26b82f6e1812a0da96b1dbba58123ba392f6f0da1`.
+Synthetic authenticated raw XLSX requests exercise both funders and budgets,
+with inline and shared strings mixing plain text and rich runs. The backend
+scanner accepts the header interpretation; the publisher intentionally refuses
+the noncanonical source representation. Each refusal retains only the fixed
+producer-phase failure metadata, with null payload and hashes, zero fact counts
+and unchanged ledger/allocation identity sets. Approval returns HTTP 409
+`INVALID_TRANSITION`. Same-byte replay returns the existing failed run without
+calling the producer again.
+
+Unknown producer codes, arbitrary text, decode failures, a code with trailing
+private text, multiple exception arguments, and the same exact spelling in an
+unexpected RuntimeError remain HTTP 500 with no run or fact history. The older
+rich-header test retains its direct scanner and both openpyxl reader-mode
+assertions; its candidate expectation was replaced by the explicit producer
+refusal tests rather than weakening publisher admission.
+
+Named TDD evidence (logs in ignored `venv/`):
+
+- Funder `test_funders_noncanonical_producer_refusal_is_failed_history`:
+  RED ran 1 test in 0.080s, 2 failing inline/shared subtests, HTTP 500
+  `UPLOAD_INTERNAL_ERROR` instead of HTTP 201. GREEN ran 1 test in 0.096s, OK.
+  Logs: `wp4-domain-funders-red.log`, `wp4-domain-funders-green.log`.
+- Budget `test_budgets_noncanonical_producer_refusal_is_failed_history`:
+  RED ran 1 test in 0.103s, 2 failing inline/shared subtests, HTTP 500
+  `WORKBOOK_DECODE_FAILURE` instead of HTTP 201. GREEN ran 1 test in 0.136s, OK.
+  Logs: `wp4-domain-budgets-red.log`, `wp4-domain-budgets-green.log`.
+- The former rich-header candidate control reproduced 2 failures in 0.264s
+  after domain admission was corrected: actual status was failed, with the
+  fixed producer code. Log: `wp4-domain-rich-control-red.log`.
+- Both new refusal tests, the preserved scanner/openpyxl parity test, and
+  `test_untrusted_producer_diagnostics_remain_internal_without_history`:
+  ran 4 tests in 0.538s, OK. Log: `wp4-domain-boundary-green.log`.
+
+Final validation:
+
+- `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py test api.tests_finance_cell_payloads api.tests_finance_formula_payloads api.tests_finance_runs_upload api.tests_finance_budgets api.tests_finance_budget_safety api.tests_finance_upload_safety --noinput`
+  — Ran 249 tests in 51.497s; OK, zero skips. Log:
+  `venv/wp4-domain-focused-green.log`.
+- `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py test api --noinput`
+  — Ran 955 tests in 74.445s; OK (skipped=11): 944 passed, zero failures/errors.
+  Log: `venv/wp4-domain-full-green.log`. Existing skips require PostgreSQL
+  advisory/row locks and separate connections, PostgreSQL conditional unique
+  constraint release evidence, or the unavailable real payroll ledger.
+- `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py check`
+  — System check identified no issues (0 silenced).
+- `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py makemigrations --check --dry-run`
+  — No changes detected.
+
+No migrations, dependency changes, environment variables, schedules or one-off
+operations are required. This work writes only `api/services/finance_runs.py`,
+`api/tests_finance_cell_payloads.py` and this build log; the pre-existing
+`.review-detached.pid` is untouched. Source changes remain uncommitted. No Git,
+PostgreSQL, network, real workbook, production or environment-file writes were
+performed. The existing missing-staticfiles warning remains. Independent review
+and final PostgreSQL evidence remain with the supervisor; local SQLite tests do
+not establish PostgreSQL, real-file, hosted, deployment or capacity evidence.

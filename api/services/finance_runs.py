@@ -396,7 +396,7 @@ LEDGER_REQUIRED_SHEET LEDGER_REQUIRED_HEADER LEDGER_DUPLICATE_HEADER
 LEDGER_INVALID_YEAR LEDGER_INVALID_AMOUNT LEDGER_INVALID_IDENTITY
 LEDGER_INVALID_ALLOCATION LEDGER_ROW_LIMIT LEDGER_COLUMN_LIMIT
 LEDGER_HEADER_LIMIT LEDGER_CELL_LIMIT LEDGER_DATA_BEYOND_HEADER
-LEDGER_BINDING_BEYOND_HEADER
+LEDGER_BINDING_BEYOND_HEADER WORKBOOK_NOT_CANONICAL
 '''.split())
 _DOMAIN_ERRORS = (RunArtifactError, BudgetSheetError, ContractKeyError, LedgerError, RunSchemaError)
 
@@ -613,6 +613,8 @@ def admit_budget_dependency(run_id, year, *, lock=False):
 
 
 def budget_domain_code(error):
+    if error.args == ('WORKBOOK_NOT_CANONICAL',):
+        return 'WORKBOOK_NOT_CANONICAL'
     if len(error.args) == 1 and error.args[0] in BUDGET_SAFE_CODES:
         return error.args[0]
     # D29 decoding is not a certified domain refusal and creates no history.

@@ -12,7 +12,7 @@ from rest_framework.test import APIClient
 
 from api.finance_budget_test_utils import budget_workbook, budget_ledger
 from api.finance_run_test_utils import actor
-from api.models import FinanceRun
+from api.models import FinanceRun, LedgerAllocation, LedgerRow
 from api.parsers import finance_workbook as parser
 from api.services import finance_runs
 from api.tests_finance_upload_safety import NAME, rewrite, workbook_bytes
@@ -90,14 +90,102 @@ class CellPayloadUploadTests(TestCase):
         self.assertEqual(run.status, 'candidate', run.failure)
         return data
 
+    def assert_noncanonical_producer_failure(self, kind, shared):
+        expected = 'Category' if kind == 'budgets' else 'Date'
+        # The scanner and openpyxl agree on the header. The publisher rejects
+        # mixed plain/rich source order rather than silently rearranging it.
+        text = f'<r><t>{expected[2:]}</t></r><t>{expected[:2]}</t>'
+        data, _ = self.fixture(kind, text if shared else f'<is>{text}</is>',
+                               shared=shared, header=True)
+        before = set(FinanceRun.objects.values_list('pk', flat=True))
+        facts = set(LedgerRow.objects.values_list('pk', flat=True))
+        allocations = set(LedgerAllocation.objects.values_list('pk', flat=True))
+        name = 'build_budget_run_artifact' if kind == 'budgets' else 'build_run_artifact'
+        with patch.object(finance_runs, name, wraps=getattr(finance_runs, name)) as producer:
+            response = self.upload(kind, data)
+        self.assertEqual(response.status_code, 201, response.data)
+        producer.assert_called_once()
+        run = FinanceRun.objects.get(pk=response.data['id'])
+        self.assertEqual(set(FinanceRun.objects.values_list('pk', flat=True)), before | {run.pk})
+        self.assertEqual(run.status, 'failed')
+        self.assertEqual(run.failure, {'phase': 'producer', 'code': 'WORKBOOK_NOT_CANONICAL',
+                                       'message': 'WORKBOOK_NOT_CANONICAL'})
+        self.assertIsNone(run.payload)
+        self.assertIsNone(run.payload_sha256)
+        self.assertIsNone(run.facts_sha256)
+        self.assertEqual((run.fact_row_count, run.allocation_count), (0, 0))
+        self.assertEqual(set(LedgerRow.objects.values_list('pk', flat=True)), facts)
+        self.assertEqual(set(LedgerAllocation.objects.values_list('pk', flat=True)), allocations)
+        self.assertEqual(response.data['allowed_actions'], [])
+        approval = self.client.post(f'/api/finance/runs/{run.pk}/approve/',
+                                    {'acknowledge_findings': True, 'note': 'Synthetic review'},
+                                    format='json')
+        self.assertEqual(approval.status_code, 409, approval.data)
+        self.assertEqual(approval.data['code'], 'INVALID_TRANSITION')
+        run.refresh_from_db()
+        self.assertEqual(run.status, 'failed')
+        self.assertIsNone(run.approved_at)
+        with patch.object(finance_runs, name, side_effect=AssertionError('unexpected recomputation')):
+            replay = self.upload(kind, data)
+        self.assertEqual(replay.status_code, 200, replay.data)
+        self.assertEqual(replay.data['id'], str(run.pk))
+        self.assertEqual(set(FinanceRun.objects.values_list('pk', flat=True)), before | {run.pk})
+
+    def test_funders_noncanonical_producer_refusal_is_failed_history(self):
+        for shared in (False, True):
+            with self.subTest(shared=shared):
+                self.assert_noncanonical_producer_failure('funders', shared)
+
+    def test_budgets_noncanonical_producer_refusal_is_failed_history(self):
+        for shared in (False, True):
+            with self.subTest(shared=shared):
+                self.assert_noncanonical_producer_failure('budgets', shared)
+
+    def test_untrusted_producer_diagnostics_remain_internal_without_history(self):
+        from masi_finance.publish.budget_run import BudgetRunError
+        from masi_finance.publish.run_artifact import RunArtifactError
+        before = set(FinanceRun.objects.values_list('pk', flat=True))
+        facts = set(LedgerRow.objects.values_list('pk', flat=True))
+        allocations = set(LedgerAllocation.objects.values_list('pk', flat=True))
+        for kind, error_type in (('funders', RunArtifactError), ('budgets', BudgetRunError)):
+            name = 'build_budget_run_artifact' if kind == 'budgets' else 'build_run_artifact'
+            data = budget_workbook() if kind == 'budgets' else workbook_bytes()
+            for args in [('PRIVATE_DIAGNOSTIC',), ('UNRECOGNIZED_DOMAIN_CODE',),
+                         ('WORKBOOK_DECODE_FAILURE',),
+                         ('WORKBOOK_NOT_CANONICAL PRIVATE_DIAGNOSTIC',),
+                         ('WORKBOOK_NOT_CANONICAL', 'PRIVATE_DIAGNOSTIC')]:
+                with self.subTest(kind=kind, args=args), patch.object(finance_runs, name, side_effect=error_type(*args)):
+                    response = self.upload(kind, data)
+                self.assertEqual(response.status_code, 500, response.data)
+                expected = 'WORKBOOK_DECODE_FAILURE' if kind == 'budgets' else 'UPLOAD_INTERNAL_ERROR'
+                self.assertEqual(response.data, {'code': expected})
+                self.assertEqual(set(FinanceRun.objects.values_list('pk', flat=True)), before)
+            # The same spelling in an unexpected exception is not domain authority.
+            with self.subTest(kind=kind, error='RuntimeError'), patch.object(
+                    finance_runs, name, side_effect=RuntimeError('WORKBOOK_NOT_CANONICAL')):
+                response = self.upload(kind, data)
+            self.assertEqual(response.status_code, 500, response.data)
+            self.assertEqual(response.data, {'code': 'UPLOAD_INTERNAL_ERROR'})
+            self.assertEqual(set(FinanceRun.objects.values_list('pk', flat=True)), before)
+        self.assertEqual(set(LedgerRow.objects.values_list('pk', flat=True)), facts)
+        self.assertEqual(set(LedgerAllocation.objects.values_list('pk', flat=True)), allocations)
+
     def test_rich_header_scanner_matches_openpyxl(self):
         # Text.content puts plain text first even when XML puts runs first;
         # phonetic text contributes no characters and shared escapes are removed.
+        # This scanner parity does not grant publisher canonical admission.
         payload = '<r><rPr><b/></rPr><t>te</t></r><t>Dax005F_</t><rPh sb="0" eb="4"><t>ignored</t></rPh><phoneticPr fontId="0"/>'
         for shared in (False, True):
             with self.subTest(shared=shared):
                 text = payload if shared else payload.replace('x005F_', '')
-                data = self.assert_control('funders', text if shared else '<is>' + text + '</is>', 'Date', shared, True)
+                data, coordinate = self.fixture('funders', text if shared else '<is>' + text + '</is>',
+                                                shared=shared, header=True)
+                for data_only in (True, False):
+                    workbook = load_workbook(BytesIO(data), read_only=True, data_only=data_only)
+                    try:
+                        self.assertEqual(workbook.worksheets[0][coordinate].value, 'Date')
+                    finally:
+                        workbook.close()
                 with ZipFile(BytesIO(data)) as archive, patch.object(parser, '_label', wraps=parser._label) as label:
                     strings = parser._shared_strings(archive)
                     parser._scan_sheet(archive, 'xl/worksheets/sheet1.xml', 'Expenditure', strings)
