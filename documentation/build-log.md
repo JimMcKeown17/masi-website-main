@@ -2190,3 +2190,116 @@ Evidence is local synthetic SQLite only; PostgreSQL and live gates remain above.
 Git result: **uncommitted**. Staging the four deliverable files was refused at
 this clone's `.git/index.lock`: `Operation not permitted`. Tree left intact;
 pre-existing `.review-detached.pid` untouched. No metadata workaround attempted.
+
+## WP4 backend stage, review fixes round 2
+
+Scope: shared sheet scanner only, starting on `feat/wp4a-budgets-backend` at
+`aa3bc5a`, with the supervisor-supplied publisher from main `480dc00` installed.
+Read plan section 5.2 and decisions D29-D31/D38. No funders service changes,
+new models, migrations, environment variables, schedules or one-off operations.
+
+RED first, before scanner changes:
+`DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py test api.tests_finance_sheet_order --noinput`
+— **Ran 9 tests in 3.285s; FAILED (failures=76)**, zero skips.
+Log: `venv/wp4-structure-red.log`. This is 75 structural subtest failures plus
+one canonical-control fixture assertion: the first funders data cell is a date,
+not an inline string. The fixture now locates its existing inline-string cell.
+The other ten structural cases already refused. The new named tests, all under
+`api.tests_finance_sheet_order.SheetOrderUploadTests`, are:
+- `test_budget_noncanonical_structure_refuses_before_producer`
+- `test_funders_noncanonical_structure_refuses_before_producer`
+- `test_budget_canonical_inline_string_and_empty_styled_cell`
+- `test_funders_canonical_inline_string_and_empty_styled_cell`
+Retained tests run in the same RED/GREEN command:
+- `test_budget_populated_row_8_after_row_9_refuses_before_producer`
+- `test_budget_ordered_row_8_reaches_hierarchy_failure`
+- `test_funders_populated_expenditure_row_after_higher_row_refuses_before_producer`
+- `test_funders_ordered_expenditure_reaches_candidate_with_ledger_row`
+- `test_decreasing_cells_refuse_before_producer_for_both_kinds`
+
+Consumer checked from the installed openpyxl **3.1.5** source, not assumed:
+`venv/lib/python3.13/site-packages/openpyxl/worksheet/_reader.py`,
+`WorkSheetParser.parse` (125-170), `parse_cell` (189-244), `parse_row` (282-304),
+and `worksheet/_read_only.py`, `_cells_by_row` / `_get_row` (60-138).
+- `parse()` dispatches main-namespace rows at end events without checking their
+  parent. Nested rows therefore emit before their populated containing row;
+  the read-only counter can then skip the containing row. Rows outside
+  sheetData or inside cells are also dispatched. Multiple, misplaced or foreign
+  sheetData containers do not constrain this row dispatch; missing sheetData
+  is not validated as a required singleton.
+- `parse_row()` calls `parse_cell()` for every direct child regardless of its
+  local name or namespace. An x child or foreign-namespace cell with a canonical
+  v child is interpreted as a cell. The F8=999 then E8 case can be truncated when
+  iteration derives width from the last cell. A nested row already cleared at
+  its end event remains a direct child and can be interpreted as an empty cell.
+- Missing cell r is inferred from the preceding column; missing row r is inferred
+  from the preceding row. Some noncanonical forms are normalized (lowercase cell
+  columns and integer-valued decimal row numbers); other malformed coordinates
+  raise during parsing. The scanner now refuses before any of these interpretations.
+- A c outside a direct row is not independently emitted by the consumer; a wrapped
+  or nested c is not traversed as another cell by parse_row. Foreign rows are not
+  dispatched as rows. These shapes can therefore be ignored/reinterpreted rather
+  than preserving the scanner's populated-input model, and are refused.
+
+Implementation: a parent-tag stack is maintained on every start/end event in
+all scanned sheet parts for both kinds. Structural checks run at start events
+before coordinate order checks. Exactly one main-namespace sheetData must be a
+root worksheet child (absence checked at end of part). Every row must be a direct
+child of that container. Every direct row child must be a main-namespace c with
+an explicit canonical r; every c must be a direct row child. Foreign/unqualified
+structural names are refused. Row r must be explicit and canonical, child row
+numbers must match, and round-1 strictly increasing row/column order remains.
+All structural refusals use existing XML_INVALID before producer/history. Existing
+numeric bounds, resource ceilings and their codes remain unchanged; coordinate
+syntax failures at this structural boundary use XML_INVALID. No regex slicing.
+
+Regression matrix: **17 shapes x 3 budget parts = 51 raw authenticated uploads**;
+**17 shapes x 2 funders parts = 34 raw authenticated uploads**. Each requires HTTP
+400/XML_INVALID, no producer call, and an unchanged exact FinanceRun identity set.
+Shapes: nested row; x child; foreign-namespace child; missing/malformed cell r;
+missing/malformed row r; second/missing/nested/foreign sheetData; row outside
+sheetData; row inside cell; foreign row; c outside row; c inside c; wrapped c.
+Includes the exact populated Expenditure row 2/nested row 3 and budget row 8
+F8=999/nested row 9 reproductions, plus budget x F8=999 followed by c E8.
+Ordered budget controls still reach BUDGET_HIERARCHY_INVALID; ordered funders
+retain their ledger row. Both canonical-variety controls include an inline-string
+cell and a serialized empty self-closing styled cell and reach candidates (funders
+retain one ledger row).
+
+Focused GREEN: **Ran 9 tests in 1.984s; OK**, zero skips.
+Log: `venv/wp4-structure-green.log`.
+
+First full run: **Ran 815 tests in 54.010s; FAILED (failures=1, skipped=11)**,
+log `venv/wp4-structure-full-green.log`. The retained-row-subtree limit fixture
+used a direct row child a, so the new structure check correctly refused on start
+event 4 rather than the expected node-cap event 6. Changed only that fixture to
+canonical c/is/t nesting with explicit A1, retaining the same limit of 3, expected
+six-event rejection, released ceiling assertion and XML_INVALID code.
+
+PENDING supervisor PostgreSQL gate: ten PostgreSQL-only tests (two budget lock/race
+tests, seven released concurrency tests, one conditional unique-constraint test),
+plus PostgreSQL migration/constraint validation. Named reasons unchanged:
+`Requires PostgreSQL advisory locks, row locks and separate connections; SQLite is functional evidence only.`,
+`Requires PostgreSQL advisory locks and separate connections.`, and
+`Requires PostgreSQL conditional unique constraint release evidence.` The remaining
+skip is `real payroll ledger not on this machine`. D38 real-export rejection,
+corrected acceptance and capacity/RSS benchmarks for both kinds remain PENDING;
+deployment and live verification remain PENDING. No network, production access,
+or changes outside this clone. These results are local synthetic SQLite evidence.
+
+Git result: **uncommitted**. This session explicitly grants read-only access to
+this clone's `.git`; no staging/commit or metadata workaround was attempted.
+Deliverables: `api/parsers/finance_workbook.py`, `api/tests_finance_sheet_order.py`,
+`api/tests_finance_upload_safety.py`, `documentation/build-log.md`.
+Pre-existing `.review-detached.pid` untouched. Evidence logs remain in ignored venv.
+
+Final GREEN:
+- `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py test api --noinput`
+  — **Ran 815 tests in 54.143s; OK (skipped=11)**: **804 passed**, zero failures/errors.
+  Log: `venv/wp4-structure-full-green-final.log`. Existing missing-staticfiles
+  warning remains; no new unexplained warning or xfail.
+- `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py check`
+  — **System check identified no issues (0 silenced).**
+- `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py makemigrations --check --dry-run`
+  — **No changes detected.**
+- Documentation-inclusive `git diff --check` — **passed**.

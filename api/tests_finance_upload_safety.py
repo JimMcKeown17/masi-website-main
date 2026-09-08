@@ -866,7 +866,7 @@ class Round6StructureTests(SimpleTestCase):
         # recognized metadata is also built before its end-event dispatch.
         for prefix in (b'<wrapper><a><b><c/></b></a></wrapper>',
                        b'<a/><b/><d/><e/>', b'<mergeCells><a><b><d/></b></a></mergeCells>',
-                       b'<sheetData><row r="1"><a><b><d/></b></a></row></sheetData>'):
+                       b'<sheetData><row r="1"><c r="A1" t="inlineStr"><is><t/></is></c></row></sheetData>'):
             data = rewrite(workbook_bytes(), {'xl/worksheets/sheet1.xml': lambda x:
                 x.replace(b'<sheetPr>', prefix + b'<sheetPr>', 1)})
             with self.subTest(prefix=prefix), patch.object(p, 'MAX_SHEET_RETAINED_NODES', 3):

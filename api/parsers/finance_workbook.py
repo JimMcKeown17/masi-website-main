@@ -196,9 +196,9 @@ def _xml_events(stream):
                 stack[-1].remove(element)
 
 
-def _coordinate(value):
+def _coordinate(value, code='SHEET_BOUNDS'):
     match = re.fullmatch(r'([A-Z]{1,3})([1-9][0-9]{0,6})', value or '')
-    require(match is not None, 'SHEET_BOUNDS')
+    require(match is not None, code)
     column = 0
     for letter in match[1]:
         column = column * 26 + ord(letter) - 64
@@ -288,9 +288,26 @@ def _scan_sheet_xml(archive, path, name, strings, budget=None):
     formula = False
     inline = []
     nodes = metadata_nodes = row_nodes = depth = row_depth = 0
+    parents = []
+    sheet_data_seen = False
     for event, element in _events(archive, path):
         tag = element.tag
         if event == 'start':
+            parent = parents[-1] if parents else None
+            # The consumer emits rows on end events regardless of parent and
+            # parses EVERY direct row child as a cell. Establish its structure
+            # before coordinate/order checks, without accepting inferred cells.
+            local_name = tag.rsplit('}', 1)[-1]
+            if local_name == 'sheetData':
+                require(tag == NS + 'sheetData' and parents == [NS + 'worksheet']
+                        and not sheet_data_seen, 'XML_INVALID')
+                sheet_data_seen = True
+            if local_name == 'row':
+                require(tag == NS + 'row' and parent == NS + 'sheetData', 'XML_INVALID')
+            if parent == NS + 'row' or local_name == 'c':
+                require(tag == NS + 'c' and parent == NS + 'row', 'XML_INVALID')
+                _coordinate(element.get('r'), 'XML_INVALID')
+            parents.append(tag)
             depth += 1
             if depth == 1:
                 require(tag == NS + 'worksheet', 'XML_INVALID')
@@ -343,7 +360,8 @@ def _scan_sheet_xml(archive, path, name, strings, budget=None):
                 extent = max(extent, row)
         if event == 'start' and tag == NS + 'row':
             number = element.get('r', '')
-            require(re.fullmatch(r'[1-9][0-9]{0,6}', number) is not None and int(number) <= limit, 'SHEET_BOUNDS')
+            require(re.fullmatch(r'[1-9][0-9]{0,6}', number) is not None, 'XML_INVALID')
+            require(int(number) <= limit, 'SHEET_BOUNDS')
             current_row = int(number)
             require(current_row > previous_row, 'XML_INVALID')
             previous_row, previous_col = current_row, 0
@@ -396,6 +414,8 @@ def _scan_sheet_xml(archive, path, name, strings, budget=None):
             if depth == row_depth:
                 row_depth = 0
             depth -= 1
+            parents.pop()
+    require(sheet_data_seen, 'XML_INVALID')
     if budget is not None:
         if name in budget['required']:
             require(nonempty, 'BUDGET_REQUIRED_SHEET')
