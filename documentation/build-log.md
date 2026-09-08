@@ -2435,3 +2435,91 @@ Final GREEN:
   — No changes detected.
 - Documentation-inclusive `git diff --check` — passed.
 - `rg -n BUDGET_EXCEL_ERROR api` — no remaining code/test references.
+
+## WP4 backend stage, fix pass 5 (cell payload parity)
+
+Baseline 364848e, feat/wp4a-budgets-backend; installed publisher supplied from
+masi-finance main 480dc00. Read plan section 5.2 and D29-D31/D38; inspected
+installed openpyxl 3.1.5 WorkSheetParser.parse_cell/parse_formula,
+Text.content, RichText/InlineFont/PhoneticText, CellRichText.from_tree,
+read_string_table and Serialisable.from_tree.
+
+RED before scanner edits:
+`DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py test api.tests_finance_cell_payloads --noinput`
+Initial run: 35 tests in 2.424s, FAILED (failures=34). Replaced the rejection
+mock with a wrapped real producer so RED demonstrates actual downstream behavior,
+not an invalid mock artifact. Final RED output: venv/wp4-cell-payload-red-final.log.
+Test names: CellPayloadUploadTests.test_{budgets,funders}_{shape}_refused,
+where shape is wrapped_v, duplicate_v, nested_v, unknown_cell_child,
+foreign_cell_child, wrapped_inline_t, unknown_inline_child, wrapped_shared_t,
+unknown_shared_child, duplicate_f, nested_f, duplicate_is, duplicate_plain_t,
+duplicate_run_t, nested_run_properties, foreign_shared_child.
+Controls: test_{budgets,funders}_payload_controls and
+test_rich_header_scanner_matches_openpyxl.
+Final RED: Ran 35 tests in 2.819s; FAILED (failures=34), zero skips.
+The 32 malformed-payload tests failed refusal assertions; the rich-header test
+failed both inline/shared subtests because preflight missed the required header.
+Both original control tests passed. All tests use raw authenticated uploads.
+
+Implementation: shared streaming _Payload validates main-namespace c children
+(f/v/is, each at most once), text-only v/f, and the is/si child grammar from
+Text/RichText/InlineFont/PhoneticText. Only r/rPh repeat; rPr properties are known
+leaf children, phoneticPr is a leaf. Unknown/foreign children, wrappers, duplicate
+singletons, nested text leaves and ignored mixed text refuse as XML_INVALID.
+Text.content projection uses direct plain t first, then direct r/t in run order;
+rPh text is excluded. Shared-string projection also mirrors read_string_table's
+x005F_ removal. Existing sst/si strictness, per-entry descendant bound, every
+released limit/code and clearing/detaching remain intact; no regex XML slicing.
+No funders service edits, new migration, environment variable, schedule or one-off
+operation. No network or production access; all writes stay inside this clone.
+
+Focused initial GREEN: 35 tests in 2.495s; OK, zero skips.
+Log: venv/wp4-cell-payload-focused-green.log.
+First full GREEN: 855 tests in 61.757s; OK (skipped=11), 844 passed.
+Log: venv/wp4-cell-payload-full-green.log.
+Controls then strengthened to use valid rich-text headers and require candidate
+status on every accepted case. This exposed a fixture issue: arbitrary formula
+in budget L1 violates the producer's date contract (BUDGET_MONTH_INVALID).
+Intermediate focused run: 35 tests in 2.520s, FAILED (failures=1).
+Changed that control to the supported M1 formula INT(MONTH(L1)) with cached v=3;
+the funders control retains its formula plus cached date at A2.
+Final focused GREEN: 35 tests in 2.564s; OK, zero skips.
+Log: venv/wp4-cell-payload-focused-green-final.log.
+
+Regressions: 16 named malformed-payload tests per kind, each requiring HTTP 400,
+XML_INVALID, no producer call and an unchanged FinanceRun identity set. Per-kind
+controls require HTTP 201/candidate and inspect the exact producer input stream
+with openpyxl in both data-only and formula modes: plain date, rich shared string
+with rPr, rich inline string, both with phoneticPr/rPh, formula plus cached v.
+Rich header assertion covers inline/shared plain-after-run XML, ignored phonetic
+text and shared-string escape removal; scanner input to _label equals the
+openpyxl header value Date.
+
+PENDING supervisor: PostgreSQL full API gate, including ten PostgreSQL-only
+tests and migration/constraint validation. Existing named skip reasons:
+- Requires PostgreSQL advisory locks, row locks and separate connections; SQLite is functional evidence only.
+- Requires PostgreSQL advisory locks and separate connections.
+- Requires PostgreSQL conditional unique constraint release evidence.
+The eleventh existing skip is: real payroll ledger not on this machine.
+PENDING supervisor D38 real-workbook re-check: budget acceptance, released funders
+retention, capacity/RSS evidence. Synthetic local SQLite is not PostgreSQL,
+real-export, deployment or live-data proof.
+
+Git: uncommitted because session policy explicitly makes .git read-only; no
+metadata write/workaround attempted. Deliverables: api/parsers/finance_workbook.py,
+api/tests_finance_cell_payloads.py, documentation/build-log.md.
+Pre-existing .review-detached.pid remains untouched; logs are in ignored venv.
+
+Final GREEN:
+- `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py test api --noinput`
+  — Ran 855 tests in 63.704s; OK (skipped=11): 844 passed, zero failures/errors.
+  Log: venv/wp4-cell-payload-full-green-final.log. Existing missing-staticfiles
+  warning remains. Synthetic shared-string probes: rejected peak RSS 120143872
+  bytes (2051 events); accepted peak RSS 145260544 bytes. These are synthetic
+  subprocess bounds only, not D38 real-workbook capacity evidence.
+- `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py check`
+  — System check identified no issues (0 silenced).
+- `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py makemigrations --check --dry-run`
+  — No changes detected.
+- Documentation-inclusive `git diff --check` — passed.
+- AST comparison against 364848e — all 13 released MAX_* expressions unchanged.

@@ -211,13 +211,72 @@ def _label(value):
     return value if value in (*LEDGER_HEADERS, *CONTRACT_HEADERS) else bool(value)
 
 
+class _Payload:
+    """Streaming child grammar and Text.content projection, without a retained tree.
+
+    Single-valued children cannot repeat: openpyxl would select one and lose
+    another. Only r/rPh are sequences. Phonetic text is bounded but not content.
+    """
+    _children = {
+        'c': ('f', 'v', 'is'),
+        'si': ('t', 'r', 'rPh', 'phoneticPr'),
+        'is': ('t', 'r', 'rPh', 'phoneticPr'),
+        'r': ('rPr', 't'),
+        'rPh': ('t',),
+        'rPr': ('rFont', 'charset', 'family', 'b', 'i', 'strike', 'outline',
+                'shadow', 'condense', 'extend', 'color', 'sz', 'u', 'vertAlign', 'scheme'),
+    }
+
+    def __init__(self):
+        self.stack = []
+        self.plain = ''
+        self.runs = []
+        self.value = None
+        self.formula = None
+
+    def start(self, element):
+        tag = element.tag
+        require(tag.startswith(NS), 'XML_INVALID')
+        name = tag[len(NS):]
+        if self.stack:
+            parent, seen = self.stack[-1]
+            require(name in self._children.get(parent, ()), 'XML_INVALID')
+            require(name not in seen or parent in ('si', 'is') and name in ('r', 'rPh'),
+                    'XML_INVALID')
+            seen.add(name)
+        self.stack.append((name, set()))
+
+    def end(self, element):
+        name, _ = self.stack[-1]
+        parent = self.stack[-2][0] if len(self.stack) > 1 else None
+        text = element.text or ''
+        # No ignored mixed character content outside the consumed text leaves.
+        require(name in ('t', 'v', 'f') or not text.strip(), 'XML_INVALID')
+        require(not (element.tail or '').strip(), 'XML_INVALID')
+        if name == 'v':
+            self.value = text
+        elif name == 'f':
+            self.formula = text
+        elif name == 't':
+            if parent in ('si', 'is'):
+                self.plain = text
+            elif parent == 'r':
+                self.runs.append(text)
+        self.stack.pop()
+
+    @property
+    def content(self):
+        # Text.content prepends plain text regardless of XML sibling order.
+        return self.plain + ''.join(self.runs)
+
+
 def _shared_strings(archive):
     values = []
     if 'xl/sharedStrings.xml' not in archive.namelist():
         return values
     _check_declarations(archive, 'xl/sharedStrings.xml', 'XML_INVALID')
     nodes = children = length = depth = 0
-    texts = None
+    payload = None
     for event, element in _events(archive, 'xl/sharedStrings.xml'):
         if event == 'start':
             depth += 1
@@ -225,28 +284,31 @@ def _shared_strings(archive):
             # outside entries until the complete string table has been read.
             if depth == 1:
                 require(element.tag == NS + 'sst', 'SHARED_STRING_LIMIT')
-            elif texts is None:
+            elif payload is None:
                 require(depth == 2 and element.tag == NS + 'si', 'SHARED_STRING_LIMIT')
             nodes += 1
             require(nodes <= MAX_SHARED_STRING_NODES, 'SHARED_STRING_LIMIT')
-            if texts is not None:
+            if payload is not None:
                 children += 1
                 require(children <= MAX_SHARED_STRING_CHILDREN, 'SHARED_STRING_LIMIT')
             if element.tag == NS + 'si':
-                require(texts is None, 'XML_INVALID')
+                require(payload is None, 'XML_INVALID')
                 require(len(values) < MAX_SHARED_STRINGS, 'SHARED_STRING_LIMIT')
-                texts = []
+                payload = _Payload()
                 children = length = 0
+            if payload is not None:
+                payload.start(element)
         else:
             depth -= 1
-            if texts is not None and element.tag == NS + 't':
-                text = element.text or ''
-                length += len(text)
-                require(length <= MAX_STRING_LENGTH, 'SHARED_STRING_LIMIT')
-                texts.append(text)
-            elif texts is not None and element.tag == NS + 'si':
-                values.append(_label(''.join(texts)))
-                texts = None
+            if payload is not None:
+                if element.tag == NS + 't':
+                    length += len(element.text or '')
+                    require(length <= MAX_STRING_LENGTH, 'SHARED_STRING_LIMIT')
+                payload.end(element)
+                if element.tag == NS + 'si':
+                    # read_string_table applies this after Text.content.
+                    values.append(_label(payload.content.replace('x005F_', '')))
+                    payload = None
     return values
 
 
@@ -286,7 +348,7 @@ def _scan_sheet_xml(archive, path, name, strings, budget=None):
     row_values = {}
     value = None
     formula = False
-    inline = []
+    payload = None
     nodes = metadata_nodes = row_nodes = depth = row_depth = 0
     parents = []
     sheet_data_seen = False
@@ -340,16 +402,18 @@ def _scan_sheet_xml(archive, path, name, strings, budget=None):
                 require(budget['cells'] + max_row * max_col <= 4000000, 'BUDGET_SHEET_LIMIT')
             value = None
             formula = False
-            inline = []
-        if event == 'end':
-            if tag == NS + 'v':
-                value = element.text or ''
-            elif tag == NS + 'f':
-                formula = True
-                if budget is not None:
-                    _budget_formula_references(element.text or '', budget['names'])
-            elif tag == NS + 't':
-                inline.append(element.text or '')
+            payload = _Payload()
+        if payload is not None:
+            if event == 'start':
+                payload.start(element)
+            else:
+                payload.end(element)
+                if tag == NS + 'v':
+                    value = payload.value
+                elif tag == NS + 'f':
+                    formula = True
+                    if budget is not None:
+                        _budget_formula_references(payload.formula, budget['names'])
         if event == 'start' and tag == NS + 'dimension':
             coordinates = element.get('ref', '').split(':')
             require(1 <= len(coordinates) <= 2, 'SHEET_BOUNDS')
@@ -385,9 +449,10 @@ def _scan_sheet_xml(archive, path, name, strings, budget=None):
                 except (ValueError, TypeError, AttributeError):
                     raise WorkbookError('XML_INVALID') from None
             elif element.get('t') == 'inlineStr':
-                label = _label(''.join(inline))
+                label = _label(payload.content)
             else:
                 label = _label(value) if value is not None else False
+            payload = None
             nonblank = bool(label) or formula
             if budget is not None:
                 nonempty |= nonblank
