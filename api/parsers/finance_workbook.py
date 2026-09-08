@@ -346,8 +346,55 @@ def _scan_sheet(archive, path, name, strings, budget=None):
     return _scan_sheet_xml(archive, path, name, strings, budget)
 
 
+class _FormulaDefinitions:
+    """Bounded per-sheet shared identities, without retaining formula text.
+
+    openpyxl replaces every later shared definition with the first one's
+    translation, and discards dataTable text. Admit only unambiguous encodings.
+    """
+    def __init__(self, row_limit):
+        self.shared = {}
+        self.row_limit = row_limit
+
+    def check(self, element, coordinate):
+        kind = element.get('t', 'normal')
+        text = element.text or ''
+        require(kind in ('normal', 'shared', 'array', 'dataTable'), 'XML_INVALID')
+        require(kind == 'shared' or 'si' not in element.attrib, 'XML_INVALID')
+        # These attributes define a data table's inputs and orientation; other
+        # formula types ignore them. Calculation hints ca/aca/bx remain valid.
+        table_attributes = {'dt2D', 'dtr', 'r1', 'r2', 'del1', 'del2'}
+        require(kind == 'dataTable' or not table_attributes.intersection(element.attrib),
+                'XML_INVALID')
+        if kind == 'normal':
+            require('ref' not in element.attrib, 'XML_INVALID')
+            return
+        if kind == 'dataTable':
+            require(not text, 'XML_INVALID')
+        if kind == 'shared':
+            index = element.get('si', '')
+            require(re.fullmatch(r'[0-9]{1,10}', index) is not None
+                    and int(index) <= 4294967295, 'XML_INVALID')
+            if index in self.shared:
+                require(not text and 'ref' not in element.attrib, 'XML_INVALID')
+                first, last = self.shared[index]
+                require(first[0] <= coordinate[0] <= last[0]
+                        and first[1] <= coordinate[1] <= last[1], 'XML_INVALID')
+                return
+            require(bool(text), 'XML_INVALID')
+        refs = element.get('ref', '').split(':')
+        require(1 <= len(refs) <= 2, 'XML_INVALID')
+        first, last = _coordinate(refs[0], 'XML_INVALID'), _coordinate(refs[-1], 'XML_INVALID')
+        require(first[0] <= coordinate[0] <= last[0] <= self.row_limit
+                and first[1] <= coordinate[1] <= last[1] <= 256, 'XML_INVALID')
+        if kind == 'shared':
+            require(len(self.shared) < MAX_SHEET_RETAINED_NODES, 'XML_INVALID')
+            self.shared[index] = (first, last)
+
+
 def _scan_sheet_xml(archive, path, name, strings, budget=None):
     limit = 50000 if name == 'Expenditure' and budget is None else 5000
+    definitions = _FormulaDefinitions(limit)
     seen_rows, seen_cols = set(), set()
     current_row = max_row = max_col = 0
     previous_row = previous_col = 0
@@ -422,6 +469,7 @@ def _scan_sheet_xml(archive, path, name, strings, budget=None):
                     value = payload.value
                 elif tag == NS + 'f':
                     formula = True
+                    definitions.check(element, (current_row, previous_col))
                     if budget is not None:
                         _budget_formula_references(payload.formula, budget['names'])
         if event == 'start' and tag == NS + 'dimension':
@@ -559,6 +607,11 @@ def _scan_workbook(upload, *, kind='funders', year=None):
             if kind == 'budgets':
                 require(len(sheets) <= 64, 'BUDGET_SHEET_LIMIT')
                 budget = dict(cells=0, names={name for name, _ in sheets}, required=required)
+                # Names can hide external dependencies behind an ordinary cell
+                # RANGE token. Inspect their definitions without evaluating them
+                # or changing built-in/internal name interpretation.
+                for defined in root.iter(NS + 'definedName'):
+                    _budget_formula_references(defined.text or '', None)
             require(len({name.casefold() for name, _ in sheets}) == len(sheets), 'WORKBOOK_METADATA_INVALID')
             rel_ns = '{http://schemas.openxmlformats.org/package/2006/relationships}'
             rels = _metadata(archive, 'xl/_rels/workbook.xml.rels')
@@ -595,12 +648,23 @@ def _budget_formula_references(formula, names):
     # Tokenize formulas, never XML. Unknown tokenizer failures are value-free.
     from openpyxl.formula.tokenizer import Tokenizer
     try:
-        tokens = Tokenizer('=' + formula).items
+        tokens = Tokenizer(formula if formula.startswith('=') else '=' + formula).items
         for token in tokens:
-            if token.type == 'OPERAND' and token.subtype == 'RANGE' and '!' in token.value:
+            if token.type != 'OPERAND' or token.subtype != 'RANGE':
+                continue
+            # [workbook]Name is an external name even without a sheet '!'.
+            # Local structured refs [Column]/[[#This Row],[Column]] end in ']';
+            # table-qualified refs have a table name before the opening '['.
+            value = token.value.strip("'")
+            if value.startswith('['):
+                closing = value.find(']')
+                require(closing < 0 or closing == len(value) - 1
+                        or value[closing + 1] in ',]', 'BUDGET_EXTERNAL_REFERENCE')
+            if '!' in token.value:
                 target = token.value.rsplit('!', 1)[0].strip("'").replace("''", "'")
                 require('[' not in target and ']' not in target, 'BUDGET_EXTERNAL_REFERENCE')
-                require(target in names, 'BUDGET_REFERENCED_SHEET_MISSING')
+                if names is not None:
+                    require(target in names, 'BUDGET_REFERENCED_SHEET_MISSING')
     except WorkbookError:
         raise
     except Exception:

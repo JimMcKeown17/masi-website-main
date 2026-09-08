@@ -2624,3 +2624,107 @@ Supervisor verification, 2026-09-07 (Codex handoff continuation):
   acceptance results, not successful budget production or full-path capacity proof.
 - Pending: independent round-4 review, exact-commit independent-clone reproduction,
   worker RSS/concurrent-reader capacity, hosted deployment and role probes.
+
+## 2026-09-07 — WP4 backend fix pass 7: formula definition fidelity and names
+
+Independent review round 4 found two admission gaps at base 3c8996c on
+feat/wp4a-budgets-backend. The high reproduction uses G6 shared master (half
+lookup) and G7 shared follower with explicit full lookup text: openpyxl silently
+ignores the follower's definition and translates the master. The medium uses a
+workbook defined name containing an external reference, or a direct external
+name token without `!`, to admit a cached budget assertion. Synthetic probes:
+/private/tmp/masi-review4-probes.py, tightened adjacent cases lines 64–87.
+Read CLAUDE.md, existing build log, canonical WP4 plan sections 5–8 and binding
+D29–D41. No publisher/package source change in this pass.
+
+Consumer inspection: installed openpyxl 3.1.5 WorkSheetParser.parse_formula
+retains normal formula text, translates later shared formula instances from the
+first instance (ignoring any later text/ref), retains array text/ref in
+ArrayFormula, and discards dataTable text while retaining its input/orientation
+attributes in DataTableFormula. Unknown t falls through as normal; shared si and
+data-table inputs on other types are ignored. Calculation hints remain admitted.
+
+Implementation:
+- Per-sheet shared registry contains only index strings of at most 10 digits and
+  two coordinate pairs per master, capped by existing MAX_SHEET_RETAINED_NODES.
+  It retains no formula text, tokens or XML trees. It resets per sheet. Masters
+  need a bounded ref and text; followers need an earlier master, no text/ref and
+  coordinates inside that master ref. Duplicate explicit definitions refuse even
+  if their text happens to agree: there must be only one authored definition.
+- Unknown formula types, incompatible si/ref/data-table metadata, and dataTable
+  text refuse as XML_INVALID before either producer and before FinanceRun insert.
+  Empty shared followers, canonical array/dataTable formulas and ordinary formula
+  calculation hints remain admitted. Existing sheet limits and all 13 released
+  MAX_* expressions are unchanged (AST comparison against 3c8996c).
+- Budget external-reference token checks include external names without `!` and
+  every workbook definedName definition, including unused names. Definitions are
+  checked for external dependencies only; internal name interpretation, built-in
+  names, constants and structured refs stay with the consumer/producer. No name
+  evaluation, recursion or dependency graph is introduced. The workbook metadata
+  part remains covered by its existing byte limit. D40 hyperlinks and D41 error
+  cells retain their existing behavior.
+
+Named RED:
+- `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py test api.tests_finance_formula_payloads --noinput`
+  — Ran 41 tests in 4.158s; FAILED (failures=24), zero errors/skips.
+  Log: venv/wp4-formula-red.log. New admission cases returned 201 instead of 400.
+  Named groups: test_budget_adjacent_explicit_shared_follower_refused;
+  test_budget_external_{bare_name,defined_external_name,defined_formula,
+  defined_sheet,unused_defined_external}_refused; both-kind explicit follower,
+  missing shared si/master/ref, outside/redefined ref, unknown type, normal si,
+  and ignored dataTable text refusals. Direct external sheet rejection already
+  passed. Ordinary adjacent half/full control reached the real producer and
+  failed BUDGET_BC_BINDING_INVALID; valid empty follower candidate approved.
+- Same command after adding incompatible data-table attribute cases and two
+  internal controls — Ran 49 tests in 4.260s; FAILED (failures=6).
+  Log: venv/wp4-formula-attributes-red.log. The six named new failures are
+  test_{budgets,funders}_{normal,array,shared}_datatable_inputs_refused.
+
+Final focused GREEN:
+- `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py test api.tests_finance_formula_payloads api.tests_finance_cell_payloads api.tests_finance_budget_safety api.tests_finance_upload_safety --noinput`
+  — Ran 201 tests in 30.776s; OK, zero skips. Log:
+  venv/wp4-formula-focused-green.log. Includes all 49 new tests and existing
+  D40/D41/payload/bounded-upload regressions. Every new malformed test posts an
+  authenticated raw XLSX and asserts fixed-code HTTP 400, no producer call and
+  unchanged FinanceRun identity set. Valid controls wrap the real producer and
+  require candidate plus successful explicit approval, for both kinds.
+- `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py check`
+  — System check identified no issues (0 silenced).
+- `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py makemigrations --check --dry-run`
+  — No changes detected.
+
+No migrations, schema/version/dependency changes, environment variables, schedules
+or one-off operations required. No network, production, .env or Git metadata
+writes. Only api/parsers/finance_workbook.py,
+api/tests_finance_formula_payloads.py and documentation/build-log.md changed;
+pre-existing .review-detached.pid remains untouched. Changes stay uncommitted.
+Logs remain in ignored venv.
+
+PENDING supervisor: PostgreSQL full API and migration/constraint gate on final
+source; D38 real funders and budget export scan re-check; successful-path worker
+RSS/concurrency/capacity evidence. Synthetic local SQLite tests do not establish
+PostgreSQL, real-file, hosted, deployment or field evidence. The existing SQLite
+skip reasons remain PostgreSQL advisory/row locks and separate connections,
+PostgreSQL conditional unique constraint release evidence, and unavailable real
+payroll ledger. Existing missing-staticfiles warning remains.
+
+Final full GREEN:
+- `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py test api --noinput`
+  — Ran 952 tests in 80.532s; OK (skipped=11): 941 passed, zero failures/errors.
+  Log: venv/wp4-formula-full-green.log. The skip boundary above is unchanged.
+- Documentation-inclusive `git diff --check` — passed.
+- Final scope preflight: branch feat/wp4a-budgets-backend, HEAD 3c8996c;
+  the three listed source/log files changed and .review-detached.pid untouched.
+
+Supervisor gates, 2026-09-08, final fix-pass-7 code tree:
+- PostgreSQL 17.10, verified local masi-wp2-pg on localhost:5544, guarded
+  test_masi_test: Ran 952 tests in 96.883s; OK (skipped=1). The one skip is the
+  unavailable real payroll ledger. System check no issues; no migration changes.
+- D38 actual funders preflight+scan ACCEPTED (12,132,538 bytes, source SHA prefix
+  9784baa1, 19.81s); revised budget export ACCEPTED (1,459,890 bytes, source SHA
+  prefix 639caabc, 3.27s). Jim confirmed removing the intentionally zero-variance
+  budget line on 2026-09-08. This is scanner acceptance, not production approval
+  or full-path capacity evidence. Real files remain private and unmodified.
+- Pending independent review, exact-commit independent PostgreSQL reproduction,
+  successful-path RSS/concurrency, deployment and live role probes. Backend main
+  remains untouched because merging it would deploy.
