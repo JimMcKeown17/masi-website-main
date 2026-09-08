@@ -278,6 +278,7 @@ def _scan_sheet_xml(archive, path, name, strings, budget=None):
     limit = 50000 if name == 'Expenditure' and budget is None else 5000
     seen_rows, seen_cols = set(), set()
     current_row = max_row = max_col = 0
+    previous_row = previous_col = 0
     nonempty = False
     budget_header_width = 0
     extent = header_width = header_rows = max_data_col = 0
@@ -309,6 +310,11 @@ def _scan_sheet_xml(archive, path, name, strings, budget=None):
                 row_nodes += 1
                 require(row_nodes <= MAX_SHEET_RETAINED_NODES, 'XML_INVALID')
         if event == 'start' and tag == NS + 'c':
+            r, c = _coordinate(element.get('r'))
+            # Read-only iteration advances through coordinates: disorder can
+            # silently omit populated inputs. Reject as unsafe before parsing.
+            require(row_depth and r == current_row and c > previous_col, 'XML_INVALID')
+            previous_col = c
             if budget is not None:
                 r, c = _coordinate(element.get('r'))
                 require(r == current_row and r <= limit and c <= 256 and c not in seen_cols, 'BUDGET_SHEET_LIMIT')
@@ -338,6 +344,9 @@ def _scan_sheet_xml(archive, path, name, strings, budget=None):
         if event == 'start' and tag == NS + 'row':
             number = element.get('r', '')
             require(re.fullmatch(r'[1-9][0-9]{0,6}', number) is not None and int(number) <= limit, 'SHEET_BOUNDS')
+            current_row = int(number)
+            require(current_row > previous_row, 'XML_INVALID')
+            previous_row, previous_col = current_row, 0
             extent = max(extent, int(number))
             if budget is not None:
                 current_row = int(number)

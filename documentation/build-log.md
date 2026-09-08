@@ -2127,3 +2127,66 @@ Git result: **uncommitted**. Staging the 17 explicitly named deliverable files w
 refused at this clone's `.git/index.lock` with `Operation not permitted`.
 No metadata workaround, alternate checkout, network, push or commit was attempted.
 All files remain intact; documentation-inclusive `git diff --check` passed.
+
+## WP4 backend stage, review fixes round 1
+
+RED first on bd27991, SQLite in memory, installed publisher supplied at 480dc00.
+Command: `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py test api.tests_finance_sheet_order --noinput`.
+Result: **Ran 5 tests in 0.462s; FAILED (failures=4)** (two passing controls;
+two row-order failures and two cell-order subtest failures). Log: `venv/wp4-order-red.log`.
+Names in `api.tests_finance_sheet_order.SheetOrderUploadTests`:
+- `test_budget_populated_row_8_after_row_9_refuses_before_producer`
+- `test_budget_ordered_row_8_reaches_hierarchy_failure`
+- `test_funders_populated_expenditure_row_after_higher_row_refuses_before_producer`
+- `test_funders_ordered_expenditure_reaches_candidate_with_ledger_row`
+- `test_decreasing_cells_refuse_before_producer_for_both_kinds`
+
+Both reversed-row uploads incorrectly returned 201 candidates; the funders
+candidate lost its ledger row. Ordered budget F8=999 reached the expected
+BUDGET_HIERARCHY_INVALID failed run; ordered funders retained one ledger row.
+Both cell-order subtests incorrectly returned 201.
+Use existing stable unsafe-structure code `XML_INVALID` for order violations
+(the initial RED expected proposed SHEET_ROW_ORDER/SHEET_CELL_ORDER codes; all
+failures occurred at the preceding HTTP status assertion). This preserves the
+released shared service's no-history boundary without changing funders services.
+
+Implementation: the shared streaming scanner requires strictly increasing row
+coordinates per scanned part and strictly increasing cell columns within their
+containing row, at start events. Both kinds reject violations as `XML_INVALID`
+before producer execution or FinanceRun insertion. All released limits remain
+unchanged; no regex slicing, service edits, models or migrations were added.
+New regressions use raw authenticated HTTP uploads, real installed producers as
+spies, and exact before/after FinanceRun identity sets on refusals.
+
+Focused GREEN: **Ran 5 tests in 0.373s; OK**, zero skips
+(`venv/wp4-order-green.log`). First full run: **Ran 811 tests in 52.114s;
+FAILED (failures=4, skipped=11)** (`venv/wp4-order-full.log`). Four existing
+header/bounds tests generated duplicate rows and now hit the earlier structural
+guard. Their fixtures now append cells to the existing row or use increasing
+rows, retaining the original expected limit codes. The retained-row-shell cap
+fixture also uses increasing coordinates so it still exercises its node limit.
+
+PENDING supervisor PostgreSQL gate: all ten tests listed in the preceding stage
+(two budget lock/race tests, seven released concurrency tests, partial unique
+constraint test), PostgreSQL migration/constraint validation. Named SQLite skip
+reasons remain `Requires PostgreSQL advisory locks, row locks and separate
+connections; SQLite is functional evidence only.`, `Requires PostgreSQL advisory
+locks and separate connections.`, and `Requires PostgreSQL conditional unique
+constraint release evidence.` The eleventh skip remains `real payroll ledger not
+on this machine`. Real-export rejection/acceptance and capacity benchmarking for
+both kinds remain PENDING under D38; no real workbook, network or production
+operation was performed. Deployment and live verification remain PENDING.
+No environment variables, schedules or one-off migrations are required by this fix.
+
+Final GREEN: `DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py test api --noinput`
+— **Ran 811 tests in 52.216s; OK (skipped=11)**: **800 passed**, zero failures/errors.
+Log: `venv/wp4-order-full-green.log`. Existing missing-staticfiles warning remains.
+`DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py check` — **System check
+identified no issues (0 silenced).**
+`DATABASE_URL=sqlite:///:memory: venv/bin/python manage.py makemigrations --check --dry-run`
+— **No changes detected.** `git diff --check` — **passed**.
+Evidence is local synthetic SQLite only; PostgreSQL and live gates remain above.
+
+Git result: **uncommitted**. Staging the four deliverable files was refused at
+this clone's `.git/index.lock`: `Operation not permitted`. Tree left intact;
+pre-existing `.review-detached.pid` untouched. No metadata workaround attempted.
