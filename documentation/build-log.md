@@ -2899,3 +2899,41 @@ Final local gate update:
   independently approved; focused 7/7 passed. An intermediate copied-venv activation
   selected an older interpreter and was discarded; this final gate uses the
   explicit named-clone interpreter.
+
+## 2026-09-09 — WP5 exact organisation totals and annual spending composition
+
+Budget run-detail GET now adds a versioned `budget_insights` sibling after the
+existing integrity validation and pinned-dependency authorization. Stored payloads,
+producer schemas and facts are unchanged. The report reconstructs retained exact
+budget assertions, BC totals and shares under retained precision, reusing producer
+projection helpers. It exposes organisation budget/actual/projection/variance totals,
+metric completeness, known leaf subtotals and signed rounding residuals. The response
+requires only the existing detail request and one calculation-validation replay.
+
+Annual spending composition partitions root departments and unmapped expenditure.
+Money is serialized at cents; percentages are computed from exact operands with six
+decimal places for chart geometry. Missing, negative or zero-total partitions retain
+amounts and reasons without claiming a valid pie. Budget-line projections explicitly
+exclude spending outside mapped lines. No new database state, migration, environment
+variable, dependency or producer release is required.
+
+Verification on the final source:
+- Focused RED: 8 tests with missing-implementation errors; focused SQLite GREEN:
+  11/11. Tests cover half cents, scale-1000 retained precision, nested incomplete
+  totals, WF/Calc B, orphan and signed composition, one replay, unchanged records,
+  denied access and dependency, rehashed arithmetic tamper, and changed facts.
+- Full local PostgreSQL 14.17 API suite: 982 tests in 79.669 seconds, PASS with one
+  existing skip. Django checks pass; no migration drift.
+- Independent source review and 8/8 pure-math tests: no remaining findings.
+- Real-source HTTP acceptance with publisher 0.3.0 on a disposable local PostgreSQL
+  database: PASS in 140.593 seconds. Imported 23,914 facts, exported the budget
+  read-only from Google, reviewed/approved locally, checked the new report identity,
+  preserved payload, compatible current and contributor read. Test DB destroyed.
+  Budget findings remain 283 total / 13 in-scope errors. Current real-source report
+  correctly marks organisation metrics incomplete and the pie unavailable due to
+  incomplete actuals, retaining seven composition buckets. No production data write.
+
+Jim authorized live deployment while he arranges a preview subdomain. This entry
+records verified local source; exact production commit/deploy evidence is recorded
+in the private finance supervision log after release. Hosted authenticated browser
+acceptance and concurrent-worker capacity remain separate evidence boundaries.
