@@ -13,6 +13,7 @@ from api.permissions import IsFinancePublisher, IsFinanceReader, finance_capabil
 from api.services.finance_runs import (FinanceRunError, approve_run, demote_run, upload_workbook, pull_budget,
     validate_stored_run, budget_dependency_metadata)
 from api.views.finance import AUTH_CLASSES
+from api.services.finance_budget_insights import budget_insights
 
 
 class RunPagination(CursorPagination):
@@ -189,13 +190,18 @@ class FinanceRunDetail(APIView):
 
     def get(self, request, run_id):
         run = get_object_or_404(visible_runs(request.user), pk=run_id)
+        insights = None
         if run.kind == 'budgets' and run.status != 'failed':
             try:
                 validate_stored_run(run)
                 authorize_dependency(run, request.user)
+                insights = budget_insights(run)
             except FinanceRunError as error:
                 return Response({'code': error.code}, status=error.status)
-        return Response(run_detail(run, request.user))
+        result = run_detail(run, request.user)
+        if insights is not None:
+            result['budget_insights'] = insights
+        return Response(result)
 
 
 class ApprovalOptionsSerializer(serializers.Serializer):
