@@ -11,14 +11,14 @@ from api.finance_run_test_utils import actor, approve, candidate, golden, legacy
 class DependencyReleaseTests(SimpleTestCase):
     def test_publisher_pin_is_in_deployment_requirements(self):
         requirements = (Path(__file__).resolve().parents[1] / 'requirements.txt').read_text()
-        pin = 'masi-finance @ git+https://JimMcKeown17:${MASI_FINANCE_GITHUB_TOKEN}@github.com/JimMcKeown17/masi-finance-app.git@v0.3.0'
+        pin = 'masi-finance @ git+https://JimMcKeown17:${MASI_FINANCE_GITHUB_TOKEN}@github.com/JimMcKeown17/masi-finance-app.git@v0.3.1'
         self.assertIn(pin, requirements.splitlines(), 'Missing pinned publisher deployment dependency')
 
     def test_build_checks_publisher_immediately_after_install(self):
         lines = (Path(__file__).resolve().parents[1] / 'build.sh').read_text().splitlines()
         check = ("python -c \"from importlib.metadata import version; "
                  "from masi_finance.publish.run_schema import verify_installed_contracts; "
-                 "assert version('masi-finance') == '0.3.0'; print(verify_installed_contracts())\"")
+                 "assert version('masi-finance') == '0.3.1'; print(verify_installed_contracts())\"")
         install = lines.index('pip install -r requirements.txt')
         self.assertEqual(lines[install + 1], check)
         self.assertLess(install + 1, lines.index('python manage.py migrate'), 'contract check must precede migrate')

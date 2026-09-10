@@ -2937,3 +2937,30 @@ Jim authorized live deployment while he arranges a preview subdomain. This entry
 records verified local source; exact production commit/deploy evidence is recorded
 in the private finance supervision log after release. Hosted authenticated browser
 acceptance and concurrent-worker capacity remain separate evidence boundaries.
+
+## 2026-09-10 — Publisher 0.3.1 and actionable subtotal failures
+
+New uploads use publisher 0.3.1, which admits valid worksheet phonetic display
+metadata while retaining bounded cell grammar and rejection of hidden payloads.
+Budget subtotal membership failures carry an allowlisted diagnostic list containing
+only the canonical sheet, subtotal cell and expected child coordinates. Failed-run
+GET exposes this optional metadata to existing authorized publishers. Raw producer
+messages remain internal. Historical 0.2.0/0.3.0 artifacts remain supported and
+unchanged; producer version gives retries a distinct identity. Requirements/build
+verification are pinned to 0.3.1. No migration, permission or environment change.
+
+Verification: final installed wheel, full `manage.py test api` on disposable local
+PostgreSQL: 985 tests, OK, 1 existing skip (53.341s). New actual HTTP tests cover
+both workbook kinds with worksheet metadata, all subtotal repair cells, no facts
+on failure, preserved approved source and dropped untrusted diagnostics. An
+intermediate test caught exception-constructor compatibility; corrected before
+this final full gate. Real supplied files through the same HTTP endpoint on a
+disposable local database passed their expected success/failure outcomes. Source
+workbooks and production finance records were not modified.
+
+Publisher full suite: 3224 passed, 12 skipped, 1 xfailed; final focused publisher
+checks: 238 passed after the exception compatibility adjustment, including 8
+additional diagnostic allowlist regressions. Installed contract verification passes.
+Render's existing build command calls the installed package verifier; no service
+configuration change is needed. The three-worker start command is preserved.
+Source release/deployment pending this entry; authenticated hosted retry is separate.
