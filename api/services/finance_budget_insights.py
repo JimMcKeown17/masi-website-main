@@ -15,7 +15,10 @@ def budget_insights(run):
     """Caller must validate the stored run and authorize its pinned dependency."""
     data = run.payload
     with localcontext() as context:
-        context.prec = max(data['projection']['calculation_precision'], 38)
+        income = data.get('expected_income') or {}
+        operands = [line['assertion'] for line in income.get('lines', []) if line['assertion'] is not None]
+        income_precision = 2 * max([len(value['coefficient']) + value['scale'] for value in operands] + [1]) + len(str(len(operands)+1))
+        context.prec = max(data['projection']['calculation_precision'], income_precision, 38)
         return _insights(run, data)
 
 
@@ -57,6 +60,22 @@ def _insights(run, data):
         organisation[metric] = dict(**projection, known_subtotal=q(known),
                                     complete=projection['total'] is not None)
 
+    income = data.get('expected_income')
+    expected = None
+    if income and income['reason'] is None:
+        expected = sum((decode_exact(line['assertion']) for line in income['lines']), Decimal(0))
+    def exact_total(metric):
+        parts = [values[node['id']][metric] for _, node in roots]
+        return None if any(v is None for v in parts) else sum(parts, Decimal(0))
+    annual_budget = exact_total('budget')
+    masi_variance = exact_total('variance_masi')
+    budgeted = None if expected is None or annual_budget is None else expected - annual_budget
+    projected_balance = None if budgeted is None or masi_variance is None else budgeted - masi_variance
+    outlook = dict(expected_income=q(expected), budgeted_balance=q(budgeted),
+                   projected_masi_balance=q(projected_balance),
+                   income_reason=income['reason'] if income else 'not_imported',
+                   income_source=income['total_cell'] if income else None)
+
     bucket_values = [(node['id'], node['label'], values[node['id']]['actual']) for _, node in roots]
     if data['orphan_actuals']:
         orphan = sum((Decimal(group['actual']) for group in data['orphan_actuals']), Decimal(0))
@@ -81,5 +100,5 @@ def _insights(run, data):
                for identifier, label, amount in bucket_values]
     return dict(version='1.0.0', run_id=str(run.pk), ledger_run_id=str(run.dependency_run_id),
         accounting_year=run.accounting_year, sheet_as_of=data['projection']['sheet_as_of'],
-        organisation=organisation, composition=dict(total=data['summary']['year_actual'],
+        organisation=organisation, outlook=outlook, composition=dict(total=data['summary']['year_actual'],
             available=available, reasons=reasons, buckets=buckets, residual=residual))

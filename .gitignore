@@ -116,3 +116,6 @@ youth-payments-jan-june-2026.csv
 
 !api/contracts/budget-run-1.0.0.json
 !api/tests_data/budget-run-1.0.0.json
+
+!api/contracts/budget-run-1.1.0.json
+!api/tests_data/budget-run-1.1.0.json

@@ -2964,3 +2964,24 @@ additional diagnostic allowlist regressions. Installed contract verification pas
 Render's existing build command calls the installed package verifier; no service
 configuration change is needed. The three-worker start command is preserved.
 Source release/deployment pending this entry; authenticated hosted retry is separate.
+
+
+## 2026-09-10 — Income forecast and overview balances
+
+Budget imports use publisher 0.4.0 and budget-run 1.1.0, retaining the workbook's
+Expected Value forecasts in the same approved artifact. Historical 1.0.0 budgets
+and prior Management Accounts producers remain supported. Read-time outlook
+returns expected income, budgeted balance, and projected Masi balance using exact
+retained operands; excluded projects are assumed to finish at budget. Original
+payloads remain immutable. Missing income affects only dependent cards.
+
+Migration 0053 extends the existing payload constraint to admit budget schema
+1.1.0. It adds no fields or tables and modifies no financial records. Deploy the
+private v0.4.0 tag before this backend; package verification precedes migration.
+No new environment variables, schedules or runtime-worker changes.
+
+Validation: installed wheel verifier passes all five contract resources. Saved
+workbooks passed actual HTTP upload, explicit approval and four-metric detail on
+disposable local PostgreSQL (121.188s). This is local data-path proof; no production
+candidate or approval writes. Full PostgreSQL suite: 988 tests, one existing skip.
+Migration drift check passes. Production deployment identity follows.
