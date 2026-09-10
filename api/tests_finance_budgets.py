@@ -322,7 +322,9 @@ class BudgetInstalledContractTests(TestCase):
         base=Path(__file__).parent
         resources=files('masi_finance.publish').joinpath('schema')
         for source,target in [('budget-run-1.0.0.json','contracts/budget-run-1.0.0.json'),
-                              ('fixture-budget-run-1.0.0.json','tests_data/budget-run-1.0.0.json')]:
+                              ('fixture-budget-run-1.0.0.json','tests_data/budget-run-1.0.0.json'),
+                              ('budget-run-1.1.0.json','contracts/budget-run-1.1.0.json'),
+                              ('fixture-budget-run-1.1.0.json','tests_data/budget-run-1.1.0.json')]:
             self.assertEqual((base/target).read_bytes(),resources.joinpath(source).read_bytes())
         validate_budget_run_schema(json.loads((base/'tests_data/budget-run-1.0.0.json').read_bytes()))
 

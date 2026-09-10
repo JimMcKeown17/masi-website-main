@@ -28,7 +28,7 @@ class FinanceUploadTests(TestCase):
         artifact = build_run_artifact(self.data, source_name=NAME, accounting_year=2026)
         self.assertEqual(run.status, 'candidate')
         self.assertEqual(run.manifest, artifact['manifest'])
-        self.assertEqual((run.schema_version, run.producer_version), ('2.0.0', '0.3.1'))
+        self.assertEqual((run.schema_version, run.producer_version), ('2.0.0', '0.4.0'))
         self.assertEqual(run.payload_sha256, payload_digest(artifact))
         self.assertEqual(run.facts_sha256, facts_digest(artifact['ledger']))
         self.assertEqual((run.fact_row_count, run.allocation_count), (1, 1))

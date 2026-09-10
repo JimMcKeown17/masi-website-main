@@ -41,7 +41,7 @@ from api.parsers.finance_workbook import preflight, scan_workbook, WorkbookError
 from api.permissions import finance_capabilities_for
 
 # Cumulative stored-version support, independent of future upload pins.
-SUPPORTED_PAIRS = {('2.0.0', '0.2.0'): '2.0.0', ('2.0.0', '0.3.0'): '2.0.0', ('2.0.0', '0.3.1'): '2.0.0', ('1.0.0', None): '1.0.0'}
+SUPPORTED_PAIRS = {('2.0.0', '0.2.0'): '2.0.0', ('2.0.0', '0.3.0'): '2.0.0', ('2.0.0', '0.3.1'): '2.0.0', ('2.0.0', '0.4.0'): '2.0.0', ('1.0.0', None): '1.0.0'}
 ROW_FIELDS = ('row_key', 'sheet_row', 'date', 'year', 'description', 'paid_by',
               'category_1', 'category_2', 'category_3', 'bc', 'amount', 'coverage_amount')
 ALLOCATION_FIELDS = ('ordinal', 'amount_column_letter', 'key_column_letter', 'key_value',
@@ -385,7 +385,7 @@ def import_legacy_snapshots(actor, *, year=None, legacy_row_id=None, note='Legac
 
 # Upload pin is deliberately independent of cumulative stored-run support.
 UPLOAD_SCHEMA = '2.0.0'
-UPLOAD_PRODUCER = '0.3.1'
+UPLOAD_PRODUCER = '0.4.0'
 
 # Fixed allowlist: never serialize exception text, even from the producer.
 _DOMAIN_CODES = frozenset('''
@@ -600,9 +600,9 @@ def _ingest_workbook(stream, actor, *, kind, year, source_name, content_type,
 
 
 # Uploads use the released producer; previously stored artifacts remain supported.
-BUDGET_UPLOAD_SCHEMA = '1.0.0'
-BUDGET_UPLOAD_PRODUCER = '0.3.1'
-BUDGET_SUPPORTED_PAIRS = {('1.0.0', '0.2.0'), ('1.0.0', '0.3.0'), ('1.0.0', '0.3.1')}
+BUDGET_UPLOAD_SCHEMA = '1.1.0'
+BUDGET_UPLOAD_PRODUCER = '0.4.0'
+BUDGET_SUPPORTED_PAIRS = {('1.0.0', '0.2.0'), ('1.0.0', '0.3.0'), ('1.0.0', '0.3.1'), ('1.1.0', '0.4.0')}
 BUDGET_UNSAFE_CODES = frozenset({
     'BUDGET_SHEET_LIMIT', 'SHEET_BOUNDS', 'BUDGET_EXTERNAL_REFERENCE',
     'WORKBOOK_DECODE_FAILURE',

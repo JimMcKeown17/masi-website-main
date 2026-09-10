@@ -26,6 +26,8 @@ class PublisherReleaseTests(TestCase):
             accounting_year=2026, ledger_dependency=dict(service.budget_dependency_metadata(self.ledger),accounting_year=2026),
             ledger_rows=service.reconstruct_ledger(self.ledger)['rows'])
         a['manifest']['producer']['version'] = '0.2.0'
+        a['schema_version'] = a['manifest']['schema_version'] = '1.0.0'
+        a['derived'].pop('expected_income')
         source = a['manifest']['source']
         findings = a['derived']['findings']
         run = FinanceRun.objects.create(kind='budgets', accounting_year=2026, status='candidate',
@@ -46,7 +48,7 @@ class PublisherReleaseTests(TestCase):
         response = self.upload(self.ledger)
         self.assertEqual(response.status_code,201,response.data.get('code'))
         new = response.json()
-        self.assertEqual(new['producer_version'],'0.3.1')
+        self.assertEqual(new['producer_version'],'0.4.0')
         self.assertNotEqual(new['id'],str(old.pk))
         self.assertEqual(new['source_sha256'],old.source_sha256)
         self.assertNotEqual(new['payload_sha256'],old.payload_sha256)
@@ -71,11 +73,11 @@ class PublisherReleaseTests(TestCase):
         response=self.client.post('/api/finance/runs/?'+query,workbook_bytes(),content_type=MIME)
         self.assertEqual(response.status_code,201,response.data.get('code'))
         ledger=FinanceRun.objects.get(pk=response.json()['id'])
-        self.assertEqual(ledger.producer_version,'0.3.1')
+        self.assertEqual(ledger.producer_version,'0.4.0')
         approve(ledger,self.user,override_anti_rollback=True)
         response=self.upload(ledger)
         self.assertEqual(response.status_code,201,response.data.get('code'))
-        self.assertEqual(response.json()['manifest']['dependencies'][0]['producer_version'],'0.3.1')
+        self.assertEqual(response.json()['manifest']['dependencies'][0]['producer_version'],'0.4.0')
         self.assertEqual(self.client.get(f'/api/finance/runs/{old.pk}/').status_code,200)
 
     def test_finance_manager_can_read_approved_runs_but_cannot_pull_or_read_candidates(self):

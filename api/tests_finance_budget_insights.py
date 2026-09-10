@@ -179,3 +179,34 @@ class BudgetInsightsHttpTests(TestCase):
             self.ledger.ledger_rows.update(amount='999.00')
             self.assertEqual(self.client.get(self.url).status_code, 409)
             projection.assert_not_called()
+
+class BudgetOutlookTests(SimpleTestCase):
+    report = BudgetInsightsMathTests.report
+    def test_forecast_uses_exact_operands_and_masi_variance_not_all_funds(self):
+        run=sample_run()
+        run.payload['expected_income']={'reason':None,'total_cell':'2026 Expected Income!J5',
+            'lines':[{'assertion':{'coefficient':'4005','scale':3}}]}
+        run.payload['lines'][0]['wf']='X'
+        report=self.report(run);outlook=report['outlook']
+        self.assertEqual(outlook['expected_income'],'4.01')
+        self.assertEqual(outlook['budgeted_balance'],'1.54')
+        # 4.005 - 2*1.2345 - (0.005/7*12 - 1.2345) = 2.761928...
+        self.assertEqual(outlook['projected_masi_balance'],'2.76')
+        self.assertNotEqual(outlook['projected_masi_balance'],'3.99')
+
+    def test_old_import_and_missing_income_do_not_invent_surplus(self):
+        run=sample_run();result=self.report(run)['outlook']
+        self.assertEqual(result['income_reason'],'not_imported')
+        self.assertIsNone(result['expected_income']);self.assertIsNone(result['projected_masi_balance'])
+        run.payload['expected_income']={'reason':'values_missing','total_cell':'2026 Expected Income!J5','lines':[]}
+        self.assertIsNone(self.report(run)['outlook']['budgeted_balance'])
+
+    def test_unknown_excluded_actual_does_not_block_masi_planning_balance(self):
+        run=sample_run();run.payload['lines_by_bc']=[]
+        for line in run.payload['lines']:line['wf']='X'
+        run.payload['expected_income']={'reason':None,'total_cell':'2026 Expected Income!J5','lines':[{'assertion':{'coefficient':'0','scale':0}}]}
+        report=self.report(run)
+        self.assertIsNone(report['organisation']['projected']['total'])
+        self.assertEqual(report['outlook']['projected_masi_balance'],'-2.47')
+        run.payload['lines'][0]['wf']=None
+        self.assertIsNone(self.report(run)['outlook']['projected_masi_balance'])

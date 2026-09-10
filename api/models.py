@@ -2098,7 +2098,7 @@ class FinanceRun(models.Model):
                 models.Q(status__in=['candidate', 'approved', 'superseded'], schema_version='2.0.0', producer_version__isnull=False, payload__isnull=False, payload_sha256__isnull=False, facts_sha256__isnull=False, failure__isnull=True)
                 | models.Q(status__in=['approved', 'superseded'], schema_version='1.0.0', producer_version__isnull=True, payload__isnull=False, payload_sha256__isnull=False, facts_sha256__isnull=True, fact_row_count=0, allocation_count=0, failure__isnull=True)
                 | models.Q(status='failed', schema_version='2.0.0', producer_version__isnull=False, payload__isnull=True, payload_sha256__isnull=True, facts_sha256__isnull=True, failure__isnull=False, fact_row_count=0, allocation_count=0)
-            ) | models.Q(kind='budgets', dependency_run__isnull=False, schema_version='1.0.0', producer_version__isnull=False, facts_sha256__isnull=True, fact_row_count=0, allocation_count=0) & (
+            ) | models.Q(kind='budgets', dependency_run__isnull=False, schema_version__in=['1.0.0', '1.1.0'], producer_version__isnull=False, facts_sha256__isnull=True, fact_row_count=0, allocation_count=0) & (
                 models.Q(status__in=['candidate', 'approved', 'superseded'], payload__isnull=False, payload_sha256__isnull=False, failure__isnull=True)
                 | models.Q(status='failed', payload__isnull=True, payload_sha256__isnull=True, failure__isnull=False)
             )), name='finance_version_payload'),
