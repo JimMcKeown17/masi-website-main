@@ -62,7 +62,7 @@ whitenoise==6.9.0
 drf-spectacular
 holidays==0.98
 pyarrow==18.0.0
-masi-finance @ git+https://JimMcKeown17:${MASI_FINANCE_GITHUB_TOKEN}@github.com/JimMcKeown17/masi-finance-app.git@v0.3.0
+masi-finance @ git+https://JimMcKeown17:${MASI_FINANCE_GITHUB_TOKEN}@github.com/JimMcKeown17/masi-finance-app.git@v0.3.1
 defusedxml==0.7.1
 
 # Cancellable Google export deadline, including asynchronous DNS.
