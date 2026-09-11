@@ -302,6 +302,20 @@ def authorize_dependency(run, user):
     return dependency
 
 
+ROW_SORT_FIELDS = {'date', 'description', 'amount', 'paid_by', 'category_1',
+                   'category_2', 'category_3', 'bc', 'sheet_row'}
+
+
+def row_ordering(request):
+    value = request.query_params.get('ordering', 'date')
+    field = value.removeprefix('-')
+    if field not in ROW_SORT_FIELDS:
+        raise ValidationError('ROW_FILTER_INVALID')
+    # Text fields are coalesced to an empty string for nullable cursor positions.
+    key = '_sort_text' if field in ROW_SORT_FIELDS - {'date', 'amount', 'sheet_row'} else field
+    return (('-' if value.startswith('-') else '') + key, 'sheet_row', 'row_key')
+
+
 class RowPagination(CursorPagination):
     page_size = 100
     ordering = ('date', 'sheet_row', 'row_key')
@@ -313,10 +327,11 @@ class FinanceRunRows(APIView):
 
     def filtered_rows(self, request, run_id):
         from masi_finance.publish.excel import excel_equal
-        allowed = {'year', 'bc', 'cursor', 'format'}
+        allowed = {'year', 'bc', 'cursor', 'format', 'ordering'}
         if (set(request.query_params) - allowed
                 or any(len(request.query_params.getlist(k)) != 1 for k in request.query_params)):
             raise ValidationError('ROW_FILTER_INVALID')
+        ordering = row_ordering(request)
         year = year_parameter(request.query_params, required=True)
         bc = request.query_params.get('bc')
         if bc is None or len(bc) > 256:
@@ -336,11 +351,18 @@ class FinanceRunRows(APIView):
         # only the finite BC vocabulary, then let indexed SQL bound the rows.
         variants = [value for value in rows.values_list('bc', flat=True).distinct()
                     if value is not None and excel_equal(value, bc)]
-        return run, ledger, rows.filter(bc__in=variants).order_by('date', 'sheet_row', 'row_key')
+        rows = rows.filter(bc__in=variants)
+        if ordering[0].lstrip('-') == '_sort_text':
+            from django.db.models import Value, TextField
+            from django.db.models.functions import Coalesce
+            field = request.query_params['ordering'].lstrip('-')
+            rows = rows.annotate(_sort_text=Coalesce(field, Value(''), output_field=TextField()))
+        return run, ledger, rows.order_by(*ordering)
 
     def get(self, request, run_id):
         run, ledger, rows = self.filtered_rows(request, run_id)
         pagination = RowPagination()
+        pagination.ordering = row_ordering(request)
         page = pagination.paginate_queryset(rows, request, view=self)
         result = pagination.get_paginated_response([ledger_row_document(row) for row in page])
         result.data.update(run_id=str(run.pk), ledger_run_id=str(ledger.pk),
