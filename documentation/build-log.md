@@ -2985,3 +2985,23 @@ workbooks passed actual HTTP upload, explicit approval and four-metric detail on
 disposable local PostgreSQL (121.188s). This is local data-path proof; no production
 candidate or approval writes. Full PostgreSQL suite: 988 tests, one existing skip.
 Migration drift check passes. Production deployment identity follows.
+
+
+## 11 September 2026 - Sort finance expense drill-downs and exports
+
+Finance run rows and row exports accept optional `ordering`: date, description,
+amount, paid_by, category_1, category_2, category_3, bc or sheet_row, with a leading
+minus for descending. Default date ordering is unchanged. Sorting happens before
+cursor pagination; sheet_row/row_key break ties, nullable text is coalesced for
+cursor positions, and CSV/XLSX retain the selected ordering. The existing BC/year,
+visibility, dependency authorization and stored-run validation remain enforced.
+No payroll filtering or shareable-export guarantee is introduced.
+
+Validation: activated repository venv, then
+`PYTHONPATH=/private/tmp/wp5-test-support:$PWD venv/bin/python manage.py test
+api.tests_finance_budget_current.BudgetCurrentTests --settings=overview_test_settings
+--keepdb`: 7 tests passed against disposable local PostgreSQL. Tests traverse
+2-row pages in multiple directions, compare sorted CSV rows, reject invalid or
+repeated ordering, and retain existing XLSX and permission/integrity regressions.
+Existing missing-staticfiles warnings only. No migrations, new configuration,
+or schedules. Local implementation; deployment pending, before frontend consumer.

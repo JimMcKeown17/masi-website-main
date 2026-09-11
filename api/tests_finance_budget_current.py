@@ -85,6 +85,38 @@ class BudgetCurrentTests(TestCase):
         self.dep.save(update_fields=['manifest'])
         self.assertEqual(self.client.get(path+query).status_code,400)
 
+    def test_expense_sorting_paginates_all_rows_and_preserves_export_order(self):
+        import csv
+        from io import StringIO
+        from urllib.parse import urlsplit
+        from api.views.finance_runs import RowPagination
+        budget = self.budget()
+        path = f'/api/finance/runs/{budget.pk}/rows/'
+        # Small pages force sorting to be verified across page boundaries.
+        for ordering in ('amount', '-amount', 'description', '-description', 'sheet_row', '-date'):
+            with self.subTest(ordering=ordering), patch.object(RowPagination, 'page_size', 2):
+                url = path + '?year=2026&bc=synthetic&ordering=' + ordering
+                found = []
+                while url:
+                    response = self.client.get(url)
+                    self.assertEqual(response.status_code, 200, response.data)
+                    found.extend(r['row_key'] for r in response.data['results'])
+                    next_url = response.data['next']
+                    url = urlsplit(next_url).path + '?' + urlsplit(next_url).query if next_url else None
+                    self.assertLessEqual(len(found), self.dep.fact_row_count)
+                export = self.client.get(path + 'export/?year=2026&bc=synthetic&format=csv&ordering=' + ordering)
+                self.assertEqual(export.status_code, 200)
+                docs = list(csv.DictReader(StringIO(export.content.decode())))
+                self.assertEqual(found, [r['row_key'] for r in docs])
+                self.assertEqual(len(found), len(set(found)))
+                self.assertEqual(len(found), self.dep.ledger_rows.filter(year=2026).count())
+                field = ordering.lstrip('-')
+                from decimal import Decimal
+                values = [Decimal(r[field]) if field == 'amount' else int(r[field]) if field == 'sheet_row' else r[field] for r in docs]
+                self.assertEqual(values, sorted(values, reverse=ordering.startswith('-')))
+        for query in ('ordering=secret', 'ordering=amount&ordering=date', 'ordering=--date'):
+            self.assertEqual(self.client.get(path + '?year=2026&bc=synthetic&' + query).status_code, 400)
+
     def test_budget_only_current_and_same_sha_distinct_ledger_ids(self):
         self.dep.producer_version='0.3.0'
         self.dep.manifest['producer']['version']='0.3.0'
